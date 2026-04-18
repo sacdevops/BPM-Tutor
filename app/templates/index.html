@@ -1,0 +1,307 @@
+﻿{% extends "base.html" %}
+
+{% block title %}BPM-Tutor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 3rem;
+        position: relative;
+    }
+
+    .header h1 {
+        font-size: 2.5rem;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+
+    .header p {
+        color: #666;
+        font-size: 1.1rem;
+    }
+
+    .header-lang {
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+
+    .tasks-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .task-card {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 1.5rem;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .task-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+
+    .task-card h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.75rem;
+        color: #333;
+    }
+
+    .task-card p {
+        color: #666;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 4;
+        line-clamp: 4;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .task-card .start-btn {
+        display: inline-block;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: #84BD00;
+        color: white;
+        border-radius: 6px;
+        text-decoration: none;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .task-card .start-btn:hover {
+        background: #6FA300;
+    }
+
+    .custom-task-card {
+        border: 2px dashed #5b8dee;
+        background: #f5f8ff;
+    }
+
+    .custom-task-card:hover {
+        border-color: #3a6edf;
+        box-shadow: 0 4px 12px rgba(91,141,238,0.2);
+    }
+
+    /* Dark mode overrides for index page */
+    [data-theme="dark"] .header h1 { color: var(--text-primary); }
+    [data-theme="dark"] .header p { color: var(--text-secondary); }
+    [data-theme="dark"] .task-card {
+        background: var(--bg-surface);
+        border-color: var(--border-color);
+    }
+    [data-theme="dark"] .task-card h3 { color: var(--text-primary); }
+    [data-theme="dark"] .task-card p { color: var(--text-secondary); }
+    [data-theme="dark"] .custom-task-card {
+        background: #1a2233;
+        border-color: #4a7ade;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div class="header-lang" style="display:flex;gap:0.5rem;align-items:center;">
+            <div class="lang-dropdown">
+                <button class="lang-dropdown-btn" onclick="toggleLangDropdown(this)">
+                    <span class="lang-current"></span>
+                    <span class="lang-arrow">&#9662;</span>
+                </button>
+                <div class="lang-dropdown-menu">
+                    <div class="lang-option" onclick="setLanguage('en')"><img src="https://flagcdn.com/w20/gb.png" width="20" height="15" alt="EN"> English</div>
+                    <div class="lang-option" onclick="setLanguage('de')"><img src="https://flagcdn.com/w20/de.png" width="20" height="15" alt="DE"> Deutsch</div>
+                </div>
+            </div>
+            <button class="settings-btn" onclick="openSettings()" title="Settings">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+            </button>
+        </div>
+        <h1>&#127891; BPM-Tutor</h1>
+        <p data-i18n="index.subtitle">BPMN Modeling Learning Environment</p>
+    </div>
+
+    <h2 style="text-align: center; margin-bottom: 1.5rem;" data-i18n="index.select_task">Select a Task</h2>
+
+    <div class="tasks-grid">
+        <!-- Custom Task Card -->
+        <div class="task-card custom-task-card" onclick="startTask('custom')">
+            <h3 data-i18n="index.custom_title">&#9997;&#65039; Custom Task</h3>
+            <p data-i18n="index.custom_desc">Define your own process. Type a description or upload a document (TXT, PDF, DOCX) &mdash; then model it yourself with Mentor guidance.</p>
+            <span class="start-btn" style="background: #5b8dee;" data-i18n="index.start_custom">Start Custom &rarr;</span>
+        </div>
+        {% for task in tasks %}
+        <div class="task-card" onclick="startTask('{{ task.id }}')">
+            <h3>
+                <span class="lang-en">{{ task.title }}</span>
+                <span class="lang-de" style="display:none;">{{ task.title_de or task.title }}</span>
+            </h3>
+            <p>
+                <span class="lang-en">{{ task.description[:200] }}{% if task.description|length > 200 %}...{% endif %}</span>
+                <span class="lang-de" style="display:none;">{{ (task.description_de or task.description)[:200] }}{% if (task.description_de or task.description)|length > 200 %}...{% endif %}</span>
+            </p>
+            <span class="start-btn" data-i18n="index.start_task">Start Task &rarr;</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsOverlay" class="settings-overlay" onclick="if(event.target===this)closeSettings()">
+    <div class="settings-panel">
+        <div class="settings-header">
+            <h2 data-i18n="settings.title">Settings</h2>
+            <button class="settings-close" onclick="closeSettings()">&times;</button>
+        </div>
+
+        <div class="settings-field">
+            <label data-i18n="settings.api_key">API Key (CampusKI)</label>
+            <div class="input-row">
+                <input type="password" id="settingsApiKey" data-i18n="settings.api_key_placeholder" placeholder="Enter your API key...">
+                <button class="settings-save-btn" onclick="saveApiKey()" data-i18n="settings.save_key">Save</button>
+            </div>
+            <div id="apiKeyStatus" class="settings-status"></div>
+        </div>
+
+        <div class="settings-field">
+            <label data-i18n="settings.model">Model</label>
+            <select id="settingsModel" disabled onchange="saveModel()">
+                <option value="" data-i18n="settings.model_placeholder">Save API key first...</option>
+            </select>
+            <div id="modelStatus" class="settings-status"></div>
+        </div>
+
+        <div class="settings-field">
+            <div class="theme-toggle">
+                <label data-i18n="settings.dark_mode">Dark Mode</label>
+                <label class="theme-switch">
+                    <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode(this.checked)">
+                    <span class="theme-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function startTask(taskId) {
+        const apiKey = localStorage.getItem('bpm-tutor-api-key') || '';
+        const model = localStorage.getItem('bpm-tutor-model') || '';
+        if (!apiKey || !model) {
+            alert(t('settings.no_key_warning'));
+            return;
+        }
+        window.location.href = `/task/${taskId}`;
+    }
+
+    function openSettings() {
+        const overlay = document.getElementById('settingsOverlay');
+        overlay.classList.add('open');
+        const input = document.getElementById('settingsApiKey');
+        const saved = localStorage.getItem('bpm-tutor-api-key') || '';
+        if (saved) input.value = saved;
+        // If key exists, try to load models
+        if (saved) loadModels(saved);
+        // Sync dark mode toggle
+        const toggle = document.getElementById('darkModeToggle');
+        if (toggle) toggle.checked = (localStorage.getItem('bpm-tutor-theme') || 'light') === 'dark';
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsOverlay').classList.remove('open');
+    }
+
+    function saveApiKey() {
+        const input = document.getElementById('settingsApiKey');
+        const key = input.value.trim();
+        const status = document.getElementById('apiKeyStatus');
+        if (!key) {
+            status.className = 'settings-status error';
+            status.textContent = t('settings.no_key');
+            return;
+        }
+        localStorage.setItem('bpm-tutor-api-key', key);
+        status.className = 'settings-status success';
+        status.textContent = t('settings.key_saved');
+        loadModels(key);
+    }
+
+    function loadModels(apiKey) {
+        const select = document.getElementById('settingsModel');
+        const status = document.getElementById('modelStatus');
+        select.disabled = true;
+        select.innerHTML = `<option value="">${t('settings.model_loading')}</option>`;
+        status.className = 'settings-status';
+        status.textContent = '';
+
+        fetch('/api/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.models && data.models.length > 0) {
+                const savedModel = localStorage.getItem('bpm-tutor-model') || '';
+                select.innerHTML = '';
+                data.models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.name;
+                    if (m.id === savedModel) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                select.disabled = false;
+                // Auto-save first model if none saved
+                if (!savedModel && data.models.length > 0) {
+                    localStorage.setItem('bpm-tutor-model', data.models[0].id);
+                }
+            } else {
+                select.innerHTML = `<option value="">${t('settings.model_placeholder')}</option>`;
+                status.className = 'settings-status error';
+                status.textContent = data.message || t('settings.model_error');
+            }
+        })
+        .catch(() => {
+            select.innerHTML = `<option value="">${t('settings.model_placeholder')}</option>`;
+            status.className = 'settings-status error';
+            status.textContent = t('settings.model_error');
+        });
+    }
+
+    function saveModel() {
+        const select = document.getElementById('settingsModel');
+        if (select.value) {
+            localStorage.setItem('bpm-tutor-model', select.value);
+        }
+    }
+
+    function toggleDarkMode(enabled) {
+        document.documentElement.setAttribute('data-theme', enabled ? 'dark' : 'light');
+        localStorage.setItem('bpm-tutor-theme', enabled ? 'dark' : 'light');
+    }
+
+    // Apply saved theme on load
+    (function() {
+        const saved = localStorage.getItem('bpm-tutor-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('darkModeToggle');
+            if (toggle) toggle.checked = saved === 'dark';
+        });
+    })();
+</script>
+{% endblock %}
