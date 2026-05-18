@@ -1,0 +1,98 @@
+{% extends "cms/base.html" %}
+{% block title %}Benachrichtigungen{% endblock %}
+{% block page_title %}Benachrichtigungen{% endblock %}
+
+{% block topbar_actions %}
+<button class="btn btn-outline-secondary btn-sm" onclick="markAllRead()">
+  <i class="bi bi-check-all"></i> Alle als gelesen markieren
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  {% if not pagination.items %}
+  <div class="card-body text-center text-muted py-5">
+    <i class="bi bi-bell-slash fs-1"></i>
+    <p class="mt-2">Keine Benachrichtigungen vorhanden.</p>
+  </div>
+  {% else %}
+  <ul class="list-group list-group-flush">
+    {% for notif in pagination.items %}
+    <li class="list-group-item {% if not notif.is_read %}bg-primary bg-opacity-10{% endif %} notif-item"
+        id="notif_{{ notif.id }}">
+      <div class="d-flex gap-3 align-items-start">
+        <div class="notif-icon-wrap">
+          {% if notif.notif_type == 'grade' %}
+          <i class="bi bi-star-fill text-warning"></i>
+          {% elif notif.notif_type == 'message' %}
+          <i class="bi bi-chat-text text-primary"></i>
+          {% else %}
+          <i class="bi bi-bell text-secondary"></i>
+          {% endif %}
+        </div>
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between">
+            <strong>{{ notif.title }}</strong>
+            <small class="text-muted">{{ notif.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+          </div>
+          {% if notif.message %}
+          <p class="mb-1 text-muted small">{{ notif.message }}</p>
+          {% endif %}
+          {% if notif.link %}
+          <a href="{{ notif.link }}" class="small">Details anzeigen →</a>
+          {% endif %}
+        </div>
+        {% if not notif.is_read %}
+        <button class="btn btn-sm btn-link text-muted p-0"
+                onclick="markRead({{ notif.id }})" title="Als gelesen markieren">
+          <i class="bi bi-check-lg"></i>
+        </button>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% for page in pagination.iter_pages() %}
+          {% if page %}
+          <li class="page-item {% if page == pagination.page %}active{% endif %}">
+            <a class="page-link" href="?page={{ page }}">{{ page }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function markRead(id) {
+  await fetch(`{{ url_for('user_bp.notification_read', notif_id=0) }}`.replace('/0/', `/${id}/`), {
+    method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+  });
+  const el = document.getElementById(`notif_${id}`);
+  if (el) el.classList.remove('bg-primary', 'bg-opacity-10');
+  const btn = el?.querySelector('button');
+  if (btn) btn.remove();
+}
+
+async function markAllRead() {
+  await fetch('{{ url_for('user_bp.notifications_read_all') }}', {
+    method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token() }}'}
+  });
+  location.reload();
+}
+</script>
+{% endblock %}

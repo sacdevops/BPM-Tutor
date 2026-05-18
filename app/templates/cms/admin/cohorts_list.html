@@ -1,0 +1,52 @@
+{% extends "cms/base.html" %}
+{% block title %}Gruppen (Kohorten){% endblock %}
+{% block page_title %}Gruppen{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.cohort_new') }}" class="btn btn-sm btn-primary">
+  <i class="bi bi-plus-lg me-1"></i>Neue Gruppe
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Name</th>
+          <th>Beschreibung</th>
+          <th>Mitglieder</th>
+          <th>Aktiv</th>
+          <th>Erstellt</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cohort in cohorts %}
+        <tr>
+          <td><a href="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}">{{ cohort.name }}</a></td>
+          <td class="text-muted small">{{ cohort.description or '–' }}</td>
+          <td>{{ cohort.member_count }}</td>
+          <td>
+            {% if cohort.is_active %}
+              <span class="badge bg-success">Aktiv</span>
+            {% else %}
+              <span class="badge bg-secondary">Inaktiv</span>
+            {% endif %}
+          </td>
+          <td class="small">{{ cohort.created_at.strftime('%d.%m.%Y') }}</td>
+          <td>
+            <a href="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil"></i>
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Noch keine Gruppen erstellt.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

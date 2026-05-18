@@ -1,0 +1,7 @@
+"""app.services.prompts — re-exports from root prompts module."""
+from prompts import (  # noqa: F401
+    GENERAL_RULES, GENERAL_RULES_DE, BPMN_STANDARDS,
+    get_prompt_with_standards,
+    MENTOR_PROMPT_GREETING_FINAL, MENTOR_PROMPT_ANALYSIS_FINAL, MENTOR_PROMPT_REACTION_FINAL,
+    MENTOR_PROMPT_GREETING_FINAL_DE, MENTOR_PROMPT_ANALYSIS_FINAL_DE, MENTOR_PROMPT_REACTION_FINAL_DE,
+)

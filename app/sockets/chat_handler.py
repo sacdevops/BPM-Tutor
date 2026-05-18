@@ -1,11 +1,14 @@
 ﻿from flask_socketio import emit, join_room
 from flask import request
+from flask_login import current_user
 from app.ai_service import AIService, AIServiceError
 from app.session_store import store
 from app import task_tracker
 import config
 import traceback
 import uuid
+import json
+from datetime import datetime, timezone
 
 _FALLBACK_GREETING = (
     "Hello! I'm your BPMN Mentor. "
@@ -40,24 +43,72 @@ def register_handlers(socketio):
     @socketio.on('join_task')
     def handle_join_task(data):
         task_id = data.get('task_id')
-        is_valid = isinstance(task_id, str) and (
-            task_id == 'custom' or task_id in config.TASKS_BY_ID
-        )
-        if not is_valid:
+        # Accept DB tasks (any string) or 'custom'; validate below
+        if not isinstance(task_id, str) or not task_id:
             return
 
         sid = request.sid
         join_room(task_id)
 
         session_uuid = str(uuid.uuid4())[:8]
+
+        # --- Resolve API key from DB settings if available ---
+        api_key = data.get('api_key', '')
+        try:
+            from cms.models.settings import Settings
+            api_key_mode = Settings.get('API_KEY_MODE', 'global')
+            if api_key_mode == 'global':
+                api_key = Settings.get('GLOBAL_API_KEY', api_key) or api_key
+            elif api_key_mode == 'per_user' and current_user.is_authenticated:
+                api_key = current_user.personal_api_key or api_key
+        except Exception:
+            pass
+
         settings = {
-            'api_key': data.get('api_key', ''),
+            'api_key': api_key,
             'model': data.get('model', ''),
             'lang': data.get('lang', 'en'),
         }
 
         store.create(sid, task_id, session_uuid, settings)
         task_tracker.start_task(sid, task_id, session_uuid)
+
+        # --- Create TaskSubmission in DB ---
+        try:
+            from cms.extensions import db
+            from cms.models.task import TaskSubmission, Task
+            task_obj = Task.query.get(task_id)
+            if task_obj:
+                user_id = current_user.id if current_user.is_authenticated else None
+                sub = TaskSubmission(
+                    task_id=task_id,
+                    user_id=user_id,
+                    started_at=datetime.now(timezone.utc),
+                    interactions=0,
+                    tokens_in=0,
+                    tokens_out=0,
+                )
+                db.session.add(sub)
+                db.session.commit()
+                # Store submission ID in session for later update
+                store.get(sid)['submission_id'] = sub.id
+        except Exception as e:
+            print(f'[chat_handler] TaskSubmission create error: {e}')
+
+        # --- Load mentor memory from most recent open submission ---
+        try:
+            from cms.models.task import TaskSubmission, Task as _Task
+            user_id = current_user.id if current_user.is_authenticated else None
+            if user_id:
+                prev = (TaskSubmission.query
+                        .filter_by(task_id=task_id, user_id=user_id)
+                        .filter(TaskSubmission.completed_at.is_(None))
+                        .order_by(TaskSubmission.started_at.desc())
+                        .first())
+                if prev and prev.mentor_memory_list:
+                    store.get(sid)['mentor_state']['memory'] = prev.mentor_memory_list
+        except Exception as _me:
+            print(f'[chat_handler] mentor memory load error: {_me}')
 
         emit('task_joined', {'task_id': task_id})
 
@@ -91,8 +142,6 @@ def register_handlers(socketio):
             return
         if not isinstance(message, str) or not message:
             return
-        if task_id != 'custom' and task_id not in config.TASKS_BY_ID:
-            return
 
         sid = request.sid
         session = store.get(sid)
@@ -112,10 +161,15 @@ def register_handlers(socketio):
         if task_id == 'custom':
             task_description = session.get('custom_task_desc', '')
         else:
-            task = config.TASKS_BY_ID.get(task_id)
-            if task:
-                task_description = task.get('description_de', task['description']) if lang == 'de' else task['description']
-            else:
+            # Try DB first, fall back to config
+            try:
+                from cms.models.task import Task as TaskModel
+                task_obj = TaskModel.query.get(task_id)
+                if task_obj:
+                    task_description = task_obj.description_de if lang == 'de' and task_obj.description_de else task_obj.description or ''
+                else:
+                    raise LookupError
+            except Exception:
                 task_description = ''
 
         state = session['mentor_state']
@@ -198,6 +252,25 @@ def register_handlers(socketio):
             if issues:
                 state['last_issues'] = issues
 
+            # Track phase counts
+            phase_counts = state.setdefault('phase_counts', {})
+            phase_counts[resp_phase] = phase_counts.get(resp_phase, 0) + 1
+
+            # Persist mentor memory + phase counts to DB
+            try:
+                from cms.extensions import db as _db
+                from cms.models.task import TaskSubmission as _Sub
+                _sub_id = session.get('submission_id')
+                if _sub_id:
+                    _sub = _Sub.query.get(_sub_id)
+                    if _sub:
+                        import json as _j
+                        _sub.mentor_memory = _j.dumps(state['memory'])
+                        _sub.phase_counts = _j.dumps(phase_counts)
+                        _db.session.commit()
+            except Exception as _pe:
+                print(f'[chat_handler] memory persist error: {_pe}')
+
             emit('ai_response', {
                 'sender': 'ai',
                 'message': resp_message,
@@ -230,9 +303,7 @@ def register_handlers(socketio):
         task_id = data.get('task_id')
         current_bpmn = data.get('bpmn_xml', '')
 
-        is_valid = isinstance(task_id, str) and (
-            task_id == 'custom' or task_id in config.TASKS_BY_ID
-        )
+        is_valid = isinstance(task_id, str) and task_id
         if not is_valid:
             return
 
@@ -251,10 +322,14 @@ def register_handlers(socketio):
         if task_id == 'custom':
             task_description = session.get('custom_task_desc', '')
         else:
-            task = config.TASKS_BY_ID.get(task_id)
-            if task:
-                task_description = task.get('description_de', task['description']) if lang == 'de' else task['description']
-            else:
+            try:
+                from cms.models.task import Task as TaskModel
+                task_obj = TaskModel.query.get(task_id)
+                if task_obj:
+                    task_description = task_obj.description_de if lang == 'de' and task_obj.description_de else task_obj.description or ''
+                else:
+                    task_description = ''
+            except Exception:
                 task_description = ''
 
         state = session['mentor_state']
@@ -324,9 +399,7 @@ def register_handlers(socketio):
     def handle_request_completion(data):
         task_id = data.get('task_id')
 
-        is_valid = isinstance(task_id, str) and (
-            task_id == 'custom' or task_id in config.TASKS_BY_ID
-        )
+        is_valid = isinstance(task_id, str) and task_id
         if not is_valid:
             return
 
@@ -375,15 +448,57 @@ def register_handlers(socketio):
                 print(f"[Mentor] Issue dismissed: {removed.get('shortDesc', '?')}")
 
 
-def complete_and_upload(task_id: str, bpmn_xml: str = '', sid: str = '') -> None:
-    """Clean up session state when a task is completed."""
+def complete_and_upload(task_id: str, bpmn_xml: str = '', sid: str = '') -> int | None:
+    """Clean up session state when a task is completed and persist to DB.
+    Returns the TaskSubmission id if available."""
+    sub_id = None
     if sid:
         session = store.remove(sid)
         if session:
             task_tracker.save_task_report(sid, bpmn_xml)
+            sub_id = _persist_submission(sid, session, bpmn_xml)
     else:
         # Fallback: find all sessions for this task
         sids = store.find_by_task(task_id)
         for s in sids:
-            store.remove(s)
+            session = store.remove(s)
             task_tracker.save_task_report(s, bpmn_xml)
+            if session:
+                sub_id = _persist_submission(s, session, bpmn_xml)
+    return sub_id
+
+
+def _persist_submission(sid: str, session: dict, bpmn_xml: str) -> int | None:
+    """Update TaskSubmission record in DB with final data. Returns the submission id."""
+    sub_id = session.get('submission_id')
+    if not sub_id:
+        return None
+    try:
+        from cms.extensions import db
+        from cms.models.task import TaskSubmission
+        sub = TaskSubmission.query.get(sub_id)
+        if not sub:
+            return None
+        chat_history = session.get('chat_history', [])
+        sub.bpmn_xml = bpmn_xml
+        sub.chat_log = json.dumps(chat_history, ensure_ascii=False)
+        sub.completed_at = datetime.now(timezone.utc)
+        sub.interactions = len([m for m in chat_history if m.get('sender') == 'user'])
+        # persist mentor memory and phase counts
+        mentor_mem = session.get('mentor_state', {}).get('memory', [])
+        phase_counts = session.get('mentor_state', {}).get('phase_counts', {})
+        sub.mentor_memory = json.dumps(mentor_mem)
+        sub.phase_counts = json.dumps(phase_counts)
+        # tokens tracked externally by task_tracker — read if available
+        try:
+            from app import task_tracker as tt
+            stats = tt.get_task_stats(sid) or {}
+            sub.tokens_in = stats.get('tokens_in', 0)
+            sub.tokens_out = stats.get('tokens_out', 0)
+        except Exception:
+            pass
+        db.session.commit()
+        return sub_id
+    except Exception as e:
+        print(f'[chat_handler] TaskSubmission persist error: {e}')
+        return None

@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="{{ cms_user_lang | default('en') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ cms_site_name }}{% endblock %} – CMS</title>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Custom CMS CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='cms/css/cms.css') }}">
+
+  <!-- Dynamic brand CSS variables (overrides CMS defaults) -->
+  <style>
+    :root {
+      --brand-primary: {{ brand_primary | default('#84BD00') }};
+      --brand-primary-dark: {{ brand_primary | default('#84BD00') }};
+      --brand-sidebar-bg: {{ brand_sidebar_bg | default('#162700') }};
+      --cms-primary: {{ brand_primary | default('#84BD00') }};
+      --cms-sidebar-bg: {{ brand_sidebar_bg | default('#162700') }};
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="cms-layout">
+
+{% if current_user.is_authenticated and (current_user.has_role('admin', 'instructor') or request.path.startswith('/me')) %}
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• SIDEBAR â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<nav class="cms-sidebar" id="cmsSidebar">
+  <div class="sidebar-brand">
+    <a href="{{ brand_logo_link | default('/') }}" class="brand-link">
+      {% if brand_logo_src %}
+        <img src="{{ brand_logo_src }}" style="max-height:32px;width:auto;border-radius:4px;" alt="Logo">
+      {% endif %}
+      <span>{{ cms_site_name }}</span>
+    </a>
+    <button class="sidebar-toggle d-lg-none" onclick="toggleSidebar()">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <ul class="sidebar-nav">
+
+      {% if current_user.has_role('admin', 'instructor') %}
+      {%- set admin_active = request.endpoint in ('admin.dashboard','admin.users_list','admin.tasks_list','admin.task_create','admin.task_edit','admin.grading_list','admin.cohorts_list','admin.cohort_new','admin.cohort_detail','admin.analytics','admin.surveys_list','admin.survey_create','admin.survey_edit') %}
+      <li class="nav-group">
+        <button class="nav-group-toggle{% if admin_active %} active{% endif %}"
+                data-bs-toggle="collapse" data-bs-target="#navAdminGroup"
+                aria-expanded="{{ 'true' if admin_active else 'false' }}">
+          <span><i class="bi bi-grid-1x2"></i> {{ _t('nav.administration', 'Administration') }}</span>
+          <i class="bi bi-chevron-down nav-group-chevron"></i>
+        </button>
+        <ul class="collapse sidebar-subnav{% if admin_active %} show{% endif %}" id="navAdminGroup">
+          <li><a href="{{ url_for('admin.dashboard') }}" {% if request.endpoint == 'admin.dashboard' %}class="active"{% endif %}>
+            <i class="bi bi-speedometer2"></i> {{ _t('nav.dashboard', 'Dashboard') }}</a></li>
+          <li><a href="{{ url_for('admin.users_list') }}" {% if request.endpoint == 'admin.users_list' %}class="active"{% endif %}>
+            <i class="bi bi-people"></i> {{ _t('nav.users', 'Users') }}</a></li>
+          <li><a href="{{ url_for('admin.tasks_list') }}" {% if request.endpoint in ('admin.tasks_list','admin.task_create','admin.task_edit') %}class="active"{% endif %}>
+            <i class="bi bi-list-task"></i> {{ _t('nav.tasks', 'Tasks') }}</a></li>
+          <li><a href="{{ url_for('admin.grading_list') }}" {% if request.endpoint == 'admin.grading_list' %}class="active"{% endif %}>
+            <i class="bi bi-pencil-square"></i> {{ _t('nav.grading', 'Grading') }}</a></li>
+          <li><a href="{{ url_for('admin.cohorts_list') }}" {% if request.endpoint in ('admin.cohorts_list','admin.cohort_new','admin.cohort_detail') %}class="active"{% endif %}>
+            <i class="bi bi-people-fill"></i> {{ _t('nav.cohorts', 'Groups') }}</a></li>
+          <li><a href="{{ url_for('admin.analytics') }}" {% if request.endpoint == 'admin.analytics' %}class="active"{% endif %}>
+            <i class="bi bi-bar-chart-line"></i> {{ _t('nav.analytics', 'Analytics') }}</a></li>
+          <li><a href="{{ url_for('admin.surveys_list') }}" {% if request.endpoint in ('admin.surveys_list','admin.survey_create','admin.survey_edit') %}class="active"{% endif %}>
+            <i class="bi bi-card-checklist"></i> {{ _t('nav.surveys', 'Surveys') }}</a></li>
+        </ul>
+      </li>
+
+      {% if current_user.has_role('admin') %}
+      {%- set sys_active = request.endpoint in ('admin.export_page','admin.audit_log','admin.languages_list','admin.language_strings','admin.language_new','admin.levels_list','admin.level_edit','admin.settings','admin.registration_fields') %}
+      <li class="nav-group">
+        <button class="nav-group-toggle{% if sys_active %} active{% endif %}"
+                data-bs-toggle="collapse" data-bs-target="#navSystemGroup"
+                aria-expanded="{{ 'true' if sys_active else 'false' }}">
+          <span><i class="bi bi-sliders"></i> {{ _t('nav.system', 'System') }}</span>
+          <i class="bi bi-chevron-down nav-group-chevron"></i>
+        </button>
+        <ul class="collapse sidebar-subnav{% if sys_active %} show{% endif %}" id="navSystemGroup">
+          <li><a href="{{ url_for('admin.export_page') }}" {% if request.endpoint == 'admin.export_page' %}class="active"{% endif %}>
+            <i class="bi bi-download"></i> Export</a></li>
+          <li><a href="{{ url_for('admin.audit_log') }}" {% if request.endpoint == 'admin.audit_log' %}class="active"{% endif %}>
+            <i class="bi bi-shield-check"></i> {{ _t('nav.audit_log', 'Audit Log') }}</a></li>
+          <li><a href="{{ url_for('admin.languages_list') }}" {% if request.endpoint in ('admin.languages_list','admin.language_strings','admin.language_new') %}class="active"{% endif %}>
+            <i class="bi bi-translate"></i> {{ _t('nav.languages', 'Languages') }}</a></li>
+          <li><a href="{{ url_for('admin.levels_list') }}" {% if request.endpoint in ('admin.levels_list','admin.level_edit') %}class="active"{% endif %}>
+            <i class="bi bi-layers"></i> Level System</a></li>
+          <li><a href="{{ url_for('admin.settings') }}" {% if request.endpoint == 'admin.settings' %}class="active"{% endif %}>
+            <i class="bi bi-gear"></i> {{ _t('nav.settings', 'Settings') }}</a></li>
+          <li><a href="{{ url_for('admin.registration_fields') }}" {% if request.endpoint == 'admin.registration_fields' %}class="active"{% endif %}>
+            <i class="bi bi-ui-checks"></i> {{ _t('nav.reg_fields', 'Registration Fields') }}</a></li>
+        </ul>
+      </li>
+      {% endif %}
+      {% endif %}
+
+      {%- set me_active = request.endpoint in ('user_bp.profile','user_bp.my_stats','user_bp.notifications','user_bp.my_submissions') %}
+      <li class="nav-group">
+        <button class="nav-group-toggle{% if me_active %} active{% endif %}"
+                data-bs-toggle="collapse" data-bs-target="#navAccountGroup"
+                aria-expanded="true">
+          <span><i class="bi bi-person-circle"></i> {{ _t('nav.my_account', 'My Account') }}</span>
+          <i class="bi bi-chevron-down nav-group-chevron"></i>
+        </button>
+        <ul class="collapse show sidebar-subnav" id="navAccountGroup">
+          <li><a href="{{ url_for('user_bp.profile') }}" {% if request.endpoint == 'user_bp.profile' %}class="active"{% endif %}>
+            <i class="bi bi-person"></i> {{ _t('nav.my_profile', 'Profile') }}</a></li>
+          <li><a href="{{ url_for('user_bp.my_stats') }}" {% if request.endpoint == 'user_bp.my_stats' %}class="active"{% endif %}>
+            <i class="bi bi-bar-chart"></i> {{ _t('nav.my_stats', 'My Statistics') }}</a></li>
+          <li>
+            <a href="{{ url_for('user_bp.notifications') }}" {% if request.endpoint == 'user_bp.notifications' %}class="active"{% endif %}>
+              <i class="bi bi-bell"></i> {{ _t('nav.notifications', 'Notifications') }}
+              {% if cms_unread_count > 0 %}
+              <span class="badge bg-danger rounded-pill ms-auto">{{ cms_unread_count }}</span>
+              {% endif %}
+            </a>
+          </li>
+          <li><a href="{{ url_for('user_bp.my_submissions') }}" {% if request.endpoint == 'user_bp.my_submissions' %}class="active"{% endif %}>
+            <i class="bi bi-journal-text"></i> {{ _t('nav.my_submissions', 'My Submissions') }}</a></li>
+        </ul>
+      </li>
+
+    </ul>
+  </div>
+
+  <div class="sidebar-footer">
+    <span class="user-info">
+      <i class="bi bi-person-fill"></i>
+      <span>{{ current_user.display_name }}</span>
+      <span class="role-badge role-{{ current_user.role }}">{{ current_user.role }}</span>
+    </span>
+    <a href="/" class="logout-link">
+      <i class="bi bi-house"></i> {{ _t('nav.home', 'Home') }}
+    </a>
+    <a href="{{ url_for('auth.logout') }}" class="logout-link">
+      <i class="bi bi-box-arrow-right"></i> {{ _t('nav.logout', 'Logout') }}
+    </a>
+  </div>
+</nav>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• MAIN â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+<div class="cms-main">
+  <!-- Top bar -->
+  <header class="cms-topbar">
+    <button class="d-lg-none btn btn-link sidebar-toggle-btn" onclick="toggleSidebar()">
+      <i class="bi bi-list fs-4"></i>
+    </button>
+    <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+    <div class="topbar-actions">
+      {% block topbar_actions %}{% endblock %}
+      <!-- Language switcher -->
+      {% if cms_active_languages | length > 1 %}
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+          {% set cur_lang = cms_active_languages | selectattr('code', 'eq', cms_user_lang) | first %}
+          {% if cur_lang and cur_lang.flag %}{{ cur_lang.flag }} {% endif %}{{ cms_user_lang | upper }}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          {% for lang in cms_active_languages %}
+          <li>
+            <form method="post" action="{{ url_for('user_bp.profile_edit') }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="language" value="{{ lang.code }}">
+              <button type="submit" class="dropdown-item {% if lang.code == cms_user_lang %}active{% endif %}">
+                {% if lang.flag %}{{ lang.flag }} {% endif %}{{ lang.name }}
+              </button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      <a href="{{ url_for('user_bp.notifications') }}" class="notif-bell">
+        <i class="bi bi-bell{% if cms_unread_count > 0 %}-fill text-warning{% endif %}"></i>
+        {% if cms_unread_count > 0 %}
+        <span class="notif-dot">{{ cms_unread_count }}</span>
+        {% endif %}
+      </a>
+    </div>
+  </header>
+
+  <!-- Flash messages -->
+  <div class="cms-flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endwith %}
+  </div>
+
+  <!-- Content -->
+  <main class="cms-content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- Sidebar overlay for mobile -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+{% else %}
+<!-- Simple layout for auth pages -->
+<div class="auth-layout">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+  <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show mb-3" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+  {% endwith %}
+  {{ self.content() }}
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='cms/js/cms.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+

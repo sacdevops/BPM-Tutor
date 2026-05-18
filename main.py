@@ -3,7 +3,8 @@ import io
 import signal
 import sys
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask_login import current_user
 from flask_socketio import SocketIO
 import requests as http_requests
 import config
@@ -12,6 +13,13 @@ app = Flask(__name__,
             template_folder='app/templates',
             static_folder='app/static')
 app.config['SECRET_KEY'] = config.SECRET_KEY
+
+# ---- CMS Initialisation ----
+from cms import init_cms
+init_cms(app)
+
+# Exempt JSON API routes from CSRF (they are session-authenticated)
+from cms.extensions import csrf as _csrf
 
 socketio = SocketIO(
     app, 
@@ -50,15 +58,46 @@ def _session_cleanup_loop():
 
 socketio.start_background_task(_session_cleanup_loop)
 
+@app.route('/health')
+def health():
+    from flask import jsonify
+    return jsonify(status='ok'), 200
+
 @app.route('/')
 def index():
-    return render_template('index.html', tasks=config.TASKS)
+    from cms.models.task import Task
+    from cms.models.settings import Settings
+    from cms.models.level import LearningLevel
+    from flask_login import current_user
+
+    # Auth guard: if required and not logged in, redirect to login
+    if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
+        return redirect(url_for('auth.login', next='/'))
+
+    tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
+
+    # Level system
+    level_system_enabled = Settings.get(Settings.LEVEL_SYSTEM_ENABLED, False)
+    levels = []
+    if level_system_enabled:
+        levels = LearningLevel.query.filter_by(is_active=True).order_by(LearningLevel.level_number).all()
+
+    return render_template('index.html', tasks=tasks, levels=levels,
+                           level_system_enabled=level_system_enabled)
 
 @app.route('/task/<task_id>')
 def task_page(task_id):
-    task = config.TASKS_BY_ID.get(task_id)
-    if not task:
-        return "Task not found", 404
+    from cms.models.task import Task
+    from cms.models.settings import Settings
+
+    if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
+        return redirect(url_for('auth.login', next=f'/task/{task_id}'))
+
+    task = Task.query.get(task_id)
+    if not task or not task.is_active:
+        return render_template('index.html',
+                               tasks=Task.query.filter_by(is_active=True).order_by(Task.sort_order).all(),
+                               error='Aufgabe nicht gefunden.'), 404
     return render_template('task.html', task=task, is_custom=False)
 
 @app.route('/task/custom')
@@ -68,6 +107,7 @@ def custom_task_page():
 
 
 @app.route('/api/extract-file-content', methods=['POST'])
+@_csrf.exempt
 def extract_file_content():
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'No file provided'}), 400
@@ -97,6 +137,7 @@ def extract_file_content():
 
 
 @app.route('/api/save-bpmn', methods=['POST'])
+@_csrf.exempt
 def save_bpmn():
     data = request.get_json()
     if not data:
@@ -109,11 +150,34 @@ def save_bpmn():
     if not bpmn_xml:
         return jsonify({'success': False, 'message': 'No BPMN XML provided'}), 400
 
-    chat_handler.complete_and_upload(task_id, bpmn_xml, sid=sid)
-    return jsonify({'success': True})
+    submission_id = chat_handler.complete_and_upload(task_id, bpmn_xml, sid=sid)
+
+    # Check for a post_task survey linked to this task
+    redirect_url = '/'
+    if task_id:
+        try:
+            from cms.models.survey import Survey
+            survey = Survey.query.filter_by(
+                survey_type='post_task',
+                task_id=task_id,
+                is_active=True
+            ).first()
+            if survey:
+                from flask import url_for as _url_for
+                redirect_url = _url_for(
+                    'survey_bp.take',
+                    survey_id=survey.id,
+                    submission_id=submission_id or '',
+                    next='/'
+                )
+        except Exception:
+            pass
+
+    return jsonify({'success': True, 'redirect': redirect_url})
 
 
 @app.route('/api/models', methods=['POST'])
+@_csrf.exempt
 def get_models():
     """Proxy request to CampusKI to list available models."""
     data = request.get_json()

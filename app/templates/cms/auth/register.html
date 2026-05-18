@@ -1,0 +1,137 @@
+{% extends "cms/base.html" %}
+{% block title %}Registrieren{% endblock %}
+
+{% block content %}
+<div class="auth-card auth-card-wide">
+  <div class="auth-logo">
+    <i class="bi bi-diagram-3-fill"></i>
+    <h1>{{ cms_site_name }}</h1>
+    <p class="text-muted">Neues Konto erstellen</p>
+  </div>
+
+  <form method="post" action="{{ url_for('auth.register') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="row g-3">
+      <!-- Required: E-Mail -->
+      <div class="col-md-6">
+        <label for="email" class="form-label">E-Mail <span class="text-danger">*</span></label>
+        <input type="email" id="email" name="email" class="form-control {% if errors.email %}is-invalid{% endif %}"
+               value="{{ request.form.get('email', '') }}" required>
+        {% if errors.email %}<div class="invalid-feedback">{{ errors.email }}</div>{% endif %}
+      </div>
+
+      <!-- Required: Username -->
+      <div class="col-md-6">
+        <label for="username" class="form-label">Benutzername <span class="text-danger">*</span></label>
+        <input type="text" id="username" name="username" class="form-control {% if errors.username %}is-invalid{% endif %}"
+               value="{{ request.form.get('username', '') }}" required>
+        {% if errors.username %}<div class="invalid-feedback">{{ errors.username }}</div>{% endif %}
+      </div>
+
+      <!-- Optional: Name -->
+      <div class="col-md-6">
+        <label for="first_name" class="form-label">Vorname</label>
+        <input type="text" id="first_name" name="first_name" class="form-control"
+               value="{{ request.form.get('first_name', '') }}">
+      </div>
+      <div class="col-md-6">
+        <label for="last_name" class="form-label">Nachname</label>
+        <input type="text" id="last_name" name="last_name" class="form-control"
+               value="{{ request.form.get('last_name', '') }}">
+      </div>
+
+      <!-- Required: Password -->
+      <div class="col-md-6">
+        <label for="password" class="form-label">Passwort <span class="text-danger">*</span></label>
+        <input type="password" id="password" name="password"
+               class="form-control {% if errors.password %}is-invalid{% endif %}" required>
+        {% if errors.password %}<div class="invalid-feedback">{{ errors.password }}</div>{% endif %}
+        <div class="form-text">Mindestens 8 Zeichen</div>
+      </div>
+      <div class="col-md-6">
+        <label for="password2" class="form-label">Passwort bestätigen <span class="text-danger">*</span></label>
+        <input type="password" id="password2" name="password2"
+               class="form-control {% if errors.password2 %}is-invalid{% endif %}" required>
+        {% if errors.password2 %}<div class="invalid-feedback">{{ errors.password2 }}</div>{% endif %}
+      </div>
+
+      <!-- Extra fields configured by admin -->
+      {% for field in extra_fields %}
+      <div class="col-md-6">
+        <label for="extra_{{ field.name }}" class="form-label">
+          {{ field.label }}{% if field.required %} <span class="text-danger">*</span>{% endif %}
+        </label>
+
+        {% set field_error = errors.get('extra_' + field.name) %}
+        {% set field_val = request.form.get('extra_' + field.name, '') %}
+
+        {% if field.field_type == 'textarea' %}
+        <textarea id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+                  class="form-control {% if field_error %}is-invalid{% endif %}"
+                  rows="3">{{ field_val }}</textarea>
+
+        {% elif field.field_type == 'select' %}
+        <select id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+                class="form-select {% if field_error %}is-invalid{% endif %}">
+          <option value="">-- Auswählen --</option>
+          {% for opt in field.options %}
+          <option value="{{ opt.value }}" {% if field_val == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+          {% endfor %}
+        </select>
+
+        {% elif field.field_type == 'checkbox' %}
+        <div class="form-check">
+          <input type="checkbox" id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+                 class="form-check-input {% if field_error %}is-invalid{% endif %}"
+                 value="yes" {% if field_val == 'yes' %}checked{% endif %}>
+          <label class="form-check-label" for="extra_{{ field.name }}">{{ field.label }}</label>
+        </div>
+
+        {% elif field.field_type == 'number' %}
+        <input type="number" id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+               class="form-control {% if field_error %}is-invalid{% endif %}" value="{{ field_val }}">
+
+        {% elif field.field_type == 'date' %}
+        <input type="date" id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+               class="form-control {% if field_error %}is-invalid{% endif %}" value="{{ field_val }}">
+
+        {% else %}
+        <input type="text" id="extra_{{ field.name }}" name="extra_{{ field.name }}"
+               class="form-control {% if field_error %}is-invalid{% endif %}" value="{{ field_val }}">
+        {% endif %}
+
+        {% if field_error %}<div class="invalid-feedback">{{ field_error }}</div>{% endif %}
+      </div>
+      {% endfor %}
+
+      <!-- GDPR Consent -->
+      <div class="col-12">
+        <div class="form-check">
+          <input type="checkbox" id="data_consent" name="data_consent"
+                 class="form-check-input {% if errors.data_consent %}is-invalid{% endif %}"
+                 {% if request.form.get('data_consent') %}checked{% endif %} required>
+          <label class="form-check-label" for="data_consent">
+            Ich bin einverstanden, dass meine Daten zum Zweck der Nutzung dieser Plattform
+            gespeichert und verarbeitet werden. <span class="text-danger">*</span>
+          </label>
+          {% if errors.data_consent %}
+          <div class="invalid-feedback">{{ errors.data_consent }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary w-100 btn-lg">
+        <i class="bi bi-person-plus"></i> Registrieren
+      </button>
+    </div>
+
+    <hr>
+    <p class="text-center mb-0">Bereits registriert?
+      <a href="{{ url_for('auth.login') }}">Anmelden</a>
+    </p>
+  </form>
+</div>
+{% endblock %}

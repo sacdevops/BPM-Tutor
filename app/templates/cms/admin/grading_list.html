@@ -1,0 +1,104 @@
+{% extends "cms/base.html" %}
+{% block title %}Bewertungen{% endblock %}
+{% block page_title %}Bewertungen{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body border-bottom">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <select name="task_id" class="form-select">
+          <option value="">Alle Aufgaben</option>
+          {% for t in tasks %}
+          <option value="{{ t.id }}" {% if task_filter == t.id %}selected{% endif %}>{{ t.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="graded" class="form-select">
+          <option value="">Alle</option>
+          <option value="no" {% if graded_filter == 'no' %}selected{% endif %}>Noch nicht bewertet</option>
+          <option value="yes" {% if graded_filter == 'yes' %}selected{% endif %}>Bereits bewertet</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary w-100">Filtern</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary w-100">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Benutzer</th>
+          <th>Aufgabe</th>
+          <th>Abgeschlossen</th>
+          <th>Dauer</th>
+          <th>Interakt.</th>
+          <th>Bewertung</th>
+          <th class="text-end">Aktion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in pagination.items %}
+        <tr>
+          <td>
+            {% if sub.user %}
+            <a href="{{ url_for('admin.user_detail', user_id=sub.user_id) }}">{{ sub.user.username }}</a>
+            <div class="text-muted small">{{ sub.user.email }}</div>
+            {% else %}<span class="text-muted">Anonym</span>{% endif %}
+          </td>
+          <td><code>{{ sub.task_id }}</code></td>
+          <td class="small text-muted">{{ sub.completed_at.strftime('%d.%m.%y %H:%M') if sub.completed_at else '—' }}</td>
+          <td class="small text-muted">
+            {% set m = (sub.duration_seconds // 60)|int %}{{ '%d:%02d'|format(m, (sub.duration_seconds % 60)|int) }} min
+          </td>
+          <td>{{ sub.interactions }}</td>
+          <td>
+            {% if sub.grade_value is not none %}
+            <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+            {% elif sub.grade_passed is not none %}
+            <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
+              {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+            </span>
+            {% else %}
+            <span class="badge bg-warning text-dark">Ausstehend</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.grading_detail', sub_id=sub.id) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil-square"></i> Bewerten
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Keine Einreichungen gefunden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% for page in pagination.iter_pages() %}
+          {% if page %}
+          <li class="page-item {% if page == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.grading_list', page=page, task_id=task_filter, graded=graded_filter) }}">{{ page }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

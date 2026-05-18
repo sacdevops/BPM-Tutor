@@ -1,0 +1,130 @@
+{% extends "cms/base.html" %}
+{% block title %}{% if survey %}Umfrage bearbeiten{% else %}Neue Umfrage{% endif %}{% endblock %}
+{% block page_title %}{% if survey %}Umfrage bearbeiten{% else %}Neue Umfrage{% endif %}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.surveys_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> Zurück
+</a>
+{% endblock %}
+
+{% block content %}
+<form method="post"
+      action="{{ url_for('admin.survey_edit', survey_id=survey.id) if survey else url_for('admin.survey_create') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="pages_json" id="pages_json">
+
+  <div class="row g-3">
+    <!-- Left: Metadata -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0">Umfragedetails</h6></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control"
+                   value="{{ survey.name if survey else '' }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Typ</label>
+            <select name="survey_type" id="survey_type" class="form-select" onchange="toggleTaskSelect()">
+              {% set st = survey.survey_type if survey else 'pre_all' %}
+              <option value="pre_all" {% if st == 'pre_all' %}selected{% endif %}>
+                Vor allen Aufgaben (einmalig)
+              </option>
+              <option value="post_task" {% if st == 'post_task' %}selected{% endif %}>
+                Nach einer bestimmten Aufgabe
+              </option>
+              <option value="post_all" {% if st == 'post_all' %}selected{% endif %}>
+                Nach allen Aufgaben
+              </option>
+            </select>
+          </div>
+          <div id="taskSelectRow" class="mb-3"
+               style="{% if st != 'post_task' %}display:none{% endif %}">
+            <label class="form-label">Aufgabe</label>
+            <select name="task_id" class="form-select">
+              <option value="">— Aufgabe auswählen —</option>
+              {% for t in tasks %}
+              <option value="{{ t.id }}"
+                      {% if survey and survey.task_id == t.id %}selected{% endif %}>
+                {{ t.title }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input type="checkbox" class="form-check-input" id="allow_skip" name="allow_skip"
+                   {% if survey and survey.allow_skip %}checked{% endif %}>
+            <label class="form-check-label" for="allow_skip">Überspringen erlauben</label>
+          </div>
+          {% if survey %}
+          <div class="form-check form-switch">
+            <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
+                   {% if survey.is_active %}checked{% endif %}>
+            <label class="form-check-label" for="is_active">Aktiv</label>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Question Types Legend -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0">Fragetypen</h6></div>
+        <div class="card-body p-2">
+          {% for qtype, icon, label in [
+            ('text','type','Kurztext'),
+            ('textarea','textarea-t','Freitext'),
+            ('likert','sliders','Likert-Skala'),
+            ('number','123','Zahl'),
+            ('date','calendar-date','Datum'),
+            ('select','list','Dropdown'),
+            ('radio','record-circle','Radio (Auswahl)'),
+            ('checkbox','check2-square','Mehrfachauswahl'),
+            ('scale','bar-chart-line','Skala'),
+            ('info','info-circle','Info-Text'),
+          ] %}
+          <button type="button" class="btn btn-sm btn-outline-secondary m-1"
+                  onclick="addQuestion('{{ qtype }}')">
+            <i class="bi bi-{{ icon }}"></i> {{ label }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100" onclick="serializePages()">
+        <i class="bi bi-save"></i> Umfrage speichern
+      </button>
+    </div>
+
+    <!-- Right: Page Builder -->
+    <div class="col-lg-8">
+      <div id="survey-builder">
+        <!-- Pages rendered by JS -->
+      </div>
+      <button type="button" class="btn btn-outline-primary mt-3 w-100" onclick="addPage()">
+        <i class="bi bi-plus-square"></i> Neue Seite hinzufügen
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='cms/js/survey_builder.js') }}"></script>
+<script>
+// Load existing survey data
+const initialData = {{ (survey.to_dict() | tojson if survey else 'null') | safe }};
+initSurveyBuilder('survey-builder', initialData);
+
+function addPage() { SurveyBuilder.addPage(); }
+function addQuestion(type) { SurveyBuilder.addQuestion(type); }
+function serializePages() {
+  document.getElementById('pages_json').value = JSON.stringify(SurveyBuilder.getPages());
+}
+function toggleTaskSelect() {
+  const st = document.getElementById('survey_type').value;
+  document.getElementById('taskSelectRow').style.display = st === 'post_task' ? '' : 'none';
+}
+</script>
+{% endblock %}

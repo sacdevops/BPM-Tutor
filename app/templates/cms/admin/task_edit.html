@@ -1,0 +1,394 @@
+{% extends "cms/base.html" %}
+{% block title %}{% if task %}Aufgabe bearbeiten{% else %}Neue Aufgabe{% endif %}{% endblock %}
+{% block page_title %}{% if task %}Aufgabe bearbeiten{% else %}Neue Aufgabe{% endif %}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.tasks_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> Zurück
+</a>
+{% endblock %}
+
+{% block content %}
+<form method="post"
+      action="{{ url_for('admin.task_edit', task_id=task.id) if task else url_for('admin.task_create') }}"
+      enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="row g-3">
+    <!-- Left: Main content -->
+    <div class="col-lg-8">
+
+      <!-- Basic Info -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0">Grunddaten</h6></div>
+        <div class="card-body row g-3">
+          {% if not task %}
+          <div class="col-md-4">
+            <label class="form-label">Aufgaben-ID <span class="text-danger">*</span>
+              <i class="bi bi-info-circle" data-bs-toggle="tooltip"
+                 title="Eindeutige ID, z.B. task_04. Nicht änderbar nach Erstellung."></i>
+            </label>
+            <input type="text" name="id" class="form-control {% if errors.id %}is-invalid{% endif %}"
+                   placeholder="task_04" value="{{ request.form.get('id','') }}" required
+                   pattern="[a-z0-9_-]+" title="Nur Kleinbuchstaben, Ziffern, _ und -">
+            {% if errors.id %}<div class="invalid-feedback">{{ errors.id }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Reihenfolge</label>
+            <input type="number" name="sort_order" class="form-control" value="{{ request.form.get('sort_order', 0) }}" min="0">
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check">
+              <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
+                     {% if request.form.get('is_active') != 'false' %}checked{% endif %}>
+              <label for="is_active" class="form-check-label">Aktiv / sichtbar</label>
+            </div>
+          </div>
+          {% else %}
+          <div class="col-md-4">
+            <label class="form-label">Aufgaben-ID</label>
+            <input type="text" class="form-control" value="{{ task.id }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Reihenfolge</label>
+            <input type="number" name="sort_order" class="form-control" value="{{ task.sort_order }}" min="0">
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check">
+              <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
+                     {% if task.is_active %}checked{% endif %}>
+              <label for="is_active" class="form-check-label">Aktiv / sichtbar</label>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="col-md-6">
+            <label class="form-label">Titel (English) <span class="text-danger">*</span></label>
+            <input type="text" name="title" class="form-control {% if errors.title %}is-invalid{% endif %}"
+                   value="{{ task.title if task else request.form.get('title','') }}" required>
+            {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Titel (Deutsch)</label>
+            <input type="text" name="title_de" class="form-control"
+                   value="{{ task.title_de or '' if task else request.form.get('title_de','') }}">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Beschreibung (English) <span class="text-danger">*</span></label>
+            <textarea name="description" class="form-control {% if errors.description %}is-invalid{% endif %}"
+                      rows="6" required>{{ task.description if task else request.form.get('description','') }}</textarea>
+            {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label">Beschreibung (Deutsch)</label>
+            <textarea name="description_de" class="form-control"
+                      rows="6">{{ task.description_de or '' if task else request.form.get('description_de','') }}</textarea>
+          </div>
+
+          {# ── Extra language fields (all active languages beyond EN/DE) ── #}
+          {% set extra_langs = cms_active_languages | selectattr('code', 'ne', 'en') | selectattr('code', 'ne', 'de') | list %}
+          {% if extra_langs %}
+          <div class="col-12"><hr><h6 class="text-muted">{{ _t('tasks.additional_languages', 'Additional Languages') }}</h6></div>
+          {% for lang in extra_langs %}
+          {% set xt = task.extra_translations_dict.get(lang.code, {}) if task else {} %}
+          <div class="col-md-6">
+            <label class="form-label">Titel ({{ lang.name }})</label>
+            <input type="text" name="title_{{ lang.code }}" class="form-control"
+                   value="{{ xt.get('title', '') or request.form.get('title_' ~ lang.code, '') }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Beschreibung ({{ lang.name }})</label>
+            <textarea name="description_{{ lang.code }}" class="form-control" rows="4">{{ xt.get('description', '') or request.form.get('description_' ~ lang.code, '') }}</textarea>
+          </div>
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- BPMN Editor -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-diagram-3"></i> Vormodellierter BPMN-Prozess (optional)</h6>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearBpmn()">
+              <i class="bi bi-trash"></i> Löschen
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleBpmnEditor()">
+              <i class="bi bi-pencil"></i> Editor öffnen
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="bpmn-editor-container" style="display:none; height: 400px; border: 1px solid #dee2e6; border-radius: 4px; overflow:hidden;">
+            <div id="bpmn-canvas" style="height:100%"></div>
+          </div>
+          <textarea name="bpmn_xml" id="bpmn_xml" class="form-control font-monospace"
+                    rows="4" placeholder="BPMN 2.0 XML (optional) — oder Editor verwenden"
+                    style="font-size:11px">{{ task.bpmn_xml or '' if task else '' }}</textarea>
+          <div class="form-text">Wenn ausgefüllt, wird das BPMN-Diagramm neben der Aufgabenbeschreibung angezeigt.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Settings -->
+    <div class="col-lg-4">
+
+      <!-- Image -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-image"></i> Aufgabenbild (optional)</h6></div>
+        <div class="card-body">
+          {% if task and task.image_path %}
+          <img src="{{ task.image_path }}" class="img-fluid mb-2 rounded" alt="Aufgabenbild">
+          {% endif %}
+          <input type="file" name="image" class="form-control" accept="image/*">
+          <div class="form-text">PNG, JPG, SVG, max. 10 MB</div>
+        </div>
+      </div>
+
+      <!-- Grading -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> Bewertung</h6></div>
+        <div class="card-body">
+          <label class="form-label">Bewertungstyp</label>
+          <select name="grading_type" id="grading_type" class="form-select mb-2"
+                  onchange="toggleMaxPoints()">
+            {% set gt = task.grading_type if task else 'none' %}
+            <option value="none" {% if gt == 'none' %}selected{% endif %}>Keine Bewertung</option>
+            <option value="points" {% if gt == 'points' %}selected{% endif %}>Punkte</option>
+            <option value="pass_fail" {% if gt == 'pass_fail' %}selected{% endif %}>Bestanden / Nicht bestanden</option>
+          </select>
+          <div id="maxPointsRow" style="{% if gt != 'points' %}display:none{% endif %}">
+            <label class="form-label">Maximale Punkte</label>
+            <input type="number" name="max_points" class="form-control" min="0" step="0.5"
+                   value="{{ task.max_points or '' if task else '' }}">
+          </div>
+        </div>
+      </div>
+
+      <!-- Availability -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar-range"></i> Verfügbarkeit</h6></div>
+        <div class="card-body">
+          <label class="form-label">Verfügbar ab</label>
+          <input type="datetime-local" name="available_from" class="form-control mb-2"
+                 value="{{ task.available_from.strftime('%Y-%m-%dT%H:%M') if task and task.available_from else '' }}">
+          <label class="form-label">Verfügbar bis</label>
+          <input type="datetime-local" name="available_until" class="form-control"
+                 value="{{ task.available_until.strftime('%Y-%m-%dT%H:%M') if task and task.available_until else '' }}">
+          <div class="form-text">Leer = unbegrenzt verfügbar</div>
+        </div>
+      </div>
+
+      <!-- Prerequisites — visual builder -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-lock"></i> Voraussetzungen</h6>
+          <small class="text-muted">Verknüpfung: <select id="prereqConnector" class="form-select form-select-sm d-inline-block w-auto">
+            <option value="AND">UND (alle müssen erfüllt sein)</option>
+            <option value="OR">ODER (mind. eine muss erfüllt sein)</option>
+          </select></small>
+        </div>
+        <div class="card-body">
+          <div id="prereqRules"></div>
+          <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addPrereqRule()">
+            <i class="bi bi-plus-lg me-1"></i>Regel hinzufügen
+          </button>
+          <!-- Hidden field serialised on submit -->
+          <input type="hidden" name="prerequisites_json" id="prereqJson"
+            value="{{ task.prerequisites or '[]' if task else '[]' }}">
+          <div class="form-text mt-1">Regeln werden automatisch als JSON gespeichert.</div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-100 btn-lg">
+        <i class="bi bi-save"></i> Speichern
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='cms/js/task_editor.js') }}"></script>
+<script>
+function toggleMaxPoints() {
+  const gt = document.getElementById('grading_type').value;
+  document.getElementById('maxPointsRow').style.display = gt === 'points' ? '' : 'none';
+}
+
+function clearBpmn() {
+  document.getElementById('bpmn_xml').value = '';
+}
+
+function toggleBpmnEditor() {
+  const c = document.getElementById('bpmn-editor-container');
+  c.style.display = c.style.display === 'none' ? '' : 'none';
+  if (c.style.display !== 'none') {
+    initBpmnEditor('bpmn-canvas', 'bpmn_xml');
+  }
+}
+
+// Tooltip init
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
+  new bootstrap.Tooltip(el));
+
+// ── Prerequisites visual builder ──────────────────────────────────────────────
+const PREREQ_FIELDS = [
+  { value: 'task_completed', label: 'Aufgabe abgeschlossen' },
+  { value: 'task_submitted', label: 'Aufgabe eingereicht' },
+  { value: 'cohort_member',  label: 'Mitglied in Gruppe' },
+  { value: 'role',           label: 'Rolle' },
+];
+const PREREQ_OPS = [
+  { value: 'eq',  label: 'ist' },
+  { value: 'neq', label: 'ist nicht' },
+  { value: 'contains', label: 'enthält' },
+  { value: 'not_contains', label: 'enthält nicht' },
+];
+const ALL_TASKS = {{ all_tasks | tojson if all_tasks is defined else '[]' }};
+const ALL_COHORTS = {{ all_cohorts | tojson if all_cohorts is defined else '[]' }};
+const ROLES = ['student','instructor','admin'];
+
+let prereqRules = [];
+try {
+  const raw = JSON.parse(document.getElementById('prereqJson').value || '[]');
+  if (Array.isArray(raw)) prereqRules = raw;
+} catch(e) {}
+
+const connectorEl = document.getElementById('prereqConnector');
+// Detect saved connector
+try {
+  const raw = JSON.parse(document.getElementById('prereqJson').value || '{}');
+  if (raw && raw.connector) connectorEl.value = raw.connector;
+} catch(e) {}
+
+function renderPrereqRules() {
+  const container = document.getElementById('prereqRules');
+  const rules = Array.isArray(prereqRules) ? prereqRules : (prereqRules.rules || []);
+  container.innerHTML = '';
+  if (!rules.length) {
+    container.innerHTML = '<p class="text-muted small">Keine Bedingungen. Aufgabe ist immer zugänglich.</p>';
+    return;
+  }
+  rules.forEach((rule, idx) => {
+    const div = document.createElement('div');
+    div.className = 'd-flex gap-2 align-items-center mb-2';
+
+    // Field selector
+    const fieldSel = document.createElement('select');
+    fieldSel.className = 'form-select form-select-sm';
+    fieldSel.style.width = '200px';
+    PREREQ_FIELDS.forEach(f => {
+      const opt = new Option(f.label, f.value, false, rule.type === f.value);
+      fieldSel.appendChild(opt);
+    });
+    fieldSel.onchange = () => { rules[idx].type = fieldSel.value; syncValuePicker(idx); serializePrereq(); };
+
+    // Operator
+    const opSel = document.createElement('select');
+    opSel.className = 'form-select form-select-sm';
+    opSel.style.width = '140px';
+    PREREQ_OPS.forEach(op => {
+      const opt = new Option(op.label, op.value, false, (rule.operator || 'eq') === op.value);
+      opSel.appendChild(opt);
+    });
+    opSel.onchange = () => { rules[idx].operator = opSel.value; serializePrereq(); };
+
+    // Value picker (dynamic)
+    const valWrap = document.createElement('div');
+    valWrap.id = `prereq-val-${idx}`;
+    valWrap.style.minWidth = '180px';
+    buildValuePicker(valWrap, rule, idx);
+
+    // Remove
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+    removeBtn.onclick = () => { rules.splice(idx, 1); renderPrereqRules(); serializePrereq(); };
+
+    div.appendChild(fieldSel);
+    div.appendChild(opSel);
+    div.appendChild(valWrap);
+    div.appendChild(removeBtn);
+    container.appendChild(div);
+  });
+}
+
+function buildValuePicker(wrap, rule, idx) {
+  const rules = Array.isArray(prereqRules) ? prereqRules : (prereqRules.rules || []);
+  wrap.innerHTML = '';
+  const type = rule.type;
+  if (type === 'task_completed' || type === 'task_submitted') {
+    const sel = document.createElement('select');
+    sel.className = 'form-select form-select-sm';
+    sel.appendChild(new Option('Aufgabe wählen…', ''));
+    ALL_TASKS.forEach(t => {
+      sel.appendChild(new Option(t.title || t.id, t.id, false, rule.value === t.id));
+    });
+    sel.onchange = () => { rules[idx].value = sel.value; serializePrereq(); };
+    wrap.appendChild(sel);
+  } else if (type === 'cohort_member') {
+    const sel = document.createElement('select');
+    sel.className = 'form-select form-select-sm';
+    sel.appendChild(new Option('Gruppe wählen…', ''));
+    ALL_COHORTS.forEach(c => {
+      sel.appendChild(new Option(c.name, String(c.id), false, String(rule.value) === String(c.id)));
+    });
+    sel.onchange = () => { rules[idx].value = sel.value; serializePrereq(); };
+    wrap.appendChild(sel);
+  } else if (type === 'role') {
+    const sel = document.createElement('select');
+    sel.className = 'form-select form-select-sm';
+    ROLES.forEach(r => sel.appendChild(new Option(r, r, false, rule.value === r)));
+    sel.onchange = () => { rules[idx].value = sel.value; serializePrereq(); };
+    wrap.appendChild(sel);
+  } else {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'form-control form-control-sm';
+    inp.value = rule.value || '';
+    inp.oninput = () => { rules[idx].value = inp.value; serializePrereq(); };
+    wrap.appendChild(inp);
+  }
+}
+
+function syncValuePicker(idx) {
+  const rules = Array.isArray(prereqRules) ? prereqRules : (prereqRules.rules || []);
+  const wrap = document.getElementById(`prereq-val-${idx}`);
+  if (wrap) buildValuePicker(wrap, rules[idx], idx);
+}
+
+function serializePrereq() {
+  const rules = Array.isArray(prereqRules) ? prereqRules : (prereqRules.rules || []);
+  const connector = connectorEl.value;
+  document.getElementById('prereqJson').value = JSON.stringify({
+    connector,
+    rules: rules.map(r => ({
+      type: r.type,
+      operator: r.operator || 'eq',
+      value: r.value || '',
+    }))
+  });
+}
+
+function addPrereqRule() {
+  if (!Array.isArray(prereqRules)) prereqRules = prereqRules.rules || [];
+  prereqRules.push({ type: 'task_completed', operator: 'eq', value: '' });
+  renderPrereqRules();
+  serializePrereq();
+}
+
+connectorEl.onchange = serializePrereq;
+
+// Init
+renderPrereqRules();
+if (prereqRules && (Array.isArray(prereqRules) ? prereqRules.length : prereqRules.rules?.length)) {
+  serializePrereq();
+}
+// Serialise before form submit
+document.querySelector('form').addEventListener('submit', serializePrereq);
+</script>
+{% endblock %}

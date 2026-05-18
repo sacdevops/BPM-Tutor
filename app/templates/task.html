@@ -2,6 +2,9 @@
 
 {% block title %}{{ task.title }} - BPM-Tutor{% endblock %}
 
+{# Task page has its own compact navigation — hide the global site header #}
+{% block site_header %}{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="https://unpkg.com/bpmn-js@18.7.0/dist/assets/diagram-js.css">
 <link rel="stylesheet" href="https://unpkg.com/bpmn-js@18.7.0/dist/assets/bpmn-js.css">

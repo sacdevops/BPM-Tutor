@@ -1,0 +1,170 @@
+{% extends "cms/base.html" %}
+{% block title %}Meine Statistik{% endblock %}
+{% block page_title %}Meine Statistik{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex gap-1">
+  {% for p, label in [('24h','24h'), ('7d','7T'), ('30d','30T'), ('90d','90T'), ('1y','1J'), ('all','Alle')] %}
+  <a href="?period={{ p }}"
+     class="btn btn-sm {% if period == p %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+    {{ label }}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if level_enabled and levels %}
+<!-- Level Progress -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="bi bi-layers-fill" style="color: var(--cms-primary);"></i>
+    <h6 class="mb-0 fw-semibold">Lernpfad-Fortschritt</h6>
+  </div>
+  <div class="card-body">
+    <div class="d-flex gap-3 overflow-auto pb-1 align-items-stretch flex-nowrap">
+      {% for lv in levels %}
+        {% set unlocked = lv.is_unlocked_for(current_user) %}
+        {% set done, total = lv.completion_ratio_for(current_user) %}
+        {% set completed = lv.is_completed_by(current_user) %}
+        {% set pct = ((done / total) * 100) | int if total > 0 else 0 %}
+        <div class="text-center flex-shrink-0"
+             style="width:140px;padding:.75rem;border-radius:10px;border:2px solid {% if completed %}var(--cms-primary){% else %}#e5e7eb{% endif %};background:{% if completed %}rgba(132,189,0,.07){% else %}#fff{% endif %};opacity:{% if unlocked %}1{% else %}.5{% endif %};">
+          <div class="mb-1 fw-bold"
+               style="font-size:1.8rem;color:{% if completed %}var(--cms-primary){% elif unlocked %}#374151{% else %}#9ca3af{% endif %};">
+            {% if completed %}<i class="bi bi-check-circle-fill"></i>{% else %}{{ lv.level_number }}{% endif %}
+          </div>
+          <div class="small fw-semibold text-truncate mb-1" title="{{ lv.title }}">{{ lv.title }}</div>
+          <div class="text-muted" style="font-size:.7rem;">{{ done }}/{{ total }}</div>
+          <div class="mt-1" style="background:#e5e7eb;border-radius:99px;height:5px;">
+            <div style="background:var(--cms-primary);height:100%;width:{{ pct }}%;border-radius:99px;"></div>
+          </div>
+          {% if not unlocked %}<div class="text-muted mt-1" style="font-size:.65rem;"><i class="bi bi-lock-fill"></i> Gesperrt</div>{% endif %}
+        </div>
+        {% if not loop.last %}
+        <div class="align-self-center text-muted" style="font-size:1.2rem;flex-shrink:0;"><i class="bi bi-chevron-right"></i></div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- KPI Mini -->
+<div class="row g-2 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-primary"><i class="bi bi-journal-plus"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ stats.total_submissions }}</span>
+        <span class="kpi-label">Einreichungen</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-success"><i class="bi bi-check-circle"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ stats.completed }}</span>
+        <span class="kpi-label">Abgeschlossen</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-info"><i class="bi bi-chat-dots"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ stats.total_interactions }}</span>
+        <span class="kpi-label">KI-Interaktionen</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-warning"><i class="bi bi-star-half"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ stats.graded }}</span>
+        <span class="kpi-label">Bewertet</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Timeline Chart -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-graph-up"></i> Aktivitätsverlauf</h6></div>
+  <div class="card-body">
+    <canvas id="timelineChart" height="180"></canvas>
+  </div>
+</div>
+
+<!-- Submissions -->
+<div class="card shadow-sm">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-journal-text"></i> Meine Einreichungen</h6></div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>Aufgabe</th><th>Gestartet</th><th>Dauer</th><th>Interakt.</th><th>Bewertung</th><th>Kommentar</th></tr>
+      </thead>
+      <tbody>
+        {% for sub in stats.submissions %}
+        <tr>
+          <td>
+            {% if tasks.get(sub.task_id) %}
+            <strong>{{ tasks[sub.task_id].title }}</strong>
+            {% else %}<code>{{ sub.task_id }}</code>{% endif %}
+          </td>
+          <td class="text-muted small">{{ sub.started_at or '—' }}</td>
+          <td class="text-muted small">
+            {% set m = (sub.duration_seconds // 60)|int %}{{ '%d:%02d'|format(m, (sub.duration_seconds % 60)|int) }} min
+          </td>
+          <td>{{ sub.interactions }}</td>
+          <td>
+            {% if sub.grade_value is not none %}
+            <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+            {% elif sub.grade_passed is not none %}
+            <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
+              {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+            </span>
+            {% elif sub.completed_at %}
+            <span class="badge bg-warning text-dark">Ausstehend</span>
+            {% else %}
+            <span class="badge bg-secondary">Läuft</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ sub.grade_comment or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">
+          Noch keine Einreichungen im gewählten Zeitraum.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('timelineChart'), {
+  type: 'line',
+  data: {
+    labels: {{ chart.labels | tojson }},
+    datasets: [{
+      label: 'Einreichungen',
+      data: {{ chart.data | tojson }},
+      borderColor: '#4f46e5',
+      backgroundColor: 'rgba(79,70,229,0.08)',
+      tension: 0.3, fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+  }
+});
+</script>
+{% endblock %}

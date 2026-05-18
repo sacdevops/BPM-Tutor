@@ -1,20 +1,116 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}BPM-Tutor{% endblock %}</title>
+    <title>{% block title %}{{ site_name | default('BPM-Tutor') }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block extra_css %}{% endblock %}
     <script>
-        // Apply theme before paint to prevent flash
         (function() {
             var theme = localStorage.getItem('bpm-tutor-theme') || 'light';
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
+    <!-- Dynamic brand CSS variables -->
+    <style>
+      :root {
+        --brand-primary: {{ brand_primary | default('#84BD00') }};
+        --brand-primary-dark: color-mix(in srgb, {{ brand_primary | default('#84BD00') }} 80%, black);
+        --brand-sidebar-bg: {{ brand_sidebar_bg | default('#162700') }};
+        --primary-color: {{ brand_primary | default('#84BD00') }};
+        --primary-hover: color-mix(in srgb, {{ brand_primary | default('#84BD00') }} 80%, black);
+      }
+    </style>
 </head>
 <body>
+    {% block site_header %}
+    <header class="site-header">
+      <div class="site-header-inner">
+        <div class="header-brand">
+          <a href="{{ brand_logo_link | default('/') }}" class="header-logo-link" aria-label="Startseite">
+            {% if brand_logo_src %}
+              <img src="{{ brand_logo_src }}" class="header-logo-img" alt="Logo">
+            {% endif %}
+          </a>
+          <a href="/" class="header-site-name">{{ site_name | default('BPM-Tutor') }}</a>
+        </div>
+
+        <nav class="header-nav" aria-label="Hauptnavigation">
+          {% if current_user is defined and current_user.is_authenticated %}
+            {% if current_user.has_role('admin') or current_user.has_role('instructor') %}
+            <a href="{{ url_for('admin.dashboard') }}" class="header-nav-link header-nav-admin">
+              &#9881; Admin
+            </a>
+            {% endif %}
+            <a href="{{ url_for('user_bp.my_stats') }}" class="header-nav-link">Statistik</a>
+
+            <!-- Notification bell -->
+            <a href="{{ url_for('user_bp.notifications') }}" class="header-nav-link header-nav-notif" title="Benachrichtigungen">
+              {% set unread_count = current_user.notifications | selectattr('is_read', 'equalto', False) | list | length %}
+              &#128276;
+              {% if unread_count > 0 %}
+              <span class="header-notif-badge">{{ unread_count }}</span>
+              {% endif %}
+            </a>
+
+            <!-- Language switcher -->
+            {% if cms_active_languages and cms_active_languages | length > 1 %}
+            <div class="header-lang-switcher">
+              <button class="header-lang-btn" onclick="toggleHeaderLang(this)">
+                <span class="header-lang-current">
+                  {% set cur_code = request.cookies.get('bpmtutor_lang', current_user.language or 'en') %}
+                  {% set cur_lang = cms_active_languages | selectattr('code', 'eq', cur_code) | first %}
+                  {% if cur_lang and cur_lang.flag %}{{ cur_lang.flag }}{% elif cur_lang %}{{ flag_for_lang(cur_lang.code) or cur_code | upper }}{% else %}{{ cur_code | upper }}{% endif %}
+                </span>
+                &#9662;
+              </button>
+              <div class="header-lang-menu">
+                {% for lang in cms_active_languages %}
+                <button class="header-lang-option" onclick="setLanguage('{{ lang.code }}')">
+                  {% if lang.flag %}{{ lang.flag }}{% else %}{{ flag_for_lang(lang.code) }}{% endif %} {{ lang.name }}
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            <a href="{{ url_for('user_bp.profile') }}" class="header-nav-link header-nav-user">
+              {{ current_user.display_name }}
+            </a>
+            <a href="{{ url_for('auth.logout') }}" class="header-nav-link header-nav-logout">Abmelden</a>
+          {% else %}
+            <!-- Language switcher for guests -->
+            {% if cms_active_languages and cms_active_languages | length > 1 %}
+            <div class="header-lang-switcher">
+              <button class="header-lang-btn" onclick="toggleHeaderLang(this)">
+                <span class="header-lang-current">
+                  {% set guest_lang = request.cookies.get('bpmtutor_lang', 'en') %}
+                  {% set gl = cms_active_languages | selectattr('code', 'eq', guest_lang) | first %}
+                  {% if gl and gl.flag %}{{ gl.flag }}{% else %}{{ flag_for_lang(guest_lang) or guest_lang | upper }}{% endif %}
+                </span>
+                &#9662;
+              </button>
+              <div class="header-lang-menu">
+                {% for lang in cms_active_languages %}
+                <button class="header-lang-option" onclick="setLanguage('{{ lang.code }}')">
+                  {% if lang.flag %}{{ lang.flag }}{% else %}{{ flag_for_lang(lang.code) }}{% endif %} {{ lang.name }}
+                </button>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+
+            <a href="{{ url_for('auth.login') }}" class="header-nav-link">Anmelden</a>
+            {% if allow_registration is not defined or allow_registration %}
+            <a href="{{ url_for('auth.register') }}" class="header-nav-link header-nav-cta">Registrieren</a>
+            {% endif %}
+          {% endif %}
+        </nav>
+      </div>
+    </header>
+    {% endblock %}
+
     <main>
         {% block content %}{% endblock %}
     </main>

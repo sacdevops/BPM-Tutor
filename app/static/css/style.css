@@ -12,6 +12,9 @@
     --bg-hover: #e9ecef;
     --bg-input: #ffffff;
     --bg-btn-secondary-bg: #f8f9fa;
+    /* Brand overrides injected from template */
+    --brand-primary: var(--primary-color);
+    --brand-primary-dark: var(--primary-hover);
 }
 
 [data-theme="dark"] {
@@ -27,6 +30,149 @@
     --bg-input: #2a2a2a;
     --bg-btn-secondary-bg: #2a2a2a;
 }
+
+/* ─── Site Header (shared across main pages) ──────────────────────── */
+.site-header {
+    background: var(--bg-surface);
+    border-bottom: 2px solid var(--primary-color);
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    box-shadow: var(--shadow-sm);
+}
+.site-header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 2rem;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+}
+.header-logo-link {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+.header-logo-placeholder {
+    width: 52px;
+    height: 42px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-body);
+    /* Space reserved for custom logo (e.g. TU Dortmund) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.02em;
+}
+.header-logo-placeholder::after {
+    content: 'LOGO';
+    opacity: 0.4;
+}
+.header-logo-img {
+    max-height: 42px;
+    width: auto;
+    border-radius: 4px;
+    display: block;
+}
+.header-site-name {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    text-decoration: none;
+    letter-spacing: -0.01em;
+}
+.header-site-name:hover { color: var(--primary-hover); }
+
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex-wrap: nowrap;
+}
+.header-nav-link {
+    padding: 0.38rem 0.75rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.header-nav-link:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.header-nav-admin {
+    color: var(--primary-color);
+    font-weight: 700;
+    border: 1.5px solid var(--primary-color);
+}
+.header-nav-admin:hover {
+    background: var(--primary-color);
+    color: #fff !important;
+}
+.header-nav-cta {
+    background: var(--primary-color);
+    color: #fff !important;
+    font-weight: 600;
+}
+.header-nav-cta:hover { background: var(--primary-hover); }
+.header-nav-user {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.header-nav-logout { opacity: 0.7; }
+.header-nav-logout:hover { opacity: 1; }
+
+/* Notification bell in header */
+.header-nav-notif { position: relative; font-size: 1.05rem; }
+.header-notif-badge {
+    position: absolute; top: 0; right: 2px;
+    background: #ef4444; color: #fff;
+    font-size: .6rem; font-weight: 700; line-height: 1;
+    border-radius: 999px; padding: 2px 4px;
+}
+
+/* Language switcher in header */
+.header-lang-switcher { position: relative; }
+.header-lang-btn {
+    display: flex; align-items: center; gap: .3rem;
+    padding: .35rem .65rem; border-radius: 6px; border: 1px solid var(--border-color);
+    background: var(--bg-surface); color: var(--text-secondary);
+    font-size: .875rem; cursor: pointer; transition: background .15s;
+}
+.header-lang-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.header-lang-menu {
+    display: none; position: absolute; top: calc(100% + 4px); right: 0;
+    background: var(--bg-surface); border: 1px solid var(--border-color);
+    border-radius: 8px; box-shadow: var(--shadow-lg); min-width: 130px; z-index: 300;
+    overflow: hidden;
+}
+.header-lang-menu.open { display: block; }
+.header-lang-option {
+    display: block; width: 100%; padding: .45rem .9rem;
+    background: none; border: none; text-align: left;
+    color: var(--text-primary); font-size: .875rem; cursor: pointer;
+    transition: background .12s;
+}
+.header-lang-option:hover { background: var(--bg-hover); }
+
+[data-theme="dark"] .site-header { background: var(--bg-surface); border-bottom-color: var(--primary-color); }
+[data-theme="dark"] .header-logo-placeholder { background: var(--bg-surface); border-color: #555; }
 
 * {
     margin: 0;
@@ -357,4 +503,73 @@ body {
 
 .theme-switch input:checked + .theme-slider::before {
     transform: translateX(20px);
+}
+
+/* ============================================================
+   Responsive Design � site-wide
+   ============================================================ */
+
+/* Widescreen: constrain site header + content */
+@media (min-width: 1400px) {
+  .site-header-inner { max-width: 1500px; }
+  .index-body { max-width: 1400px; }
+}
+
+/* Tablet landscape (768�1199px) */
+@media (max-width: 1199px) {
+  .tasks-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .site-header-inner { padding: 0 1.5rem; }
+}
+
+/* Tablet portrait (< 992px) */
+@media (max-width: 991px) {
+  .index-body { padding: 1.25rem; }
+  .tasks-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+  .index-hero h1 { font-size: 1.7rem; }
+  .header-nav { gap: .5rem; }
+  .header-nav-link { font-size: .82rem; padding: .3rem .6rem; }
+}
+
+/* Narrow tablet (< 768px) */
+@media (max-width: 767px) {
+  .site-header-inner { flex-direction: column; height: auto; padding: .75rem 1rem; gap: .6rem; }
+  .header-nav { flex-wrap: wrap; justify-content: center; }
+  .tasks-grid { grid-template-columns: 1fr; }
+  .index-hero { padding: 1.25rem .5rem; }
+  .index-hero h1 { font-size: 1.5rem; }
+  .hero-controls { position: static; justify-content: center; margin-bottom: .5rem; }
+}
+
+/* ============================================================
+   Widescreen Scaling (1400px and larger)
+   ============================================================ */
+
+/* Scale up typography and spacing on large displays */
+@media (min-width: 1400px) {
+  :root {
+    --site-scale: 1.1;
+  }
+  html { font-size: 17px; }
+  .site-header { height: auto; }
+  .site-header-inner { max-width: 1600px; height: 72px; padding: 0 3rem; }
+  .header-logo-img { max-height: 52px; }
+  .header-site-name { font-size: 1.3rem; }
+  .header-nav-link { font-size: 0.96rem; padding: 0.45rem 0.9rem; }
+  .index-body { max-width: 1500px; padding: 2.5rem 3rem; }
+  .index-hero h1 { font-size: 2.8rem; }
+  .index-hero p { font-size: 1.2rem; }
+  .tasks-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 2rem; }
+  .task-card { padding: 1.75rem; }
+  .task-card h3 { font-size: 1.35rem; }
+  .task-card p { font-size: 1rem; }
+  .task-card .start-btn { font-size: 0.95rem; padding: 0.6rem 1.35rem; }
+}
+
+/* Ultrawide (1800px+) */
+@media (min-width: 1800px) {
+  html { font-size: 18px; }
+  .site-header-inner { max-width: 1800px; height: 80px; padding: 0 4rem; }
+  .index-body { max-width: 1700px; padding: 3rem 4rem; }
+  .index-hero h1 { font-size: 3.2rem; }
+  .tasks-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 2.5rem; }
 }

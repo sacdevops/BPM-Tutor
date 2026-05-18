@@ -1,0 +1,43 @@
+{% extends "cms/base.html" %}
+{% block title %}Forschungsdaten exportieren{% endblock %}
+{% block page_title %}Forschungsdaten exportieren{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header fw-semibold">ZIP-Export erzeugen</div>
+      <div class="card-body">
+        <p class="text-muted">
+          Exportiert alle Einreichungen, Nutzerdaten, Aufgaben, BPMN-Modelle und Chat-Protokolle
+          als ZIP-Archiv. Die Datei enthält keine Passwörter oder API-Schlüssel.
+        </p>
+        <ul class="small text-muted mb-4">
+          <li><code>submissions.csv</code> – alle Einreichungen mit Bewertungen</li>
+          <li><code>users.csv</code> – Nutzer (ohne Passwort)</li>
+          <li><code>tasks.csv</code> – Aufgabenliste</li>
+          <li><code>bpmn/</code> – BPMN-XML-Dateien aller Einreichungen</li>
+          <li><code>chat_logs/</code> – Chat-Verläufe als JSON</li>
+        </ul>
+        <form method="post" action="{{ url_for('admin.export_generate') }}" id="exportForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-primary" id="exportBtn">
+            <i class="bi bi-download me-1"></i>Export starten
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('exportForm').addEventListener('submit', function() {
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Wird erstellt…';
+  setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>Export starten'; }, 8000);
+});
+</script>
+{% endblock %}

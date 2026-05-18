@@ -1,0 +1,85 @@
+{% extends "cms/base.html" %}
+{% block title %}Umfragen{% endblock %}
+{% block page_title %}Umfragen{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.survey_create') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg"></i> Neue Umfrage
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>Name</th><th>Typ</th><th>Aufgabe</th><th>Seiten/Fragen</th><th>Status</th><th>Antworten</th><th class="text-end">Aktionen</th></tr>
+      </thead>
+      <tbody>
+        {% for s in surveys %}
+        <tr>
+          <td><strong>{{ s.name }}</strong></td>
+          <td>
+            {% if s.survey_type == 'pre_all' %}
+            <span class="badge bg-primary">Vor allen</span>
+            {% elif s.survey_type == 'post_task' %}
+            <span class="badge bg-info">Nach Aufgabe</span>
+            {% else %}
+            <span class="badge bg-secondary">Nach allen</span>
+            {% endif %}
+          </td>
+          <td><code>{{ s.task_id or '—' }}</code></td>
+          <td>
+            <span class="badge bg-light text-dark">{{ s.pages|length }} Seiten</span>
+            <span class="badge bg-light text-dark ms-1">
+              {{ s.pages | map(attribute='questions') | map('list') | map('length') | sum }} Fragen
+            </span>
+          </td>
+          <td>{% if s.is_active %}<span class="badge bg-success">Aktiv</span>
+          {% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}</td>
+          <td><span class="badge bg-light text-dark">{{ s.responses.count() }}</span></td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.survey_edit', survey_id=s.id) }}" class="btn btn-sm btn-outline-primary me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="confirmDelete('{{ url_for('admin.survey_delete', survey_id=s.id) }}', '{{ s.name|e }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Keine Umfragen erstellt.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Umfrage löschen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">Umfrage <strong id="deleteName"></strong> löschen? Alle Antworten werden entfernt.</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <form method="post" id="deleteForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Löschen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(url, name) {
+  document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteForm').action = url;
+  new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+</script>
+{% endblock %}

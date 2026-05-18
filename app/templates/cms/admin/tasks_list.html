@@ -1,0 +1,155 @@
+{% extends "cms/base.html" %}
+{% block title %}Aufgabenverwaltung{% endblock %}
+{% block page_title %}Aufgabenverwaltung{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.task_create') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg"></i> Neue Aufgabe
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="tasksTable">
+      <thead class="table-light">
+        <tr>
+          <th width="30"></th>
+          <th>ID</th>
+          <th>Titel</th>
+          <th>Bewertung</th>
+          <th>Verfügbarkeit</th>
+          <th>Status</th>
+          <th>Einreichungen</th>
+          <th class="text-end">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="sortableBody">
+        {% for task in tasks %}
+        <tr data-id="{{ task.id }}">
+          <td class="drag-handle text-muted" title="Reihenfolge ändern (drag)">
+            <i class="bi bi-grip-vertical"></i>
+          </td>
+          <td><code>{{ task.id }}</code></td>
+          <td>
+            <strong>{{ task.title }}</strong>
+            {% if task.title_de %}<div class="text-muted small">DE: {{ task.title_de }}</div>{% endif %}
+          </td>
+          <td>
+            {% if task.grading_type == 'points' %}
+            <span class="badge bg-info">Punkte (max. {{ task.max_points or '?' }})</span>
+            {% elif task.grading_type == 'pass_fail' %}
+            <span class="badge bg-secondary">Best./Nicht best.</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">
+            {% if task.available_from or task.available_until %}
+              {{ task.available_from.strftime('%d.%m.%Y') if task.available_from else '∞' }}
+              →
+              {{ task.available_until.strftime('%d.%m.%Y') if task.available_until else '∞' }}
+            {% else %}
+              Immer
+            {% endif %}
+          </td>
+          <td>
+            {% if task.is_active %}
+            <span class="badge bg-success">Aktiv</span>
+            {% else %}
+            <span class="badge bg-secondary">Inaktiv</span>
+            {% endif %}
+            {% if not task.is_available_now() and task.is_active %}
+            <span class="badge bg-warning text-dark ms-1">Zeit abgelaufen</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge bg-light text-dark">{{ task.submissions.count() }}</span>
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('task_page', task_id=task.id) }}" target="_blank"
+               class="btn btn-sm btn-outline-secondary" title="Vorschau">
+              <i class="bi bi-eye"></i>
+            </a>
+            <a href="{{ url_for('admin.task_edit', task_id=task.id) }}"
+               class="btn btn-sm btn-outline-primary ms-1" title="Bearbeiten">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-danger ms-1"
+                    onclick="confirmDelete('{{ url_for('admin.task_delete', task_id=task.id) }}', '{{ task.title|e }}')"
+                    title="Löschen">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">
+          Noch keine Aufgaben. <a href="{{ url_for('admin.task_create') }}">Erste Aufgabe erstellen</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Aufgabe löschen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Aufgabe <strong id="deleteTaskTitle"></strong> wirklich löschen?
+        Alle zugehörigen Einreichungen und Umfrageantworten werden ebenfalls gelöscht.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <form method="post" id="deleteForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Löschen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(url, title) {
+  document.getElementById('deleteTaskTitle').textContent = title;
+  document.getElementById('deleteForm').action = url;
+  new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// Drag-to-reorder (simple, no external lib)
+let dragSrc = null;
+document.querySelectorAll('#sortableBody tr').forEach(row => {
+  row.draggable = true;
+  row.addEventListener('dragstart', () => dragSrc = row);
+  row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('table-active'); });
+  row.addEventListener('dragleave', () => row.classList.remove('table-active'));
+  row.addEventListener('drop', e => {
+    e.preventDefault();
+    row.classList.remove('table-active');
+    if (dragSrc && dragSrc !== row) {
+      const tbody = row.parentNode;
+      tbody.insertBefore(dragSrc, row.nextSibling);
+      saveOrder();
+    }
+  });
+});
+
+function saveOrder() {
+  const rows = document.querySelectorAll('#sortableBody tr[data-id]');
+  const order = Array.from(rows).map((r, i) => ({ id: r.dataset.id, order: i }));
+  fetch('{{ url_for('admin.tasks_reorder') }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+    body: JSON.stringify(order)
+  });
+}
+</script>
+{% endblock %}

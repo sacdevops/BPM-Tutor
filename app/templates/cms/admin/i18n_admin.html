@@ -1,0 +1,208 @@
+{% extends "cms/base.html" %}
+{% block title %}Sprachen & Texte{% endblock %}
+{% block page_title %}Sprachen & Übersetzungen{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- Language list / new language -->
+  <div class="col-md-3">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Sprachen</div>
+      <div class="list-group list-group-flush">
+        {% for lang in languages %}
+        <a href="{{ url_for('admin.language_strings', lang_code=lang.code) }}"
+           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center
+                  {% if selected_lang and selected_lang.code == lang.code %}active{% endif %}">
+          <span>
+            {% if lang.flag %}<span class="me-1">{{ lang.flag }}</span>{% endif %}
+            {{ lang.name }}
+            <code class="ms-1 small">({{ lang.code }})</code>
+          </span>
+          {% if lang.is_default %}<span class="badge bg-primary">Standard</span>{% endif %}
+          {% if not lang.is_active %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+        </a>
+        {% else %}
+        <div class="list-group-item text-muted small">Noch keine Sprachen.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- New language form -->
+    <div class="card">
+      <div class="card-header fw-semibold">Neue Sprache</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.language_new') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <input type="text" name="code" class="form-control form-control-sm" placeholder="Code (z.B. en)" required maxlength="10">
+          </div>
+          <div class="mb-2">
+            <input type="text" name="name" class="form-control form-control-sm" placeholder="Name (z.B. English)" required>
+          </div>
+          <div class="mb-2">
+            <input type="text" name="flag" class="form-control form-control-sm" placeholder="Emoji-Flagge (z.B. 🇩🇪)" maxlength="4">
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" name="is_active" id="newActive" checked>
+            <label class="form-check-label small" for="newActive">Aktiv</label>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_default" id="newDefault">
+            <label class="form-check-label small" for="newDefault">Standard</label>
+          </div>
+          <button type="submit" class="btn btn-sm btn-success w-100">Erstellen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- String editor -->
+  <div class="col-md-9">
+    {% if selected_lang %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">
+          {% if selected_lang.flag %}{{ selected_lang.flag }} {% endif %}
+          {{ selected_lang.name }} <code class="ms-1">({{ selected_lang.code }})</code>
+        </span>
+        <div class="d-flex gap-2">
+          <!-- Meta update -->
+          <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#metaModal">
+            <i class="bi bi-gear"></i> Einstellungen
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk JSON editor -->
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Texte als JSON bearbeiten</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}">
+          <input type="hidden" name="action" value="bulk_save">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% set strings_dict = {} %}
+          {% for s in strings %}{% set _ = strings_dict.update({s.key: s.value}) %}{% endfor %}
+          <textarea name="strings_json" class="form-control font-monospace" rows="20"
+            style="font-size:0.8rem">{{ strings_dict | tojson(indent=2) }}</textarea>
+          <button type="submit" class="btn btn-primary mt-2">
+            <i class="bi bi-save me-1"></i>Alle speichern
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Individual string table -->
+    <div class="card">
+      <div class="card-header fw-semibold">Einzelne Texte</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Schlüssel</th><th>Wert</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for s in strings %}
+            <tr>
+              <td><code class="small">{{ s.key }}</code></td>
+              <td>
+                <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}" class="d-flex gap-1">
+                  <input type="hidden" name="action" value="save_string">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="key" value="{{ s.key }}">
+                  <input type="text" name="value" class="form-control form-control-sm" value="{{ s.value }}">
+                  <button class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                </form>
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}">
+                  <input type="hidden" name="action" value="delete_string">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="key" value="{{ s.key }}">
+                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Löschen?')">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-muted text-center py-3">Keine Texte vorhanden.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <!-- Add new string -->
+      <div class="card-footer">
+        <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}" class="row g-2">
+          <input type="hidden" name="action" value="save_string">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-5">
+            <input type="text" name="key" class="form-control form-control-sm" placeholder="Schlüssel (z.B. nav.home)">
+          </div>
+          <div class="col-5">
+            <input type="text" name="value" class="form-control form-control-sm" placeholder="Wert">
+          </div>
+          <div class="col-2">
+            <button class="btn btn-sm btn-success w-100">Hinzufügen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Meta modal -->
+    <div class="modal fade" id="metaModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}">
+            <input type="hidden" name="action" value="update_meta">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="modal-header">
+              <h5 class="modal-title">Sprache bearbeiten</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" class="form-control" value="{{ selected_lang.name }}" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Flagge-Emoji</label>
+                <input type="text" name="flag" class="form-control" value="{{ selected_lang.flag or '' }}">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Sortierung</label>
+                <input type="number" name="sort_order" class="form-control" value="{{ selected_lang.sort_order }}">
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="is_active" id="editActive"
+                  {% if selected_lang.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="editActive">Aktiv</label>
+              </div>
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="is_default" id="editDefault"
+                  {% if selected_lang.is_default %}checked{% endif %}>
+                <label class="form-check-label" for="editDefault">Standard</label>
+              </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+              <button type="submit" name="action" value="delete_language" class="btn btn-outline-danger"
+                onclick="return confirm('Sprache wirklich löschen?')">
+                <i class="bi bi-trash me-1"></i>Löschen
+              </button>
+              <div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="alert alert-info">Wähle eine Sprache aus der Liste, um ihre Texte zu bearbeiten.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

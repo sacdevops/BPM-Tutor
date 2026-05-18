@@ -1,0 +1,74 @@
+{% extends "cms/base.html" %}
+{% block title %}Benutzer erstellen{% endblock %}
+{% block page_title %}Neuen Benutzer erstellen{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.users_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> Zurück
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header"><h6 class="mb-0">Benutzerdetails</h6></div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Vorname</label>
+              <input type="text" name="first_name" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nachname</label>
+              <input type="text" name="last_name" class="form-control">
+            </div>
+            <div class="col-12">
+              <label class="form-label">E-Mail <span class="text-danger">*</span></label>
+              <input type="email" name="email" class="form-control" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Benutzername <span class="text-danger">*</span></label>
+              <input type="text" name="username" class="form-control" required minlength="3">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Passwort <span class="text-danger">*</span></label>
+              <input type="password" name="password" class="form-control" required minlength="8">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Rolle</label>
+              <select name="role" class="form-select">
+                <option value="student">Student</option>
+                <option value="instructor">Instructor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="is_verified"
+                       name="is_verified" checked>
+                <label class="form-check-label" for="is_verified">E-Mail als bestätigt markieren</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="is_active"
+                       name="is_active" checked>
+                <label class="form-check-label" for="is_active">Konto aktiv</label>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-person-plus"></i> Benutzer erstellen
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

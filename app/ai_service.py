@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 import config
-from utils.bpmn_validator import BPMNValidator
+from lib.bpmn.validator import BPMNValidator
 from app.prompts import (
     MENTOR_PROMPT_GREETING_FINAL,
     MENTOR_PROMPT_ANALYSIS_FINAL,
@@ -17,7 +17,7 @@ from app.prompts import (
     MENTOR_PROMPT_REACTION_FINAL_DE,
 )
 from app import task_tracker
-from lion import loads as lion_loads, dumps as lion_dumps, strip_markdown_fences
+from lib.lion import loads as lion_loads, dumps as lion_dumps, strip_markdown_fences
 
 
 class AIServiceError(Exception):
@@ -682,3 +682,78 @@ Use Markdown. Be concise."""
             return {
                 'message': "Hello! I'm your BPMN Mentor. Start modeling your process, and feel free to ask me for help anytime!"
             }
+
+    # ── AI auto-grading ───────────────────────────────────────────────────────
+
+    def generate_grade_suggestion(
+        self,
+        task_description: str,
+        bpmn_xml: str,
+        grading_type: str = 'pass_fail',
+        max_points: float = 100,
+    ) -> dict:
+        """Ask the LLM to evaluate a student BPMN submission.
+
+        Returns a dict with:
+          grade_value (float|None), grade_passed (bool|None),
+          comment (str), annotations (list[dict])
+        """
+        prompt_lines = [
+            "Du bist ein Experte für BPMN-Prozessmodellierung und bewertest eine Studentenabgabe.",
+            "",
+            f"Aufgabenstellung: {task_description}",
+            "",
+            "BPMN-XML der Abgabe:",
+            bpmn_xml[:6000] if bpmn_xml else "(kein Modell vorhanden)",
+            "",
+        ]
+        if grading_type == 'points':
+            prompt_lines += [
+                f"Bewertungsskala: 0 – {max_points} Punkte.",
+                "Gib im JSON-Format zurück: "
+                '{"grade_value": <float>, "grade_passed": <bool>, '
+                '"comment": "<ausführliche Begründung>", '
+                '"annotations": [{"element_id": "<id>", "comment": "<text>", "type": "error|warning|ok"}]}',
+            ]
+        else:
+            prompt_lines += [
+                "Bewertungsskala: bestanden / nicht bestanden.",
+                "Gib im JSON-Format zurück: "
+                '{"grade_value": null, "grade_passed": <bool>, '
+                '"comment": "<ausführliche Begründung>", '
+                '"annotations": [{"element_id": "<id>", "comment": "<text>", "type": "error|warning|ok"}]}',
+            ]
+        prompt_lines += [
+            "",
+            "Antworte NUR mit dem JSON-Objekt, kein Markdown, kein Text davor/danach.",
+        ]
+
+        prompt = "\n".join(prompt_lines)
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 1200,
+            "temperature": 0.2,
+        }
+        try:
+            resp = self._call_api(payload)
+            raw = resp.get('choices', [{}])[0].get('message', {}).get('content', '{}')
+            # Strip markdown fences if present
+            raw = strip_markdown_fences(raw)
+            import json as _json
+            data = _json.loads(raw)
+            return {
+                'grade_value': data.get('grade_value'),
+                'grade_passed': data.get('grade_passed'),
+                'comment': data.get('comment', ''),
+                'annotations': data.get('annotations', []),
+            }
+        except Exception as exc:
+            print(f"[AIService] generate_grade_suggestion failed: {exc}")
+            return {
+                'grade_value': None,
+                'grade_passed': None,
+                'comment': f'KI-Bewertung fehlgeschlagen: {exc}',
+                'annotations': [],
+            }
+

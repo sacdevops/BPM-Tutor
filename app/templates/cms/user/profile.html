@@ -1,0 +1,227 @@
+{% extends "cms/base.html" %}
+{% block title %}Mein Profil{% endblock %}
+{% block page_title %}Mein Profil{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Profile Card -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body text-center py-4">
+        <div class="mb-3" style="font-size:4rem; color: var(--cms-primary);"><i class="bi bi-person-circle"></i></div>
+        <h5 class="mb-1">{{ current_user.display_name }}</h5>
+        <p class="text-muted mb-2">{{ current_user.email }}</p>
+        <span class="role-badge role-{{ current_user.role }}">{{ current_user.role }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Benutzername</span>
+          <strong>{{ current_user.username }}</strong>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-muted small">Mitglied seit</span>
+          <strong>{{ current_user.created_at.strftime('%d.%m.%Y') }}</strong>
+        </div>
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-muted small">E-Mail bestätigt</span>
+          {% if current_user.is_verified %}
+            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ja</span>
+          {% else %}
+            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Nein</span>
+          {% endif %}
+        </div>
+        {% if current_user.personal_api_key %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span class="text-muted small">API-Key</span>
+          <span class="badge bg-success"><i class="bi bi-key-fill me-1"></i>Hinterlegt</span>
+        </div>
+        {% endif %}
+        <a href="{{ url_for('user_bp.my_stats') }}" class="list-group-item list-group-item-action text-center">
+          <i class="bi bi-bar-chart me-2"></i>Meine Statistik
+        </a>
+        <a href="{{ url_for('user_bp.my_submissions') }}" class="list-group-item list-group-item-action text-center">
+          <i class="bi bi-journal-text me-2"></i>Meine Einreichungen
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forms -->
+  <div class="col-lg-8">
+    <!-- Personal Data -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-person me-2"></i>Persönliche Daten</h6></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Vorname</label>
+              <input type="text" name="first_name" class="form-control"
+                     value="{{ current_user.first_name or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nachname</label>
+              <input type="text" name="last_name" class="form-control"
+                     value="{{ current_user.last_name or '' }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">E-Mail-Adresse</label>
+              <input type="email" name="email" class="form-control"
+                     value="{{ current_user.email }}">
+            </div>
+            {% if cms_active_languages | length >= 1 %}
+            <div class="col-12">
+              <label class="form-label">Sprache / Language</label>
+              <select name="language" class="form-select">
+                {% for lang in cms_active_languages %}
+                <option value="{{ lang.code }}" {% if current_user.language == lang.code or (not current_user.language and lang.code == 'en') %}selected{% endif %}>
+                  {% if lang.flag %}{{ lang.flag }} {% endif %}{{ lang.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">
+            <i class="bi bi-save me-1"></i>Speichern
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- API Key + Model -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu me-2"></i>KI-Einstellungen (API-Key & Modell)</h6></div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Trage hier deinen OpenAI-kompatiblen API-Key ein. Dieser wird verschlüsselt gespeichert und für deine KI-gestützte BPMN-Mentorenschaft verwendet.
+        </p>
+        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">API-Key</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-key"></i></span>
+              <input type="password" name="personal_api_key" class="form-control"
+                     id="apiKeyInput" placeholder="sk-..."
+                     value="{{ current_user.personal_api_key or '' }}">
+              <button type="button" class="btn btn-outline-secondary"
+                      onclick="toggleApiKeyVisibility()">
+                <i class="bi bi-eye" id="apiKeyEyeIcon"></i>
+              </button>
+            </div>
+            {% if current_user.personal_api_key %}
+            <div class="mt-1 d-flex align-items-center gap-2">
+              <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>API-Key hinterlegt</span>
+              <button type="submit" name="clear_api_key" value="1"
+                      class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Entfernen
+              </button>
+            </div>
+            {% endif %}
+          </div>
+          <div class="mb-3" id="modelSection" {% if not current_user.personal_api_key %}style="display:none;"{% endif %}>
+            <label class="form-label fw-semibold">KI-Modell</label>
+            <div class="d-flex gap-2">
+              <select id="modelSelect" name="preferred_model" class="form-select" disabled>
+                <option value="">-- Modelle laden --</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary" onclick="loadModels()" id="loadModelsBtn">
+                <i class="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+            <div id="modelStatus" class="form-text mt-1"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>API-Einstellungen speichern
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Change Password -->
+    <div class="card shadow-sm">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Passwort ändern</h6></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('user_bp.change_password') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Aktuelles Passwort</label>
+              <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Neues Passwort</label>
+              <input type="password" name="new_password" class="form-control" required minlength="8" autocomplete="new-password">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Bestätigen</label>
+              <input type="password" name="new_password2" class="form-control" required autocomplete="new-password">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-warning mt-3">
+            <i class="bi bi-key me-1"></i>Passwort ändern
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('apiKeyInput');
+  const icon = document.getElementById('apiKeyEyeIcon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'bi bi-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'bi bi-eye';
+  }
+}
+
+function loadModels() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const select = document.getElementById('modelSelect');
+  const status = document.getElementById('modelStatus');
+  const btn = document.getElementById('loadModelsBtn');
+  if (!key) { status.textContent = 'Bitte zuerst API-Key eingeben.'; return; }
+  btn.disabled = true;
+  status.textContent = 'Lade Modelle...';
+  fetch('/api/models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: key })
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    if (data.success && data.models?.length) {
+      select.innerHTML = '';
+      data.models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id; opt.textContent = m.name;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+      status.textContent = `${data.models.length} Modelle gefunden.`;
+      document.getElementById('modelSection').style.display = '';
+    } else {
+      status.textContent = data.message || 'Fehler beim Laden der Modelle.';
+    }
+  })
+  .catch(() => { btn.disabled = false; status.textContent = 'Verbindungsfehler.'; });
+}
+
+// Show model section if API key already saved
+document.addEventListener('DOMContentLoaded', () => {
+  {% if current_user.personal_api_key %}
+  document.getElementById('modelSection').style.display = '';
+  {% endif %}
+});
+</script>
+{% endblock %}

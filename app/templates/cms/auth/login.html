@@ -1,0 +1,74 @@
+{% extends "cms/base.html" %}
+{% block title %}Anmelden{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+  <div class="auth-logo">
+    <i class="bi bi-diagram-3-fill"></i>
+    <h1>{{ cms_site_name }}</h1>
+    <p class="text-muted">Melde dich an, um fortzufahren</p>
+  </div>
+
+  <form method="post" action="{{ url_for('auth.login') }}" class="auth-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <div class="mb-3">
+      <label for="identifier" class="form-label">E-Mail oder Benutzername</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-person"></i></span>
+        <input type="text" id="identifier" name="identifier" class="form-control"
+               placeholder="E-Mail oder Benutzername" autofocus required>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="password" class="form-label">Passwort</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+        <input type="password" id="password" name="password" class="form-control"
+               placeholder="Passwort" required>
+        <button class="btn btn-outline-secondary" type="button" onclick="togglePw('password')">
+          <i class="bi bi-eye" id="pw-eye"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="remember" name="remember">
+        <label class="form-check-label" for="remember">Angemeldet bleiben</label>
+      </div>
+      <a href="{{ url_for('auth.forgot_password') }}" class="text-primary small">Passwort vergessen?</a>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100 btn-lg">
+      <i class="bi bi-box-arrow-in-right"></i> Anmelden
+    </button>
+
+    {% if allow_registration %}
+    <hr>
+    <p class="text-center mb-0">Noch kein Konto?
+      <a href="{{ url_for('auth.register') }}">Jetzt registrieren</a>
+    </p>
+    {% endif %}
+  </form>
+</div>
+
+<script>
+function togglePw(id) {
+  const input = document.getElementById(id);
+  const eye = document.getElementById('pw-eye');
+  if (input.type === 'password') {
+    input.type = 'text';
+    eye.className = 'bi bi-eye-slash';
+  } else {
+    input.type = 'password';
+    eye.className = 'bi bi-eye';
+  }
+}
+</script>
+{% endblock %}

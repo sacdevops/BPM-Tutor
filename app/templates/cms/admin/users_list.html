@@ -1,0 +1,210 @@
+{% extends "cms/base.html" %}
+{% block title %}Benutzer{% endblock %}
+{% block page_title %}Benutzerverwaltung{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.user_create') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-person-plus"></i> Neuer Benutzer
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <!-- Filters -->
+  <div class="card-body border-bottom">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" class="form-control" placeholder="Suche nach Name, E-Mail, Benutzername"
+                 value="{{ q }}">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select name="role" class="form-select">
+          <option value="">Alle Rollen</option>
+          <option value="student" {% if role_filter == 'student' %}selected{% endif %}>Studierende</option>
+          <option value="instructor" {% if role_filter == 'instructor' %}selected{% endif %}>Lehrende</option>
+          <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admins</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary w-100">Filtern</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{{ url_for('admin.users_list') }}" class="btn btn-outline-secondary w-100">
+          Zurücksetzen
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Bulk action bar -->
+  <div id="bulkBar" class="d-none card-header bg-light border-bottom d-flex gap-2 align-items-center">
+    <span class="small fw-semibold" id="bulkCount"></span>
+    <form method="post" action="{{ url_for('admin.users_bulk') }}" id="bulkForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div id="bulkHiddenInputs"></div>
+      <div class="d-flex gap-2">
+        <select name="bulk_action" class="form-select form-select-sm" style="width:180px">
+          <option value="">Aktion auswählen…</option>
+          <option value="activate">Aktivieren</option>
+          <option value="deactivate">Deaktivieren</option>
+          <option value="delete">Löschen</option>
+        </select>
+        <button type="submit" class="btn btn-sm btn-danger"
+          onclick="return confirm('Aktion auf ausgewählte Nutzer anwenden?')">
+          Ausführen
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th><input type="checkbox" id="selectAll" class="form-check-input"></th>
+          <th>Benutzer</th>
+          <th>Rolle</th>
+          <th>Status</th>
+          <th>Registriert</th>
+          <th>Letzter Login</th>
+          <th class="text-end">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in pagination.items %}
+        <tr>
+          <td><input type="checkbox" class="form-check-input row-check" value="{{ user.id }}"></td>
+          <td>
+            <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="fw-semibold text-decoration-none">
+              {{ user.display_name }}
+            </a>
+            <div class="text-muted small">{{ user.email }}</div>
+          </td>
+          <td><span class="role-badge role-{{ user.role }}">{{ user.role }}</span></td>
+          <td>
+            {% if user.is_locked %}
+            <span class="badge bg-danger">Gesperrt</span>
+            {% elif not user.is_active %}
+            <span class="badge bg-secondary">Deaktiviert</span>
+            {% elif not user.is_verified %}
+            <span class="badge bg-warning text-dark">Nicht verifiziert</span>
+            {% else %}
+            <span class="badge bg-success">Aktiv</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+          <td class="text-muted small">{{ user.last_login.strftime('%d.%m.%Y %H:%M') if user.last_login else '—' }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.user_detail', user_id=user.id) }}"
+               class="btn btn-sm btn-outline-primary me-1">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if user.id != current_user.id %}
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="confirmDelete('{{ url_for('admin.user_delete', user_id=user.id) }}', '{{ user.username }}')">
+              <i class="bi bi-trash"></i>
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Keine Benutzer gefunden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% for page in pagination.iter_pages() %}
+          {% if page %}
+          <li class="page-item {% if page == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('admin.users_list', page=page, q=q, role=role_filter) }}">{{ page }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Benutzer löschen</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Benutzer <strong id="deleteUsername"></strong> wirklich löschen? Alle zugehörigen Daten werden entfernt.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <form method="post" id="deleteForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Löschen</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmDelete(url, name) {
+  document.getElementById('deleteUsername').textContent = name;
+  document.getElementById('deleteForm').action = url;
+  new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// Bulk checkbox logic
+const selectAll = document.getElementById('selectAll');
+const bulkBar = document.getElementById('bulkBar');
+const bulkCount = document.getElementById('bulkCount');
+const bulkHiddenInputs = document.getElementById('bulkHiddenInputs');
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.row-check:checked');
+  bulkHiddenInputs.innerHTML = '';
+  checked.forEach(cb => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'user_ids';
+    inp.value = cb.value;
+    bulkHiddenInputs.appendChild(inp);
+  });
+  if (checked.length > 0) {
+    bulkBar.classList.remove('d-none');
+    bulkBar.classList.add('d-flex');
+    bulkCount.textContent = checked.length + ' ausgewählt';
+  } else {
+    bulkBar.classList.add('d-none');
+    bulkBar.classList.remove('d-flex');
+  }
+}
+
+if (selectAll) {
+  selectAll.addEventListener('change', () => {
+    document.querySelectorAll('.row-check').forEach(cb => {
+      cb.checked = selectAll.checked;
+    });
+    updateBulkBar();
+  });
+}
+
+document.querySelectorAll('.row-check').forEach(cb => {
+  cb.addEventListener('change', updateBulkBar);
+});
+</script>
+{% endblock %}

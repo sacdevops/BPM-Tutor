@@ -377,7 +377,7 @@ async function completeTask() {
         const data = await response.json();
 
         if (data.success) {
-            window.location.href = '/';
+            window.location.href = data.redirect || '/';
         } else {
             alert('Error completing task: ' + (data.message || 'Unknown error'));
         }

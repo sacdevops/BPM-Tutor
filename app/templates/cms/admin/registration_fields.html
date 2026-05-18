@@ -1,0 +1,159 @@
+{% extends "cms/base.html" %}
+{% block title %}Registrierungsfelder{% endblock %}
+{% block page_title %}Registrierungsfelder konfigurieren{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Konfigurierbare Felder</h6>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-primary" onclick="addField('text')">
+            <i class="bi bi-plus"></i> Text-Feld
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('select')">
+            <i class="bi bi-plus"></i> Dropdown
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('date')">
+            <i class="bi bi-plus"></i> Datum
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('number')">
+            <i class="bi bi-plus"></i> Zahl
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="fieldsContainer">
+          <!-- Fields rendered by JS -->
+        </div>
+        <div id="emptyMsg" class="text-center text-muted py-3">
+          <i class="bi bi-plus-circle fs-3"></i><br>
+          Noch keine Felder. Klicke oben, um ein Feld hinzuzufügen.
+        </div>
+      </div>
+    </div>
+
+    <form method="post" id="saveForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="fields_json" id="fields_json">
+      <button type="submit" class="btn btn-primary btn-lg w-100" onclick="saveFields()">
+        <i class="bi bi-save"></i> Felder speichern
+      </button>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header"><h6 class="mb-0">Pflichtfelder (immer)</h6></div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi bi-lock-fill text-primary"></i>
+          E-Mail <span class="badge bg-danger ms-auto">Pflicht</span>
+        </li>
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi bi-lock-fill text-primary"></i>
+          Benutzername <span class="badge bg-danger ms-auto">Pflicht</span>
+        </li>
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi bi-lock-fill text-primary"></i>
+          Passwort (2×) <span class="badge bg-danger ms-auto">Pflicht</span>
+        </li>
+        <li class="list-group-item d-flex align-items-center gap-2">
+          <i class="bi bi-lock-fill text-primary"></i>
+          Datenspeicherung zustimmen <span class="badge bg-danger ms-auto">Pflicht</span>
+        </li>
+      </ul>
+    </div>
+    <div class="alert alert-info mt-3 small">
+      <i class="bi bi-info-circle"></i>
+      Vorname und Nachname sind immer optionale Felder und werden automatisch angezeigt.
+      Hier konfigurierst du zusätzliche Felder.
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const existingFields = {{ fields | tojson }};
+let fields = existingFields.map(f => ({
+  name: f.name,
+  label: f.label,
+  label_de: f.label_de || '',
+  field_type: f.field_type,
+  required: f.required,
+  options: f.options || []
+}));
+
+function renderFields() {
+  const container = document.getElementById('fieldsContainer');
+  const emptyMsg = document.getElementById('emptyMsg');
+  emptyMsg.style.display = fields.length ? 'none' : '';
+  container.innerHTML = '';
+  fields.forEach((f, i) => {
+    container.insertAdjacentHTML('beforeend', `
+      <div class="border rounded p-3 mb-2 bg-light" id="field_${i}">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-3">
+            <label class="form-label small">Name (intern)</label>
+            <input type="text" class="form-control form-control-sm" value="${f.name}"
+                   onchange="fields[${i}].name=this.value" placeholder="z.B. matrikel_nr">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">Label (DE)</label>
+            <input type="text" class="form-control form-control-sm" value="${f.label}"
+                   onchange="fields[${i}].label=this.value" placeholder="Matrikelnummer">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">Typ</label>
+            <select class="form-select form-select-sm" onchange="fields[${i}].field_type=this.value; renderFields()">
+              ${['text','textarea','select','number','date','checkbox'].map(t =>
+                `<option value="${t}" ${f.field_type === t ? 'selected' : ''}>${t}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="req_${i}"
+                     ${f.required ? 'checked' : ''} onchange="fields[${i}].required=this.checked">
+              <label class="form-check-label small" for="req_${i}">Pflicht</label>
+            </div>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-outline-danger w-100"
+                    onclick="fields.splice(${i},1); renderFields()">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+          ${f.field_type === 'select' ? `
+          <div class="col-12">
+            <label class="form-label small">Optionen (eine pro Zeile: wert=Label)</label>
+            <textarea class="form-control form-control-sm" rows="3"
+                      onchange="fields[${i}].options=parseOptions(this.value)">${(f.options||[]).map(o => o.value+'='+o.label).join('\n')}</textarea>
+          </div>` : ''}
+        </div>
+      </div>
+    `);
+  });
+}
+
+function addField(type) {
+  fields.push({ name: `field_${Date.now()}`, label: '', label_de: '', field_type: type, required: false, options: [] });
+  renderFields();
+}
+
+function parseOptions(text) {
+  return text.split('\n').filter(l => l.trim()).map(l => {
+    const [val, ...rest] = l.split('=');
+    return { value: val.trim(), label: rest.join('=').trim() || val.trim() };
+  });
+}
+
+function saveFields() {
+  document.getElementById('fields_json').value = JSON.stringify(fields);
+}
+
+renderFields();
+</script>
+{% endblock %}

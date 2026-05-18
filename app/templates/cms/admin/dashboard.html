@@ -1,0 +1,224 @@
+{% extends "cms/base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+<div class="d-flex gap-2">
+  <select id="periodSelect" class="form-select form-select-sm" onchange="loadStats(this.value)" style="width:auto">
+    <option value="24h">Letzte 24h</option>
+    <option value="7d">7 Tage</option>
+    <option value="30d" selected>30 Tage</option>
+    <option value="90d">90 Tage</option>
+    <option value="1y">1 Jahr</option>
+    <option value="all">Gesamt</option>
+  </select>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<div class="row g-3 mb-4" id="kpiRow">
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-primary"><i class="bi bi-people"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value" id="kpi-users">{{ stats.total_users }}</span>
+        <span class="kpi-label">Benutzer gesamt</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-success"><i class="bi bi-journal-check"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value" id="kpi-submissions">{{ stats.total_submissions }}</span>
+        <span class="kpi-label">Einreichungen</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-warning"><i class="bi bi-check2-circle"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value" id="kpi-completed">{{ stats.completed }}</span>
+        <span class="kpi-label">Abgeschlossen</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-info"><i class="bi bi-cpu"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value" id="kpi-tokens">{{ stats.total_tokens | default(0) }}</span>
+        <span class="kpi-label">Token gesamt</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart + Recent Activity -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Einreichungen über Zeit</h6>
+      </div>
+      <div class="card-body">
+        <canvas id="timelineChart" height="250"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-list-ol"></i> Aufgaben-Aktivität</h6>
+      </div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush" id="taskActivity">
+          {% for task_id, count in stats.submissions_per_task.items() %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span class="text-truncate">{{ task_id }}</span>
+            <span class="badge bg-primary">{{ count }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Submissions -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between">
+    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Neueste Einreichungen</h6>
+    <a href="{{ url_for('admin.grading_list') }}" class="btn btn-sm btn-outline-primary">
+      Alle anzeigen
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Benutzer</th>
+          <th>Aufgabe</th>
+          <th>Gestartet</th>
+          <th>Abgeschlossen</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub in recent_subs %}
+        <tr>
+          <td>
+            {% if sub.user %}
+            <a href="{{ url_for('admin.user_detail', user_id=sub.user_id) }}">{{ sub.user.username }}</a>
+            {% else %}<span class="text-muted">Anonym</span>{% endif %}
+          </td>
+          <td><code>{{ sub.task_id }}</code></td>
+          <td>{{ sub.started_at.strftime('%d.%m.%y %H:%M') }}</td>
+          <td>{{ sub.completed_at.strftime('%d.%m.%y %H:%M') if sub.completed_at else '—' }}</td>
+          <td>
+            {% if sub.grade_value is not none or sub.grade_passed is not none %}
+            <span class="badge bg-success">Bewertet</span>
+            {% elif sub.completed_at %}
+            <span class="badge bg-warning text-dark">Ausstehend</span>
+            {% else %}
+            <span class="badge bg-secondary">In Bearbeitung</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('admin.grading_detail', sub_id=sub.id) }}"
+               class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Broadcast Notification -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header">
+    <h6 class="mb-0"><i class="bi bi-megaphone"></i> Benachrichtigung senden</h6>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.notify_all') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2">
+        <div class="col-md-3">
+          <select name="role" class="form-select">
+            <option value="">Alle Benutzer</option>
+            <option value="student">Studierende</option>
+            <option value="instructor">Lehrende</option>
+            <option value="admin">Admins</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <input type="text" name="title" class="form-control" placeholder="Titel" required>
+        </div>
+        <div class="col-md-4">
+          <input type="text" name="message" class="form-control" placeholder="Nachricht (optional)">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-send"></i> Senden
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let chart = null;
+const chartCtx = document.getElementById('timelineChart');
+
+function renderChart(labels, data) {
+  if (chart) chart.destroy();
+  chart = new Chart(chartCtx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Einreichungen',
+        data,
+        borderColor: '#4f46e5',
+        backgroundColor: 'rgba(79,70,229,0.08)',
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+  });
+}
+
+async function loadStats(period) {
+  const res = await fetch(`{{ url_for('admin.api_stats') }}?period=${period}`);
+  const { stats, chart: chartData } = await res.json();
+  document.getElementById('kpi-users').textContent = stats.total_users;
+  document.getElementById('kpi-submissions').textContent = stats.total_submissions;
+  document.getElementById('kpi-completed').textContent = stats.completed;
+  document.getElementById('kpi-tokens').textContent = (stats.total_tokens || 0).toLocaleString();
+  renderChart(chartData.labels, chartData.data);
+}
+
+// Initial chart render
+renderChart(
+  {{ stats.submissions_per_task.keys()|list|tojson }},
+  {{ stats.submissions_per_task.values()|list|tojson }}
+);
+
+document.addEventListener('DOMContentLoaded', () => loadStats('30d'));
+</script>
+{% endblock %}

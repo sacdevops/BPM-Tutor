@@ -10,6 +10,7 @@ const TRANSLATIONS = {
     en: {
         // Index page
         'index.subtitle': 'BPMN Modeling Learning Environment',
+        'index.learning_path': 'Learning Path',
         'index.select_task': 'Select a Task',
         'index.custom_title': '\u270d\ufe0f Custom Task',
         'index.custom_desc': 'Define your own process. Type a description or upload a document (TXT, PDF, DOCX) \u2014 then model it yourself with Mentor guidance.',
@@ -75,6 +76,7 @@ const TRANSLATIONS = {
     de: {
         // Hauptseite
         'index.subtitle': 'BPMN-Modellierung Lernumgebung',
+        'index.learning_path': 'Lernpfad',
         'index.select_task': 'Aufgabe ausw\u00e4hlen',
         'index.custom_title': '\u270d\ufe0f Eigene Aufgabe',
         'index.custom_desc': 'Definiere deinen eigenen Prozess. Beschreibe ihn oder lade ein Dokument (TXT, PDF, DOCX) hoch \u2014 dann modelliere ihn selbst mit Unterst\u00fctzung des Mentors.',
@@ -191,6 +193,23 @@ function toggleLangDropdown(btn) {
     const open = menu.classList.toggle('open');
     if (open) {
         // Close on outside click
+        setTimeout(() => {
+            function handleOutside(e) {
+                if (!btn.parentElement.contains(e.target)) {
+                    menu.classList.remove('open');
+                    document.removeEventListener('click', handleOutside);
+                }
+            }
+            document.addEventListener('click', handleOutside);
+        }, 0);
+    }
+}
+
+function toggleHeaderLang(btn) {
+    const menu = btn.nextElementSibling;
+    if (!menu) return;
+    const open = menu.classList.toggle('open');
+    if (open) {
         setTimeout(() => {
             function handleOutside(e) {
                 if (!btn.parentElement.contains(e.target)) {

@@ -1,0 +1,123 @@
+{% extends "cms/base.html" %}
+{% block title %}Level-System{% endblock %}
+{% block page_title %}Level-System{% endblock %}
+
+{% block content %}
+<!-- Header + Toggle -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <p class="text-muted mb-0">Stufenweises Lernpfad-System für Studierende. Level müssen der Reihe nach freigeschaltet werden.</p>
+  </div>
+  <form method="post" action="{{ url_for('admin.levels_toggle') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn {% if level_enabled %}btn-success{% else %}btn-outline-secondary{% endif %}">
+      <i class="bi bi-{% if level_enabled %}toggle-on{% else %}toggle-off{% endif %} me-1"></i>
+      Level-System {% if level_enabled %}aktiv{% else %}inaktiv{% endif %}
+    </button>
+  </form>
+</div>
+
+{% if not level_enabled %}
+<div class="alert alert-warning">
+  <i class="bi bi-info-circle me-1"></i>
+  Das Level-System ist derzeit deaktiviert. Studierende sehen normale Aufgaben ohne Stufenstruktur.
+  Aktiviere es oben, um den Lernpfad für alle sichtbar zu machen.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <!-- Level list -->
+  <div class="col-lg-8">
+    {% if levels %}
+    <div class="list-group shadow-sm">
+      {% for lv in levels %}
+      <a href="{{ url_for('admin.level_edit', level_id=lv.id) }}"
+         class="list-group-item list-group-item-action d-flex align-items-center gap-3">
+        <div class="level-badge {% if lv.difficulty == 'beginner' %}bg-success{% elif lv.difficulty == 'intermediate' %}bg-primary{% elif lv.difficulty == 'advanced' %}bg-warning text-dark{% else %}bg-danger{% endif %} text-white rounded-3 d-flex align-items-center justify-content-center"
+             style="width:48px;height:48px;font-size:1.3rem;font-weight:800;flex-shrink:0;">
+          {{ lv.level_number }}
+        </div>
+        <div class="flex-grow-1 min-w-0">
+          <div class="d-flex align-items-center gap-2">
+            <strong>{{ lv.title }}</strong>
+            {% if not lv.is_active %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+            <span class="badge bg-light text-secondary border">{{ lv.difficulty }}</span>
+          </div>
+          {% if lv.description %}
+          <p class="mb-0 text-muted small text-truncate">{{ lv.description }}</p>
+          {% endif %}
+        </div>
+        <div class="text-end text-muted small flex-shrink-0">
+          {{ lv.task_count }} Aufgabe{{ 'n' if lv.task_count != 1 else '' }}
+        </div>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-layers" style="font-size:2.5rem;"></i>
+        <p class="mt-2 mb-0">Noch keine Level erstellt. Füge unten das erste Level hinzu.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- New Level form -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold"><i class="bi bi-plus-circle me-1"></i>Neues Level</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.level_new') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-2">
+            <label class="form-label">Titel (EN) <span class="text-danger">*</span></label>
+            <input type="text" name="title" class="form-control" placeholder="z.B. Introduction to BPMN" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Titel (DE)</label>
+            <input type="text" name="title_de" class="form-control" placeholder="z.B. Einführung in BPMN">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Schwierigkeit</label>
+            <select name="difficulty" class="form-select">
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+              <option value="expert">Expert</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Beschreibung</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Kurze Beschreibung (optional)"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-plus-lg me-1"></i>Level erstellen
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% if levels %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header fw-semibold">Übersicht</div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex justify-content-between">
+          <span class="text-muted small">Level gesamt</span>
+          <strong>{{ levels | length }}</strong>
+        </div>
+        <div class="list-group-item d-flex justify-content-between">
+          <span class="text-muted small">Aktive Level</span>
+          <strong>{{ levels | selectattr('is_active') | list | length }}</strong>
+        </div>
+        <div class="list-group-item d-flex justify-content-between">
+          <span class="text-muted small">Aufgaben zugewiesen</span>
+          <strong>{{ levels | sum(attribute='task_count') }}</strong>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

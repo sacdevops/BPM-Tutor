@@ -1,0 +1,398 @@
+{% extends "cms/base.html" %}
+{% block title %}Bewertung{% endblock %}
+{% block page_title %}Einreichung bewerten{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> Zurück zur Liste
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Left: Info + Grading Form -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0">Einreichungsdetails</h6></div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item">
+          <span class="text-muted small">Aufgabe</span>
+          <div class="fw-semibold">{{ task.title if task else submission.task_id }}</div>
+        </div>
+        <div class="list-group-item">
+          <span class="text-muted small">Studierender</span>
+          <div>
+            {% if submission.user %}
+            <a href="{{ url_for('admin.user_detail', user_id=submission.user_id) }}">
+              {{ submission.user.display_name }}
+            </a>
+            <div class="text-muted small">{{ submission.user.email }}</div>
+            {% else %}
+            <span class="text-muted">Anonym</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="list-group-item">
+          <span class="text-muted small">Begonnen / Abgeschlossen</span>
+          <div>{{ submission.started_at.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div>{{ submission.completed_at.strftime('%d.%m.%Y %H:%M') if submission.completed_at else '—' }}</div>
+        </div>
+        <div class="list-group-item">
+          <span class="text-muted small">KI-Interaktionen / Tokens</span>
+          <div>{{ submission.interactions }} / {{ submission.tokens_in + submission.tokens_out }}</div>
+        </div>
+        {% if submission.grader %}
+        <div class="list-group-item">
+          <span class="text-muted small">Bewertet von</span>
+          <div>{{ submission.grader.display_name }}</div>
+          <div class="text-muted small">{{ submission.graded_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- AI Suggestion card -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-robot"></i> KI-Bewertungsvorschlag</h6>
+        <button class="btn btn-sm btn-outline-primary" id="aiSuggestBtn" onclick="requestAiSuggestion()">
+          Generieren
+        </button>
+      </div>
+      <div class="card-body" id="aiSuggestBody">
+        {% if submission.ai_grade_generated_at %}
+        <div class="alert alert-light border mb-2 py-2 small">
+          <strong>Generiert:</strong> {{ submission.ai_grade_generated_at.strftime('%d.%m.%Y %H:%M') }}<br>
+          {% if submission.ai_grade_passed is not none %}
+            <strong>Ergebnis:</strong>
+            <span class="badge {% if submission.ai_grade_passed %}bg-success{% else %}bg-danger{% endif %}">
+              {% if submission.ai_grade_passed %}Bestanden{% else %}Nicht bestanden{% endif %}
+            </span>
+          {% endif %}
+          {% if submission.ai_grade_value is not none %}
+            <strong>Punkte:</strong> {{ submission.ai_grade_value }}
+          {% endif %}
+        </div>
+        {% if submission.ai_grade_comment %}
+        <p class="small mb-2">{{ submission.ai_grade_comment }}</p>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-secondary w-100" onclick="applyAiSuggestion()">
+          <i class="bi bi-arrow-down-circle me-1"></i>In Formular übernehmen
+        </button>
+        {% else %}
+        <p class="text-muted small mb-0">Noch kein KI-Vorschlag generiert.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Grading Form -->
+    <div class="card shadow-sm">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> Bewertung</h6></div>
+      <div class="card-body">
+        <form method="post" id="gradingForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="grade_annotations" id="gradeAnnotationsInput"
+            value="{{ submission.grade_annotations or '[]' }}">
+
+          <div class="mb-3">
+            <label class="form-label">Bewertungstyp</label>
+            <select name="grading_type" id="grading_type" class="form-select"
+                    onchange="toggleGradeFields()">
+              {% set cur_type = 'points' if submission.grade_value is not none else ('pass_fail' if submission.grade_passed is not none else (task.grading_type if task else 'none')) %}
+              <option value="none" {% if cur_type == 'none' %}selected{% endif %}>Keine Bewertung</option>
+              <option value="points" {% if cur_type == 'points' %}selected{% endif %}>Punkte</option>
+              <option value="pass_fail" {% if cur_type == 'pass_fail' %}selected{% endif %}>Bestanden / Nicht bestanden</option>
+            </select>
+          </div>
+
+          <div id="pointsRow" style="{% if cur_type != 'points' %}display:none{% endif %}" class="mb-3">
+            <label class="form-label">
+              Punkte{% if task and task.max_points %} (max. {{ task.max_points }}){% endif %}
+            </label>
+            <input type="number" name="grade_value" id="gradeValueInput" class="form-control"
+                   value="{{ submission.grade_value or '' }}"
+                   step="0.5" min="0"
+                   {% if task and task.max_points %}max="{{ task.max_points }}"{% endif %}>
+          </div>
+
+          <div id="passFailRow" style="{% if cur_type != 'pass_fail' %}display:none{% endif %}" class="mb-3">
+            <label class="form-label">Ergebnis</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input type="radio" name="grade_passed" id="passed_true" class="form-check-input"
+                       value="true" {% if submission.grade_passed == True %}checked{% endif %}>
+                <label class="form-check-label text-success" for="passed_true">Bestanden</label>
+              </div>
+              <div class="form-check">
+                <input type="radio" name="grade_passed" id="passed_false" class="form-check-input"
+                       value="false" {% if submission.grade_passed == False %}checked{% endif %}>
+                <label class="form-check-label text-danger" for="passed_false">Nicht bestanden</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Kommentar (sichtbar für Studierende)</label>
+            <textarea name="comment" id="gradeCommentInput" class="form-control" rows="4"
+                      placeholder="Feedback...">{{ submission.grade_comment or '' }}</textarea>
+          </div>
+
+          <div class="form-check mb-3">
+            <input type="checkbox" name="send_notification" id="send_notification"
+                   class="form-check-input" checked>
+            <label class="form-check-label" for="send_notification">
+              Benachrichtigung an Studierenden senden
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-check-lg"></i> Bewertung speichern
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: BPMN + Chat -->
+  <div class="col-lg-8">
+    {% if submission.bpmn_xml %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-diagram-3"></i> BPMN-Diagramm mit Anmerkungen</h6>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnotationMode()">
+            <i class="bi bi-pencil me-1"></i><span id="annotModeLabel">Anmerkung hinzufügen</span>
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0" style="position:relative">
+        <div id="bpmn-preview" style="height:400px; background:#f8f8f8"></div>
+        <!-- Annotation overlay panel -->
+        <div id="annotPanel" class="card" style="display:none; position:absolute; top:8px; right:8px; width:280px; z-index:100;">
+          <div class="card-header small fw-semibold py-2">Anmerkung</div>
+          <div class="card-body py-2">
+            <p class="small text-muted mb-1">Element: <strong id="annotElementId">–</strong></p>
+            <div class="mb-2">
+              <select id="annotType" class="form-select form-select-sm">
+                <option value="error">Fehler</option>
+                <option value="warning">Hinweis</option>
+                <option value="ok">Korrekt</option>
+              </select>
+            </div>
+            <textarea id="annotComment" class="form-control form-control-sm" rows="3" placeholder="Kommentar…"></textarea>
+            <div class="d-flex gap-2 mt-2">
+              <button class="btn btn-sm btn-primary" onclick="saveAnnotation()">Speichern</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="closeAnnotPanel()">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Annotation list -->
+      <div id="annotList" class="px-3 pb-2" style="max-height:150px;overflow-y:auto"></div>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between">
+        <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Chat-Verlauf</h6>
+        <span class="badge bg-secondary">{{ submission.chat_history|length }} Nachrichten</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="chat-log-viewer" style="max-height:400px;overflow-y:auto;padding:1rem">
+          {% for msg in submission.chat_history %}
+          <div class="chat-msg chat-msg-{{ msg.role }}">
+            <span class="chat-role">{{ msg.role }}</span>
+            <div class="chat-text">{{ msg.content }}</div>
+          </div>
+          {% else %}
+          <p class="text-muted">Kein Chat-Verlauf vorhanden.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Grade field toggling ──────────────────────────────────────────────────────
+function toggleGradeFields() {
+  const gt = document.getElementById('grading_type').value;
+  document.getElementById('pointsRow').style.display = gt === 'points' ? '' : 'none';
+  document.getElementById('passFailRow').style.display = gt === 'pass_fail' ? '' : 'none';
+}
+
+// ── AI suggestion ─────────────────────────────────────────────────────────────
+const AI_SUGGEST_URL = '{{ url_for("admin.grading_ai_suggest", sub_id=submission.id) }}';
+const CSRF_TOKEN = '{{ csrf_token() }}';
+let lastAiResult = null;
+
+{% if submission.ai_grade_value is not none or submission.ai_grade_passed is not none %}
+lastAiResult = {
+  grade_value: {{ submission.ai_grade_value | tojson }},
+  grade_passed: {{ submission.ai_grade_passed | tojson }},
+  comment: {{ (submission.ai_grade_comment or '') | tojson }},
+};
+{% endif %}
+
+async function requestAiSuggestion() {
+  const btn = document.getElementById('aiSuggestBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    const resp = await fetch(AI_SUGGEST_URL, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      lastAiResult = data.result;
+      const body = document.getElementById('aiSuggestBody');
+      const r = data.result;
+      let html = `<div class="alert alert-light border mb-2 py-2 small">`;
+      if (r.grade_passed !== null && r.grade_passed !== undefined) {
+        html += `<strong>Ergebnis:</strong> <span class="badge ${r.grade_passed ? 'bg-success' : 'bg-danger'}">${r.grade_passed ? 'Bestanden' : 'Nicht bestanden'}</span> `;
+      }
+      if (r.grade_value !== null && r.grade_value !== undefined) {
+        html += `<strong>Punkte:</strong> ${r.grade_value}`;
+      }
+      html += '</div>';
+      if (r.comment) html += `<p class="small mb-2">${r.comment.replace(/</g,'&lt;')}</p>`;
+      html += `<button class="btn btn-sm btn-outline-secondary w-100" onclick="applyAiSuggestion()"><i class="bi bi-arrow-down-circle me-1"></i>In Formular übernehmen</button>`;
+      body.innerHTML = html;
+    } else {
+      alert('KI-Fehler: ' + (data.error || 'Unbekannt'));
+    }
+  } catch(e) {
+    alert('Netzwerkfehler: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Generieren';
+  }
+}
+
+function applyAiSuggestion() {
+  if (!lastAiResult) return;
+  if (lastAiResult.grade_value !== null && lastAiResult.grade_value !== undefined) {
+    document.getElementById('gradeValueInput').value = lastAiResult.grade_value;
+    document.getElementById('grading_type').value = 'points';
+    toggleGradeFields();
+  }
+  if (lastAiResult.grade_passed !== null && lastAiResult.grade_passed !== undefined) {
+    const radio = document.getElementById(lastAiResult.grade_passed ? 'passed_true' : 'passed_false');
+    if (radio) radio.checked = true;
+    if (!document.getElementById('gradeValueInput').value) {
+      document.getElementById('grading_type').value = 'pass_fail';
+      toggleGradeFields();
+    }
+  }
+  if (lastAiResult.comment) {
+    document.getElementById('gradeCommentInput').value = lastAiResult.comment;
+  }
+}
+
+// ── BPMN Annotations ──────────────────────────────────────────────────────────
+{% if submission.bpmn_xml %}
+const BPMN_XML = {{ submission.bpmn_xml | tojson }};
+let bpmnViewer = null;
+let annotations = [];
+try {
+  annotations = JSON.parse({{ (submission.grade_annotations or '[]') | tojson }}) || [];
+} catch(e) {}
+let annotMode = false;
+let pendingElementId = null;
+
+function initBpmnViewer() {
+  if (typeof BpmnJS === 'undefined') return;
+  bpmnViewer = new BpmnJS({ container: '#bpmn-preview' });
+  bpmnViewer.importXML(BPMN_XML).then(() => {
+    renderAnnotationOverlays();
+    bpmnViewer.get('eventBus').on('element.click', (event) => {
+      if (!annotMode) return;
+      const el = event.element;
+      if (el.type === 'bpmn:Process' || el.type === 'bpmn:Collaboration') return;
+      pendingElementId = el.id;
+      document.getElementById('annotElementId').textContent = el.id;
+      document.getElementById('annotComment').value = '';
+      document.getElementById('annotPanel').style.display = '';
+    });
+  }).catch(err => console.warn('BPMN viewer error:', err));
+}
+
+function toggleAnnotationMode() {
+  annotMode = !annotMode;
+  document.getElementById('annotModeLabel').textContent =
+    annotMode ? 'Modus beenden' : 'Anmerkung hinzufügen';
+  document.getElementById('bpmn-preview').style.cursor = annotMode ? 'crosshair' : '';
+}
+
+function saveAnnotation() {
+  const comment = document.getElementById('annotComment').value.trim();
+  const type = document.getElementById('annotType').value;
+  if (!pendingElementId || !comment) return;
+  // Remove existing annotation for this element
+  annotations = annotations.filter(a => a.element_id !== pendingElementId);
+  annotations.push({ element_id: pendingElementId, comment, type });
+  document.getElementById('gradeAnnotationsInput').value = JSON.stringify(annotations);
+  renderAnnotationList();
+  renderAnnotationOverlays();
+  closeAnnotPanel();
+}
+
+function closeAnnotPanel() {
+  document.getElementById('annotPanel').style.display = 'none';
+  pendingElementId = null;
+}
+
+const TYPE_COLORS = { error: '#dc3545', warning: '#fd7e14', ok: '#198754' };
+
+function renderAnnotationOverlays() {
+  if (!bpmnViewer) return;
+  const overlays = bpmnViewer.get('overlays');
+  overlays.clear();
+  annotations.forEach(a => {
+    try {
+      overlays.add(a.element_id, {
+        position: { top: -18, right: 0 },
+        html: `<div title="${a.comment.replace(/"/g,'&quot;')}"
+          style="background:${TYPE_COLORS[a.type]||'#666'};color:#fff;padding:1px 5px;border-radius:3px;font-size:10px;cursor:pointer"
+          >&#9679;</div>`,
+      });
+    } catch(e) {}
+  });
+}
+
+function renderAnnotationList() {
+  const list = document.getElementById('annotList');
+  if (!annotations.length) { list.innerHTML = ''; return; }
+  list.innerHTML = '<ul class="list-unstyled mb-0 mt-1">' +
+    annotations.map(a => `
+      <li class="d-flex align-items-start gap-2 py-1 border-bottom">
+        <span class="badge" style="background:${TYPE_COLORS[a.type]||'#666'}">${a.type}</span>
+        <span class="small flex-grow-1"><strong>${a.element_id}</strong>: ${a.comment}</span>
+        <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1"
+          onclick="removeAnnotation('${a.element_id}')"><i class="bi bi-x"></i></button>
+      </li>`).join('') + '</ul>';
+}
+
+function removeAnnotation(elementId) {
+  annotations = annotations.filter(a => a.element_id !== elementId);
+  document.getElementById('gradeAnnotationsInput').value = JSON.stringify(annotations);
+  renderAnnotationList();
+  renderAnnotationOverlays();
+}
+
+// Load bpmn-js from CDN then init
+(function() {
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-viewer.production.min.js';
+  s.onload = initBpmnViewer;
+  document.head.appendChild(s);
+})();
+
+renderAnnotationList();
+{% endif %}
+</script>
+{% endblock %}

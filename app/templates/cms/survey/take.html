@@ -1,0 +1,186 @@
+﻿{% extends "cms/base.html" %}
+{% block title %}{{ survey.name }}{% endblock %}
+{% block page_title %}{{ survey.name }}{% endblock %}
+
+{% block content %}
+{# Route passes: survey, page (SurveyPage), page_num (0-based), total_pages, is_last, answers (dict), errors (dict), submission_id #}
+
+<!-- Progress bar -->
+<div class="mb-4">
+  <div class="d-flex justify-content-between small text-muted mb-1">
+    <span>Seite {{ page_num + 1 }} von {{ total_pages }}</span>
+    {% if total_pages > 1 %}
+    <span>{{ (((page_num) / total_pages) * 100) | int }}% abgeschlossen</span>
+    {% endif %}
+  </div>
+  <div class="progress" style="height:6px">
+    <div class="progress-bar bg-primary"
+         style="width: {{ (((page_num) / total_pages) * 100)|int }}%"></div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header">
+    <h6 class="mb-0">
+      {% if page.title %}{{ page.title }}{% else %}Seite {{ page_num + 1 }}{% endif %}
+    </h6>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="page_num" value="{{ page_num }}">
+
+      {% for q in page.questions | sort(attribute='sort_order') %}
+      <div class="mb-4" id="question_{{ q.id }}">
+
+        {% if q.question_type != 'info' %}
+        <label class="form-label fw-semibold">
+          {{ q.label }}
+          {% if q.required %}<span class="text-danger">*</span>{% endif %}
+        </label>
+        {% if q.description %}
+        <p class="text-muted small mb-2">{{ q.description }}</p>
+        {% endif %}
+        {% if errors.get('q_' ~ q.id) %}
+        <div class="text-danger small mb-1">{{ errors['q_' ~ q.id] }}</div>
+        {% endif %}
+        {% endif %}
+
+        {% set ans = answers.get(q.id | string, '') %}
+
+        {# ── Info block ── #}
+        {% if q.question_type == 'info' %}
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>{{ q.label }}
+        </div>
+
+        {# ── Text ── #}
+        {% elif q.question_type == 'text' %}
+        <input type="text" name="q_{{ q.id }}" class="form-control{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+               value="{{ ans }}"
+               placeholder="{{ q.config.placeholder if q.config.placeholder else '' }}"
+               {% if q.required %}required{% endif %}>
+
+        {# ── Textarea ── #}
+        {% elif q.question_type == 'textarea' %}
+        <textarea name="q_{{ q.id }}" rows="4"
+                  class="form-control{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                  {% if q.required %}required{% endif %}>{{ ans }}</textarea>
+
+        {# ── Number ── #}
+        {% elif q.question_type == 'number' %}
+        <input type="number" name="q_{{ q.id }}" class="form-control{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+               value="{{ ans }}"
+               {% if q.config.min is defined %}min="{{ q.config.min }}"{% endif %}
+               {% if q.config.max is defined %}max="{{ q.config.max }}"{% endif %}
+               {% if q.config.step is defined %}step="{{ q.config.step }}"{% endif %}
+               {% if q.required %}required{% endif %}>
+
+        {# ── Date ── #}
+        {% elif q.question_type == 'date' %}
+        <input type="date" name="q_{{ q.id }}" class="form-control{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+               value="{{ ans }}" {% if q.required %}required{% endif %}>
+
+        {# ── Likert ── #}
+        {% elif q.question_type == 'likert' %}
+        {% set steps = q.config.steps if q.config.steps else 5 %}
+        {% set min_lbl = q.config.likert_min_label if q.config.likert_min_label else 'Stimme gar nicht zu' %}
+        {% set max_lbl = q.config.likert_max_label if q.config.likert_max_label else 'Stimme voll zu' %}
+        <div class="d-flex gap-2 flex-wrap align-items-start mt-1">
+          {% for i in range(1, steps + 1) %}
+          <div class="text-center" style="min-width:60px">
+            <input type="radio" name="q_{{ q.id }}" value="{{ i }}"
+                   class="form-check-input d-block mx-auto mb-1"
+                   id="lik_{{ q.id }}_{{ i }}"
+                   {% if ans == i | string %}checked{% endif %}
+                   {% if q.required %}required{% endif %}>
+            <label for="lik_{{ q.id }}_{{ i }}" class="form-check-label small">{{ i }}</label>
+            {% if i == 1 %}<div class="text-muted" style="font-size:.65rem">{{ min_lbl }}</div>{% endif %}
+            {% if i == steps %}<div class="text-muted" style="font-size:.65rem">{{ max_lbl }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        {# ── Scale / Range ── #}
+        {% elif q.question_type == 'scale' %}
+        {% set max_val = q.config.max if q.config.max else 10 %}
+        {% set cur = ans if ans else (max_val // 2) | string %}
+        <div class="d-flex align-items-center gap-3">
+          <span class="text-muted small">{{ q.config.min_label if q.config.min_label else '0' }}</span>
+          <input type="range" name="q_{{ q.id }}" class="form-range flex-grow-1"
+                 min="{{ q.config.min if q.config.min else 0 }}"
+                 max="{{ max_val }}"
+                 step="{{ q.config.step if q.config.step else 1 }}"
+                 value="{{ cur }}"
+                 oninput="this.nextElementSibling.textContent=this.value">
+          <span class="badge bg-primary" style="min-width:2rem">{{ cur }}</span>
+          <span class="text-muted small">{{ q.config.max_label if q.config.max_label else max_val }}</span>
+        </div>
+
+        {# ── Select ── #}
+        {% elif q.question_type == 'select' %}
+        <select name="q_{{ q.id }}" class="form-select{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                {% if q.required %}required{% endif %}>
+          <option value="">— Bitte wählen —</option>
+          {% for opt in q.options %}
+          <option value="{{ opt.value }}" {% if ans == opt.value %}selected{% endif %}>
+            {{ opt.label }}
+          </option>
+          {% endfor %}
+        </select>
+
+        {# ── Radio ── #}
+        {% elif q.question_type == 'radio' %}
+        {% for opt in q.options %}
+        <div class="form-check">
+          <input type="radio" name="q_{{ q.id }}" value="{{ opt.value }}"
+                 id="r_{{ q.id }}_{{ loop.index }}" class="form-check-input"
+                 {% if ans == opt.value %}checked{% endif %}
+                 {% if q.required %}required{% endif %}>
+          <label class="form-check-label" for="r_{{ q.id }}_{{ loop.index }}">{{ opt.label }}</label>
+        </div>
+        {% endfor %}
+
+        {# ── Checkbox (multi) ── #}
+        {% elif q.question_type == 'checkbox' %}
+        {% set ans_list = ans.split(',') if ans else [] %}
+        {% for opt in q.options %}
+        <div class="form-check">
+          <input type="checkbox" name="q_{{ q.id }}" value="{{ opt.value }}"
+                 id="cb_{{ q.id }}_{{ loop.index }}" class="form-check-input"
+                 {% if opt.value in ans_list %}checked{% endif %}>
+          <label class="form-check-label" for="cb_{{ q.id }}_{{ loop.index }}">{{ opt.label }}</label>
+        </div>
+        {% endfor %}
+
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <!-- Navigation -->
+      <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+        {% if page_num > 0 %}
+        <button type="submit" name="action" value="prev" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Zurück
+        </button>
+        {% else %}
+        {% if survey.allow_skip %}
+        <a href="{{ url_for('survey_bp.take', survey_id=survey.id) }}?action=skip"
+           class="btn btn-link text-muted">Überspringen</a>
+        {% else %}<div></div>{% endif %}
+        {% endif %}
+
+        {% if not is_last %}
+        <button type="submit" name="action" value="next" class="btn btn-primary">
+          Weiter<i class="bi bi-arrow-right ms-1"></i>
+        </button>
+        {% else %}
+        <button type="submit" name="action" value="finish" class="btn btn-success">
+          <i class="bi bi-check-lg me-1"></i>Abschließen
+        </button>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

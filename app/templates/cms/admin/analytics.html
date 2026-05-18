@@ -1,0 +1,165 @@
+{% extends "cms/base.html" %}
+{% block title %}Analytik{% endblock %}
+{% block page_title %}Analytik{% endblock %}
+
+{% block topbar_actions %}
+<form method="get" class="d-flex gap-2">
+  <select name="period" class="form-select form-select-sm" onchange="this.form.submit()" style="width:auto">
+    {% for val, label in [('24h','24h'),('7d','7 Tage'),('30d','30 Tage'),('90d','90 Tage'),('1y','1 Jahr'),('all','Gesamt')] %}
+    <option value="{{ val }}" {% if period == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endblock %}
+
+{% block content %}
+<!-- KPI row -->
+<div class="row g-3 mb-4">
+  {% set kpis = [
+    ('Einreichungen', global_stats.total_submissions, 'bi-journal-text', 'primary'),
+    ('Abgeschlossen', global_stats.completed_submissions, 'bi-check-circle', 'success'),
+    ('Ø Nachrichten', global_stats.avg_interactions | round(1), 'bi-chat-dots', 'info'),
+    ('Tokens gesamt', global_stats.total_tokens, 'bi-cpu', 'warning'),
+  ] %}
+  {% for label, val, icon, color in kpis %}
+  <div class="col-6 col-xl-3">
+    <div class="kpi-card">
+      <div class="kpi-icon bg-{{ color }}"><i class="bi {{ icon }}"></i></div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ val }}</span>
+        <span class="kpi-label">{{ label }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-4">
+  <!-- Submissions timeline -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header fw-semibold">Einreichungen im Zeitverlauf</div>
+      <div class="card-body">
+        <canvas id="timelineChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase distribution -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header fw-semibold">Mentor-Phasen</div>
+      <div class="card-body">
+        <canvas id="phaseChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- BPMN errors -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header fw-semibold">Häufigste BPMN-Fehler</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>Fehlertyp</th><th class="text-end">Anzahl</th></tr></thead>
+          <tbody>
+            {% for e in bpmn_errors %}
+            <tr>
+              <td><code>{{ e.key }}</code></td>
+              <td class="text-end">{{ e.count }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="text-muted text-center py-3">Keine Daten.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-task analytics -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header fw-semibold">Aufgaben-Statistik</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Aufgabe</th><th>Eingereicht</th><th>Abgeschl.</th><th>Bewertet</th><th>Ø Dauer</th></tr>
+          </thead>
+          <tbody>
+            {% for t in task_analytics %}
+            <tr>
+              <td>{{ t.title | truncate(30) }}</td>
+              <td>{{ t.submissions }}</td>
+              <td>{{ t.completed }}</td>
+              <td>{{ t.graded }}</td>
+              <td>{{ (t.avg_duration_seconds / 60) | round(1) }} min</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted text-center py-3">Keine Daten.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cohort analytics -->
+  {% if cohort_analytics %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header fw-semibold">Gruppen-Vergleich</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Gruppe</th><th>Mitglieder</th><th>Einreichungen</th><th>Abgeschlossen</th></tr>
+          </thead>
+          <tbody>
+            {% for c in cohort_analytics %}
+            <tr>
+              <td><a href="{{ url_for('admin.cohort_detail', cohort_id=c.cohort_id) }}">{{ c.name }}</a></td>
+              <td>{{ c.members }}</td>
+              <td>{{ c.submissions }}</td>
+              <td>{{ c.completed }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const timelineData = {{ chart | tojson }};
+const phaseData = {{ phases | tojson }};
+
+new Chart(document.getElementById('timelineChart'), {
+  type: 'bar',
+  data: {
+    labels: timelineData.labels,
+    datasets: [{ label: 'Einreichungen', data: timelineData.data,
+      backgroundColor: 'rgba(79,70,229,0.7)', borderRadius: 4 }]
+  },
+  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+const phaseLabels = Object.keys(phaseData);
+const phaseValues = Object.values(phaseData);
+if (phaseLabels.length) {
+  new Chart(document.getElementById('phaseChart'), {
+    type: 'doughnut',
+    data: {
+      labels: phaseLabels,
+      datasets: [{ data: phaseValues,
+        backgroundColor: ['#4f46e5','#22c55e','#f59e0b','#ef4444','#06b6d4'] }]
+    },
+    options: { plugins: { legend: { position: 'bottom' } } }
+  });
+}
+</script>
+{% endblock %}
