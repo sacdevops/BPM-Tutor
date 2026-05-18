@@ -37,6 +37,3 @@ data/llm_logs/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Playwright browser binaries
-playwright/.local-browsers/

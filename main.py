@@ -22,11 +22,11 @@ init_cms(app)
 from cms.extensions import csrf as _csrf
 
 socketio = SocketIO(
-    app, 
+    app,
     cors_allowed_origins="*",
     ping_timeout=300,
     ping_interval=25,
-    async_mode='eventlet'
+    async_mode='gevent'
 )
 
 from app.sockets import chat_handler
@@ -41,9 +41,9 @@ CLEANUP_INTERVAL_SECONDS = 5 * 60  # check every 5 minutes
 
 def _session_cleanup_loop():
     """Periodically remove stale sessions."""
-    import eventlet
+    import gevent
     while True:
-        eventlet.sleep(CLEANUP_INTERVAL_SECONDS)
+        gevent.sleep(CLEANUP_INTERVAL_SECONDS)
         try:
             stale = store.stale_sids(SESSION_TIMEOUT_SECONDS)
             for sid in stale:

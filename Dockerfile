@@ -28,8 +28,8 @@ USER bpmtutor
 
 EXPOSE 5000
 
-# Gunicorn + eventlet (required for Flask-SocketIO)
-CMD ["gunicorn", "--worker-class", "eventlet", "--workers", "1",\
+# Gunicorn + gevent (Flask-SocketIO async worker)
+CMD ["gunicorn", "--worker-class", "gevent", "--workers", "1",\
      "--bind", "0.0.0.0:5000", "--timeout", "120",\
      "--access-logfile", "-", "--error-logfile", "-",\
      "main:app"]
