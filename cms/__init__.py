@@ -81,25 +81,70 @@ def _create_tables_and_seed(app) -> None:
 
 
 def _apply_mail_settings(app) -> None:
-    """Load SMTP settings from DB into app.config so Flask-Mail uses current values."""
+    """Load SMTP settings: DB value takes precedence, env variable is fallback.
+    This ensures Railway / Docker deployments work without a pre-populated DB."""
+    import os
     from cms.models.settings import Settings
+
+    def _db_or_env(db_key, env_key, default=''):
+        """Return DB value if non-empty, otherwise the env variable, otherwise default."""
+        try:
+            val = Settings.get(db_key, '')
+            return val if val else os.environ.get(env_key, default)
+        except Exception:
+            return os.environ.get(env_key, default)
+
     try:
-        server = Settings.get(Settings.MAIL_SERVER, '')
+        server = _db_or_env(Settings.MAIL_SERVER, 'MAIL_SERVER')
         if server:
-            app.config['MAIL_SERVER'] = server
-            app.config['MAIL_PORT'] = int(Settings.get(Settings.MAIL_PORT, 587) or 587)
-            app.config['MAIL_USE_TLS'] = bool(Settings.get(Settings.MAIL_USE_TLS, True))
-            app.config['MAIL_USE_SSL'] = bool(Settings.get(Settings.MAIL_USE_SSL, False))
-            app.config['MAIL_USERNAME'] = Settings.get(Settings.MAIL_USERNAME, '') or ''
-            app.config['MAIL_PASSWORD'] = Settings.get(Settings.MAIL_PASSWORD, '') or ''
-            sender = Settings.get(Settings.MAIL_DEFAULT_SENDER, '') or ''
-            if sender:
-                app.config['MAIL_DEFAULT_SENDER'] = sender
+            app.config['MAIL_SERVER']  = server
+            app.config['MAIL_PORT']    = int(_db_or_env(Settings.MAIL_PORT, 'MAIL_PORT', 587) or 587)
+            # Encryption: env var MAIL_ENCRYPTION accepts 'ssl', 'starttls', or 'none'
+            enc = os.environ.get('MAIL_ENCRYPTION', '').lower()
+            use_tls = bool(Settings.get(Settings.MAIL_USE_TLS, ''))
+            use_ssl = bool(Settings.get(Settings.MAIL_USE_SSL, ''))
+            if enc == 'ssl':
+                use_tls, use_ssl = False, True
+            elif enc == 'starttls':
+                use_tls, use_ssl = True, False
+            elif enc == 'none':
+                use_tls, use_ssl = False, False
+            elif not Settings.get(Settings.MAIL_SERVER, ''):
+                # No DB setting → derive from env booleans
+                use_tls = os.environ.get('MAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
+                use_ssl = os.environ.get('MAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes')
+            app.config['MAIL_USE_TLS'] = use_tls
+            app.config['MAIL_USE_SSL'] = use_ssl
+            app.config['MAIL_USERNAME']       = _db_or_env(Settings.MAIL_USERNAME, 'MAIL_USERNAME')
+            app.config['MAIL_PASSWORD']       = _db_or_env(Settings.MAIL_PASSWORD, 'MAIL_PASSWORD')
+            app.config['MAIL_DEFAULT_SENDER'] = _db_or_env(Settings.MAIL_DEFAULT_SENDER,
+                                                            'MAIL_DEFAULT_SENDER')
             # Re-initialise Flask-Mail so it picks up the updated config immediately
             from cms.extensions import mail
             mail.init_app(app)
+            # Persist env-sourced values into DB so the settings UI shows them
+            if not Settings.get(Settings.MAIL_SERVER, ''):
+                _persist_env_mail_settings(server, app.config)
     except Exception:
         pass  # DB may not be ready yet; settings form will apply on save
+
+
+def _persist_env_mail_settings(server, cfg) -> None:
+    """Write env-sourced mail settings into the DB on first startup."""
+    try:
+        from cms.models.settings import Settings
+        Settings.set_many({
+            Settings.MAIL_SERVER:         server,
+            Settings.MAIL_PORT:           str(cfg.get('MAIL_PORT', 587)),
+            Settings.MAIL_USE_TLS:        cfg.get('MAIL_USE_TLS', True),
+            Settings.MAIL_USE_SSL:        cfg.get('MAIL_USE_SSL', False),
+            Settings.MAIL_USERNAME:       cfg.get('MAIL_USERNAME', ''),
+            Settings.MAIL_PASSWORD:       cfg.get('MAIL_PASSWORD', ''),
+            Settings.MAIL_DEFAULT_SENDER: cfg.get('MAIL_DEFAULT_SENDER', ''),
+            Settings.MAIL_ENABLED:        True,
+        })
+    except Exception:
+        pass
 
 
 def _run_column_migrations(db) -> None:

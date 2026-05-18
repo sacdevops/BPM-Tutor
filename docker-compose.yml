@@ -11,13 +11,14 @@ services:
       FLASK_ENV: production
       SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
 
-      # Mail (optional — set in .env or environment)
-      MAIL_SERVER: ${MAIL_SERVER:-localhost}
+      # Mail (set in Railway Variables or .env — leave empty to disable)
+      MAIL_SERVER: ${MAIL_SERVER:-}
       MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USE_TLS: ${MAIL_USE_TLS:-true}
+      # MAIL_ENCRYPTION: starttls | ssl | none  (default: starttls)
+      MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-starttls}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-noreply@bpmtutor.local}
+      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
 
       # CampusKI / OpenAI-compatible API
       OPENAI_API_BASE: ${OPENAI_API_BASE:-https://chat.kiconnect.nrw/api}
