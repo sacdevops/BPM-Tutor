@@ -1,40 +1,56 @@
-""" BPM-Tutor — BPMN Modeling Learning Environment """
-import io
+﻿"""BPM-Tutor — WSGI entry point.
+
+Gunicorn targets this module as ``main:app``.
+SocketIO is initialised here so the ``socketio`` object is available
+for gunicorn's gevent worker and for the ``if __name__ == '__main__'``
+dev server path.
+"""
+import logging
+import os
 import signal
 import sys
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
-from flask_login import current_user
-from flask_socketio import SocketIO
-import requests as http_requests
 import config
+from flask_socketio import SocketIO
 
-app = Flask(__name__,
-            template_folder='app/templates',
-            static_folder='app/static')
-app.config['SECRET_KEY'] = config.SECRET_KEY
+from app import create_app
+from app.services.session_store import store
+from app.services import task_tracker
 
-# ---- CMS Initialisation ----
-from cms import init_cms
-init_cms(app)
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG if config.FLASK_DEBUG else logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger('bpmtutor')
 
-# Exempt JSON API routes from CSRF (they are session-authenticated)
-from cms.extensions import csrf as _csrf
+# ── Application ───────────────────────────────────────────────────────────────
+app = create_app()
+
+# ── Flask-SocketIO ────────────────────────────────────────────────────────────
+_redis_url = os.getenv('REDIS_URL', '')
+_cors_origins_raw = os.getenv('CORS_ALLOWED_ORIGINS', '')
+_cors_origins = [o.strip() for o in _cors_origins_raw.split(',') if o.strip()] or '*'
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
+    cors_allowed_origins=_cors_origins,
     ping_timeout=300,
     ping_interval=25,
-    async_mode='gevent'
+    async_mode='gevent',
+    message_queue=_redis_url if _redis_url else None,
 )
+if _redis_url:
+    logger.info('[Backend] SocketIO using Redis message queue: %s', _redis_url.split('@')[-1])
+else:
+    logger.info('[Backend] REDIS_URL not set — SocketIO running in single-worker mode (no message queue)')
 
-from app.sockets import chat_handler
-from app.session_store import store
-from app import task_tracker
+# ── WebSocket handlers ────────────────────────────────────────────────────────
+from app.sockets import chat_handler  # noqa: E402
 chat_handler.register_handlers(socketio)
 
-# -- Session cleanup background thread --
+# ── Session cleanup background task ──────────────────────────────────────────
 SESSION_TIMEOUT_SECONDS = 30 * 60  # 30 minutes
 CLEANUP_INTERVAL_SECONDS = 5 * 60  # check every 5 minutes
 
@@ -50,173 +66,17 @@ def _session_cleanup_loop():
                 session = store.remove(sid)
                 if session:
                     task_tracker.cleanup_task(sid)
-                    print(f'[Cleanup] Removed stale session {sid} '
-                          f'(task {session["task_id"]})')
-        except Exception as e:
-            print(f'[Cleanup] Error: {e}')
+                    logger.info('[Cleanup] Removed stale session %s (task %s)', sid, session['task_id'])
+        except Exception as exc:
+            logger.error('[Cleanup] Error during session cleanup: %s', exc)
 
 
 socketio.start_background_task(_session_cleanup_loop)
 
-@app.route('/health')
-def health():
-    from flask import jsonify
-    return jsonify(status='ok'), 200
-
-@app.route('/')
-def index():
-    from cms.models.task import Task
-    from cms.models.settings import Settings
-    from cms.models.level import LearningLevel
-    from flask_login import current_user
-
-    # Auth guard: if required and not logged in, redirect to login
-    if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
-        return redirect(url_for('auth.login', next='/'))
-
-    tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
-
-    # Level system
-    level_system_enabled = Settings.get(Settings.LEVEL_SYSTEM_ENABLED, False)
-    levels = []
-    if level_system_enabled:
-        levels = LearningLevel.query.filter_by(is_active=True).order_by(LearningLevel.level_number).all()
-
-    return render_template('index.html', tasks=tasks, levels=levels,
-                           level_system_enabled=level_system_enabled)
-
-@app.route('/task/<task_id>')
-def task_page(task_id):
-    from cms.models.task import Task
-    from cms.models.settings import Settings
-
-    if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
-        return redirect(url_for('auth.login', next=f'/task/{task_id}'))
-
-    task = Task.query.get(task_id)
-    if not task or not task.is_active:
-        return render_template('index.html',
-                               tasks=Task.query.filter_by(is_active=True).order_by(Task.sort_order).all(),
-                               error='Aufgabe nicht gefunden.'), 404
-    return render_template('task.html', task=task, is_custom=False)
-
-@app.route('/task/custom')
-def custom_task_page():
-    task = {'id': 'custom', 'title': 'Custom Task', 'description': ''}
-    return render_template('task.html', task=task, is_custom=True)
-
-
-@app.route('/api/extract-file-content', methods=['POST'])
-@_csrf.exempt
-def extract_file_content():
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': 'No file provided'}), 400
-
-    file = request.files['file']
-    filename = file.filename or ''
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-
-    try:
-        if ext in ('txt', 'md', 'csv'):
-            content = file.read().decode('utf-8', errors='replace')
-        elif ext == 'pdf':
-            from pypdf import PdfReader
-
-            reader = PdfReader(io.BytesIO(file.read()))
-            content = '\n'.join(page.extract_text() or '' for page in reader.pages)
-        elif ext == 'docx':
-            from docx import Document
-            doc = Document(io.BytesIO(file.read()))
-            content = '\n'.join(para.text for para in doc.paragraphs)
-        else:
-            return jsonify({'success': False, 'message': f'Unsupported file type: .{ext}'}), 400
-
-        return jsonify({'success': True, 'content': content})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
-
-@app.route('/api/save-bpmn', methods=['POST'])
-@_csrf.exempt
-def save_bpmn():
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'message': 'No data provided'}), 400
-
-    task_id = data.get('task_id', '')
-    bpmn_xml = data.get('bpmn_xml', '')
-    sid = data.get('sid', '')
-
-    if not bpmn_xml:
-        return jsonify({'success': False, 'message': 'No BPMN XML provided'}), 400
-
-    submission_id = chat_handler.complete_and_upload(task_id, bpmn_xml, sid=sid)
-
-    # Check for a post_task survey linked to this task
-    redirect_url = '/'
-    if task_id:
-        try:
-            from cms.models.survey import Survey
-            survey = Survey.query.filter_by(
-                survey_type='post_task',
-                task_id=task_id,
-                is_active=True
-            ).first()
-            if survey:
-                from flask import url_for as _url_for
-                redirect_url = _url_for(
-                    'survey_bp.take',
-                    survey_id=survey.id,
-                    submission_id=submission_id or '',
-                    next='/'
-                )
-        except Exception:
-            pass
-
-    return jsonify({'success': True, 'redirect': redirect_url})
-
-
-@app.route('/api/models', methods=['POST'])
-@_csrf.exempt
-def get_models():
-    """Proxy request to CampusKI to list available models."""
-    data = request.get_json()
-    if not data:
-        return jsonify({'success': False, 'message': 'No data provided'}), 400
-
-    api_key = data.get('api_key', '')
-    if not api_key:
-        return jsonify({'success': False, 'message': 'API key required'}), 400
-
-    try:
-        resp = http_requests.get(
-            f"{config.CAMPUS_KI_BASE_URL}/v1/models",
-            headers={'Authorization': f'Bearer {api_key}'},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        models_data = resp.json()
-        models = []
-        for m in models_data.get('data', []):
-            models.append({
-                'id': m.get('id', ''),
-                'name': m.get('id', ''),
-            })
-        models.sort(key=lambda x: x['id'])
-        return jsonify({'success': True, 'models': models})
-    except http_requests.exceptions.HTTPError as e:
-        status = e.response.status_code if e.response is not None else 500
-        if status in (401, 403):
-            return jsonify({'success': False, 'message': 'Invalid API key'}), 401
-        return jsonify({'success': False, 'message': f'API error: {status}'}), 502
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
-
+# ── Graceful shutdown ─────────────────────────────────────────────────────────
 
 def _graceful_shutdown(signum, frame):
-    """Graceful shutdown handler."""
-    print(f'\n[Backend] Received signal {signum}, shutting down...')
-    print('[Backend] Shutdown complete.')
+    logger.info('[Backend] Received signal %s, shutting down...', signum)
     sys.exit(0)
 
 
@@ -224,9 +84,4 @@ signal.signal(signal.SIGINT, _graceful_shutdown)
 signal.signal(signal.SIGTERM, _graceful_shutdown)
 
 if __name__ == '__main__':
-    socketio.run(
-        app,
-        debug=config.FLASK_DEBUG,
-        host='0.0.0.0',
-        port=8080
-    )
+    socketio.run(app, debug=config.FLASK_DEBUG, host='127.0.0.1', port=8080)

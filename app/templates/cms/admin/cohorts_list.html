@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}Gruppen (Kohorten){% endblock %}
-{% block page_title %}Gruppen{% endblock %}
+{% block title %}{{ _t('admin.cohort_list_title', 'Groups (Cohorts)') }}{% endblock %}
+{% block page_title %}{{ _t('nav.cohorts', 'Cohorts') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.cohort_new') }}" class="btn btn-sm btn-primary">
-  <i class="bi bi-plus-lg me-1"></i>Neue Gruppe
+  <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.cohort_new_btn', 'New Group') }}
 </a>
 {% endblock %}
 
@@ -14,11 +14,11 @@
     <table class="table table-hover mb-0">
       <thead class="table-light">
         <tr>
-          <th>Name</th>
-          <th>Beschreibung</th>
-          <th>Mitglieder</th>
-          <th>Aktiv</th>
-          <th>Erstellt</th>
+          <th>{{ _t('common.name', 'Name') }}</th>
+          <th>{{ _t('common.description', 'Description') }}</th>
+          <th>{{ _t('admin.cohort_members', 'Members') }}</th>
+          <th>{{ _t('common.active', 'Active') }}</th>
+          <th>{{ _t('users.created_at', 'Created') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -30,9 +30,9 @@
           <td>{{ cohort.member_count }}</td>
           <td>
             {% if cohort.is_active %}
-              <span class="badge bg-success">Aktiv</span>
+              <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
             {% else %}
-              <span class="badge bg-secondary">Inaktiv</span>
+              <span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>
             {% endif %}
           </td>
           <td class="small">{{ cohort.created_at.strftime('%d.%m.%Y') }}</td>
@@ -43,7 +43,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-muted py-4">Noch keine Gruppen erstellt.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">{{ _t('admin.cohort_empty', 'No groups created yet.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

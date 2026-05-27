@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ _t('study.list_heading', 'Research Studies') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  .study-list-body {
+    max-width: 760px;
+    margin: 3rem auto;
+    padding: 0 1rem 4rem;
+  }
+  .study-list-heading { font-size: 1.6rem; font-weight: 700; margin-bottom: 1.5rem; }
+  .study-card {
+    background: var(--card-bg, #fff);
+    border-radius: 14px;
+    box-shadow: 0 3px 16px rgba(0,0,0,.08);
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .study-card-title { font-size: 1.15rem; font-weight: 700; margin-bottom: .3rem; }
+  .study-card-desc { color: var(--text-secondary, #666); font-size: .9rem; margin-bottom: .9rem; }
+  .study-meta { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: .9rem; font-size: .83rem; color: #888; }
+  .study-progress { margin-bottom: .85rem; }
+  .study-progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; }
+  .study-progress-fill { height: 6px; background: var(--brand-primary, #84BD00); border-radius: 3px; transition: width .4s; }
+  .study-btn {
+    display: inline-block; padding: .45rem 1.1rem;
+    background: var(--brand-primary, #84BD00); color: #fff;
+    border-radius: 8px; text-decoration: none; font-weight: 600; font-size: .9rem;
+    border: none; cursor: pointer;
+  }
+  .study-btn.done { background: #6c757d; }
+  .study-btn.continue { background: #0d6efd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="study-list-body">
+  <h2 class="study-list-heading"><i class="bi bi-journals me-2"></i>{{ _t('study.list_heading', 'Research Studies') }}</h2>
+
+  {% if not studies %}
+  <div class="text-muted text-center py-5">
+    <i class="bi bi-journals" style="font-size:2rem"></i>
+    <p class="mt-2">{{ _t('study.no_studies', 'No studies currently available.') }}</p>
+  </div>
+  {% endif %}
+
+  {% for study in studies %}
+  {% set participant = my_studies.get(study.id) %}
+  <div class="study-card">
+    <div class="study-card-title">{{ study.title }}</div>
+    {% if study.description %}
+    <div class="study-card-desc">{{ study.description }}</div>
+    {% endif %}
+
+    <div class="study-meta">
+      <span><i class="bi bi-list-ol me-1"></i>{{ _t('study.steps_count', '{n} step(s)').format(n=study.steps | length) }}</span>
+      {% if study.enrollment_start %}
+      <span><i class="bi bi-calendar-check me-1"></i>{{ _t('study.enrollment_from', 'from {date}').format(date=study.enrollment_start.strftime('%d.%m.%Y')) }}</span>
+      {% endif %}
+      {% if study.enrollment_end %}
+      <span><i class="bi bi-calendar-x me-1"></i>{{ _t('study.enrollment_until', 'Registration until {date}').format(date=study.enrollment_end.strftime('%d.%m.%Y')) }}</span>
+      {% endif %}
+    </div>
+
+    {% if participant %}
+    {% if participant.is_dropped_out %}
+    <div class="alert alert-secondary py-2 small">
+      <i class="bi bi-x-circle me-1"></i>
+      {{ _t('study.dropped_out', 'You left this study on {date}.').format(date=participant.dropped_out_at.strftime('%d.%m.%Y')) }}
+    </div>
+    {% elif participant.is_completed %}
+    <div class="study-progress">
+      <div class="study-progress-bar"><div class="study-progress-fill" style="width:100%"></div></div>
+      <small class="text-muted">{{ _t('study.completed_on', 'Completed on {date}').format(date=participant.completed_at.strftime('%d.%m.%Y')) }}</small>
+    </div>
+    <span class="study-btn done"><i class="bi bi-check-circle me-1"></i>{{ _t('study.completed_badge', 'Completed') }}</span>
+    {% else %}
+    <div class="study-progress">
+      <div class="study-progress-bar">
+        <div class="study-progress-fill" style="width:{{ participant.progress_pct }}%"></div>
+      </div>
+      <small class="text-muted">{{ _t('study.step_progress', '{current}/{total} steps').format(current=participant.current_step, total=study.steps | length) }}</small>
+    </div>
+    <!-- Wave timeline -->
+    {% set waves = study.steps | groupby('wave_number') %}
+    {% if waves | list | length > 1 %}
+    <div class="mt-2 mb-2">
+      <small class="text-muted fw-semibold">{{ _t('study.phases', 'Phases:') }}</small>
+      <div class="d-flex flex-wrap gap-1 mt-1">
+        {% for wave_num, wave_steps in waves %}
+        {% set wave_done = participant.current_step > (wave_steps | list | last).step_order %}
+        <span class="badge {% if wave_done %}bg-success{% elif participant.current_step >= (wave_steps | list | first).step_order %}bg-primary{% else %}bg-light text-dark border{% endif %}">
+          {% if wave_num == 0 %}{{ _t('study.general_wave', 'General') }}{% else %}Wave {{ wave_num }}{% endif %}
+          ({{ _t('study.steps_count', '{n} step(s)').format(n=wave_steps | list | length) }})
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="d-flex gap-2 align-items-center flex-wrap mt-1">
+      <a href="{{ url_for('study.study_index', study_id=study.id) }}" class="study-btn continue">
+        <i class="bi bi-play-fill me-1"></i>{{ _t('study.continue_btn', 'Continue →') }}
+      </a>
+      <button class="btn btn-sm btn-outline-secondary" type="button"
+              data-bs-toggle="collapse" data-bs-target="#dropout{{ study.id }}">
+        {{ _t('study.leave_btn', 'Leave study') }}
+      </button>
+    </div>
+    <div class="collapse mt-2" id="dropout{{ study.id }}">
+      <form method="post" action="{{ url_for('study.dropout', study_id=study.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-2">
+          <input type="text" name="reason" class="form-control form-control-sm"
+                 placeholder="{{ _t('study.leave_reason_placeholder', 'Reason (optional)...') }}" maxlength="500">
+        </div>
+        <button type="submit" class="btn btn-danger btn-sm"
+                onclick="return confirm('{{ _t('study.leave_confirm', 'Really leave the study? Your progress will be saved.') }}')">
+          {{ _t('study.leave_yes', 'Yes, leave study') }}
+        </button>
+      </form>
+    </div>
+    {% endif %}
+    {% elif study.enrollment_open %}
+    <a href="{{ url_for('study.enroll', study_id=study.id) }}" class="study-btn">
+      <i class="bi bi-person-plus me-1"></i>{{ _t('study.enroll_btn_list', 'Register & Start') }}
+    </a>
+    {% else %}
+    <span class="study-btn" style="background:#6c757d;cursor:default">{{ _t('study.enrollment_closed', 'Enrollment closed') }}</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,435 +1,1023 @@
 ﻿{% extends "cms/base.html" %}
-{% block title %}Einstellungen{% endblock %}
-{% block page_title %}Systemeinstellungen{% endblock %}
+
+{% block title %}{{ _t('admin.settings_title', 'Settings') }}{% endblock %}
+
+{% block page_title %}{{ _t('admin.settings_page_title', 'System Settings') }}{% endblock %}
+
+{% block topbar_actions %}
+<button type="submit" form="settings-form" class="btn btn-primary btn-sm">
+  <i class="bi bi-save"></i> {{ _t('admin.settings_save_btn', 'Save Settings') }}
+</button>
+{% endblock %}
+
+
 
 {% block content %}
-{# â”€â”€ External form for DB-Import (sits OUTSIDE main form to avoid nesting) â”€â”€ #}
+
+{# ── External form for DB-Import (sits OUTSIDE main form to avoid nesting) ── #}
+
 <form id="db-import-form" method="post" action="{{ url_for('admin.db_import') }}"
+
       enctype="multipart/form-data"
-      onsubmit="return confirm('Datenbank wirklich ersetzen? Alle aktuellen Daten werden Ã¼berschrieben!')">
+
+      onsubmit="return confirm('{{ _t('admin.settings_db_replace_confirm', 'Really replace database? All current data will be overwritten!') }}')">
+
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
 </form>
 
-{# â”€â”€ Main settings form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
+
+
+{# ── Main settings form ─────────────────────────────────────────────────── #}
+
 <form id="settings-form" method="post" action="{{ url_for('admin.settings') }}"
+
       enctype="multipart/form-data">
+
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-  {# â”€â”€ Tabs navigation â”€â”€ #}
+
+
+  {# ── Tabs navigation ── #}
+
   <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+
     <li class="nav-item" role="presentation">
+
       <button class="nav-link active" id="tab-general-btn" data-bs-toggle="tab"
+
               data-bs-target="#tab-general" type="button" role="tab">
-        <i class="bi bi-gear me-1"></i> Allgemein
+
+        <i class="bi bi-gear me-1"></i> {{ _t('admin.settings_tab_general', 'General') }}
+
       </button>
+
     </li>
+
     <li class="nav-item" role="presentation">
+
       <button class="nav-link" id="tab-mail-btn" data-bs-toggle="tab"
+
               data-bs-target="#tab-mail" type="button" role="tab">
-        <i class="bi bi-envelope me-1"></i> E-Mail
+
+        <i class="bi bi-envelope me-1"></i> {{ _t('admin.settings_tab_mail', 'E-Mail') }}
+
       </button>
+
     </li>
+
     <li class="nav-item" role="presentation">
+
       <button class="nav-link" id="tab-templates-btn" data-bs-toggle="tab"
+
               data-bs-target="#tab-templates" type="button" role="tab">
-        <i class="bi bi-file-earmark-text me-1"></i> E-Mail-Vorlagen
+
+        <i class="bi bi-file-earmark-text me-1"></i> {{ _t('admin.settings_tab_templates', 'E-Mail Templates') }}
+
       </button>
+
     </li>
+
     <li class="nav-item" role="presentation">
+
       <button class="nav-link" id="tab-branding-btn" data-bs-toggle="tab"
+
               data-bs-target="#tab-branding" type="button" role="tab">
-        <i class="bi bi-palette me-1"></i> Branding
+
+        <i class="bi bi-palette me-1"></i> {{ _t('admin.settings_tab_branding', 'Branding') }}
+
       </button>
+
     </li>
+
     <li class="nav-item" role="presentation">
+
       <button class="nav-link" id="tab-database-btn" data-bs-toggle="tab"
+
               data-bs-target="#tab-database" type="button" role="tab">
-        <i class="bi bi-database me-1"></i> Datenbank
+
+        <i class="bi bi-database me-1"></i> {{ _t('admin.settings_tab_database', 'Database') }}
+
       </button>
+
     </li>
+
+    <li class="nav-item" role="presentation">
+
+      <button class="nav-link" id="tab-regfields-btn" data-bs-toggle="tab"
+
+              data-bs-target="#tab-regfields" type="button" role="tab">
+
+        <i class="bi bi-ui-checks me-1"></i> {{ _t('admin.settings_tab_regfields', 'Registration Fields') }}
+
+      </button>
+
+    </li>
+
+    <li class="nav-item" role="presentation">
+
+      <button class="nav-link" id="tab-bpmn-rules-btn" data-bs-toggle="tab"
+
+              data-bs-target="#tab-bpmn-rules" type="button" role="tab">
+
+        <i class="bi bi-diagram-3 me-1"></i> {{ _t('admin.settings_tab_bpmn_rules', 'BPMN Rules') }}
+
+      </button>
+
+    </li>
+
   </ul>
+
+
 
   <div class="tab-content" id="settingsTabContent">
 
-    {# â•â• TAB 1 â€” Allgemein â•â• #}
+
+
+    {# â•â• TAB 1 — Allgemein â•â• #}
+
     <div class="tab-pane fade show active" id="tab-general" role="tabpanel">
+
       <div class="row g-3">
+
         <div class="col-lg-6">
+
           <div class="card shadow-sm mb-3">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock"></i> Authentifizierung</h6></div>
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock"></i> {{ _t('admin.settings_auth_header', 'Authentication') }}</h6></div>
+
             <div class="card-body">
+
               <div class="form-check form-switch mb-3">
+
                 <input type="checkbox" class="form-check-input" id="auth_required" name="auth_required"
+
                        {% if s.get('auth_required') %}checked{% endif %}>
+
                 <label class="form-check-label" for="auth_required">
-                  <strong>Anmeldung erforderlich</strong>
-                  <div class="text-muted small">Wenn aktiviert, mÃ¼ssen sich Nutzer anmelden, um das Tool zu verwenden.</div>
+
+                  <strong>{{ _t('admin.settings_auth_required_label', 'Login required') }}</strong>
+
+                  <div class="text-muted small">Wenn aktiviert, müssen sich Nutzer anmelden, um das Tool zu verwenden.</div>
+
                 </label>
+
               </div>
+
               <div class="form-check form-switch mb-3">
+
                 <input type="checkbox" class="form-check-input" id="allow_registration" name="allow_registration"
+
                        {% if s.get('allow_registration', True) %}checked{% endif %}>
+
                 <label class="form-check-label" for="allow_registration">
-                  <strong>Registrierung erlaubt</strong>
-                  <div class="text-muted small">Neue Nutzer kÃ¶nnen sich selbst registrieren.</div>
+
+                  <strong>{{ _t('admin.settings_reg_allowed_label', 'Registration allowed') }}</strong>
+
+                  <div class="text-muted small">{{ _t('admin.settings_reg_allowed_hint', 'New users can register themselves.') }}</div>
+
                 </label>
+
               </div>
+
               <div class="form-check form-switch mb-3">
+
                 <input type="checkbox" class="form-check-input" id="require_email_verification"
+
                        name="require_email_verification"
+
                        {% if s.get('require_email_verification', True) %}checked{% endif %}>
+
                 <label class="form-check-label" for="require_email_verification">
-                  <strong>E-Mail-Verifizierung erforderlich</strong>
-                  <div class="text-muted small">Nutzer mÃ¼ssen E-Mail bestÃ¤tigen, bevor sie sich anmelden kÃ¶nnen.</div>
+
+                  <strong>{{ _t('admin.settings_email_verify_label', 'E-Mail verification required') }}</strong>
+
+                  <div class="text-muted small">Nutzer müssen E-Mail bestätigen, bevor sie sich anmelden können.</div>
+
                 </label>
+
               </div>
+
               <hr class="my-3">
+
               <div class="form-check form-switch">
+
                 <input type="checkbox" class="form-check-input" id="level_system_enabled"
+
                        name="level_system_enabled"
+
                        {% if s.get('level_system_enabled', False) %}checked{% endif %}>
+
                 <label class="form-check-label" for="level_system_enabled">
-                  <strong>Level-System aktivieren</strong>
+
+                  <strong>{{ _t('admin.settings_level_system_label', 'Enable Level System') }}</strong>
+
                   <div class="text-muted small">Stufenweiser Lernpfad. Konfigurierbar unter <a href="{{ url_for('admin.levels_list') }}">Level-System</a>.</div>
+
                 </label>
+
               </div>
+
+              <hr class="my-3">
+
+              <div class="form-check form-switch">
+
+                <input type="checkbox" class="form-check-input" id="research_mode_enabled"
+
+                       name="research_mode_enabled"
+
+                       {% if s.get('research_mode_enabled', False) %}checked{% endif %}>
+
+                <label class="form-check-label" for="research_mode_enabled">
+
+                  <strong>{{ _t('admin.settings_research_mode_label', 'Enable Research Mode') }}</strong>
+
+                  <div class="text-muted small">Schaltet den Forschungsmodus frei: Research Studies, Surveys und alle dazugehörigen Funktionen. Surveys sind ausschliesslich im Research Mode verfügbar.</div>
+
+                </label>
+
+              </div>
+
+              <hr class="my-3">
+
+              <div class="form-check form-switch">
+
+                <input type="checkbox" class="form-check-input" id="maintenance_mode"
+
+                       name="maintenance_mode"
+
+                       {% if s.get('maintenance_mode', False) %}checked{% endif %}>
+
+                <label class="form-check-label" for="maintenance_mode">
+
+                  <strong>{{ _t('admin.settings_maintenance_label', 'Maintenance Mode') }}</strong>
+
+                  <div class="text-muted small">Nur Admins haben Zugriff. Alle anderen sehen eine Wartungsseite.</div>
+
+                </label>
+
+              </div>
+
             </div>
+
           </div>
+
         </div>
+
+
 
         <div class="col-lg-6">
-          <div class="card shadow-sm mb-3">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-globe"></i> Seitenname</h6></div>
-            <div class="card-body row g-2">
-              {% if active_languages %}
-                {% for lang in active_languages %}
-                  <div class="col-6">
-                    {% set _key = 'site_name' if lang.code == 'en' else 'site_name_' + lang.code %}
-                    <label class="form-label small">{{ flag_for_lang(lang.code) }} {{ lang.name }}</label>
-                    <input type="text" name="site_name_{{ lang.code }}" class="form-control"
-                           value="{{ s.get(_key, 'BPM-Tutor') }}">
-                  </div>
-                {% endfor %}
-              {% else %}
-                <div class="col-6">
-                  <label class="form-label small">ðŸ‡©ðŸ‡ª Deutsch</label>
-                  <input type="text" name="site_name_de" class="form-control" value="{{ s.get('site_name_de', 'BPM-Tutor') }}">
-                </div>
-                <div class="col-6">
-                  <label class="form-label small">ðŸ‡¬ðŸ‡§ English</label>
-                  <input type="text" name="site_name_en" class="form-control" value="{{ s.get('site_name', 'BPM-Tutor') }}">
-                </div>
-              {% endif %}
-            </div>
-          </div>
 
           <div class="card shadow-sm mb-3">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu"></i> KI-API Konfiguration</h6></div>
-            <div class="card-body">
-              <div class="mb-3">
-                <label class="form-label">API-Key Modus</label>
-                <select name="api_key_mode" id="api_key_mode" class="form-select" onchange="toggleGlobalKey()">
-                  <option value="per_user" {% if s.get('api_key_mode', 'per_user') == 'per_user' %}selected{% endif %}>Jeder Nutzer verwendet seinen eigenen API-Key</option>
-                  <option value="global" {% if s.get('api_key_mode') == 'global' %}selected{% endif %}>Globaler API-Key (von Admin eingestellt)</option>
-                </select>
-                <div class="form-text">Im "per_user" Modus mÃ¼ssen Nutzer ihren API-Key in den Einstellungen hinterlegen.</div>
-              </div>
-              <div id="globalKeySection" style="{% if s.get('api_key_mode', 'per_user') != 'global' %}display:none{% endif %}">
-                <div class="mb-3">
-                  <label class="form-label">Globaler API-Key</label>
-                  <input type="password" name="global_api_key" class="form-control" value="{{ s.get('global_api_key', '') }}" placeholder="sk-...">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-globe"></i> {{ _t('admin.settings_site_name', 'Site Name') }}</h6></div>
+
+            <div class="card-body row g-2">
+
+              {% if active_languages %}
+
+                {% for lang in active_languages %}
+
+                  <div class="col-6">
+
+                    {% set _key = 'site_name' if lang.code == 'en' else 'site_name_' + lang.code %}
+
+                    <label class="form-label small">{{ flag_for_lang(lang.code) }} {{ lang.name }}</label>
+
+                    <input type="text" name="site_name_{{ lang.code }}" class="form-control"
+
+                           value="{{ s.get(_key, 'BPM-Tutor') }}">
+
+                  </div>
+
+                {% endfor %}
+
+              {% else %}
+
+                <div class="col-6">
+
+                  <label class="form-label small">🇩🇪 Deutsch</label>
+
+                  <input type="text" name="site_name_de" class="form-control" value="{{ s.get('site_name_de', 'BPM-Tutor') }}">
+
                 </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">API Endpoint</label>
-                <input type="url" name="api_endpoint" class="form-control" value="{{ s.get('api_endpoint', '') }}" placeholder="https://chat.kiconnect.nrw/api">
-                <div class="form-text">Leer = Standard aus .env-Datei verwenden</div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Standard-Modell</label>
-                <input type="text" name="default_model" class="form-control" value="{{ s.get('default_model', '') }}" placeholder="gpt-4o">
-              </div>
+
+                <div class="col-6">
+
+                  <label class="form-label small">🇬🇧 English</label>
+
+                  <input type="text" name="site_name_en" class="form-control" value="{{ s.get('site_name', 'BPM-Tutor') }}">
+
+                </div>
+
+              {% endif %}
+
             </div>
+
           </div>
+
+
+
+          <div class="card shadow-sm mb-3">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu"></i> {{ _t('admin.settings_ai_api_header', 'AI API Configuration') }}</h6></div>
+
+            <div class="card-body">
+
+              <div class="mb-3">
+
+                <label class="form-label">{{ _t('admin.settings_api_key_mode', 'API Key Mode') }}</label>
+
+                <select name="api_key_mode" id="api_key_mode" class="form-select" onchange="toggleGlobalKey()">
+
+                  <option value="per_user" {% if s.get('api_key_mode', 'per_user') == 'per_user' %}selected{% endif %}>{{ _t('admin.settings_api_key_per_user', 'Each user uses their own API key') }}</option>
+
+                  <option value="global" {% if s.get('api_key_mode') == 'global' %}selected{% endif %}>{{ _t('admin.settings_api_key_global', 'Global API key (set by admin)') }}</option>
+
+                </select>
+
+                <div class="form-text">{{ _t('admin.settings_api_key_per_user_hint', 'In "per_user" mode, users must store their API key in the settings.') }}</div>
+
+              </div>
+
+              <div id="globalKeySection" style="{% if s.get('api_key_mode', 'per_user') != 'global' %}display:none{% endif %}">
+
+                <div class="mb-3">
+
+                  <label class="form-label">{{ _t('admin.settings_global_api_key', 'Global API Key') }}</label>
+
+                  <input type="password" name="global_api_key" class="form-control" value="{{ s.get('global_api_key', '') }}" placeholder="sk-...">
+
+                </div>
+
+              </div>
+
+              <div class="mb-3">
+
+                <label class="form-label">{{ _t('admin.settings_api_endpoint', 'API Endpoint') }}</label>
+
+                <input type="url" name="api_endpoint" class="form-control" value="{{ s.get('api_endpoint', '') }}" placeholder="https://chat.kiconnect.nrw/api">
+
+                <div class="form-text">{{ _t('admin.settings_api_endpoint_hint', 'Empty = use default from .env file') }}</div>
+
+              </div>
+
+              <div class="mb-3">
+
+                <label class="form-label">{{ _t('admin.settings_default_model', 'Default Model') }}</label>
+
+                <input type="text" name="default_model" class="form-control" value="{{ s.get('default_model', '') }}" placeholder="gpt-5">
+
+              </div>
+
+              <hr class="my-3">
+
+              <div class="mb-0">
+
+                <label class="form-label"><i class="bi bi-megaphone me-1"></i>{{ _t('admin.settings_feedback_email', 'Feedback Recipient (E-Mail)') }}</label>
+
+                <input type="email" name="feedback_email" class="form-control" value="{{ s.get('feedback_email', '') }}" placeholder="feedback@example.com">
+
+                <div class="form-text">{{ _t('admin.settings_feedback_email_hint', 'Feedback and error reports from students are sent to this address. Empty = no email.') }}</div>
+
+              </div>
+
+            </div>
+
+          </div>
+
         </div>
+
       </div>
+
     </div>
 
-    {# â•â• TAB 2 â€” E-Mail â•â• #}
+
+
+    {# â•â• TAB 2 — E-Mail â•â• #}
+
     <div class="tab-pane fade" id="tab-mail" role="tabpanel">
+
       <div class="row g-3">
+
         <div class="col-lg-8">
+
           <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-envelope"></i> E-Mail-Konfiguration</h6></div>
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-envelope"></i> {{ _t('admin.settings_mail_config_header', 'E-Mail Configuration') }}</h6></div>
+
             <div class="card-body">
+
               <div class="form-check form-switch mb-3">
+
                 <input type="checkbox" class="form-check-input" id="mail_enabled" name="mail_enabled"
+
                        {% if s.get('mail_enabled') %}checked{% endif %}>
-                <label class="form-check-label" for="mail_enabled"><strong>E-Mail-Versand aktiviert</strong></label>
+
+                <label class="form-check-label" for="mail_enabled"><strong>{{ _t('admin.settings_mail_enabled_label', 'E-Mail sending enabled') }}</strong></label>
+
               </div>
+
               <div class="form-check form-switch mb-3">
+
                 <input type="checkbox" class="form-check-input" id="mail_separate_incoming"
+
                        name="mail_separate_incoming"
+
                        onchange="toggleIncomingMail(this.checked)"
+
                        {% if s.get('mail_separate_incoming') %}checked{% endif %}>
+
                 <label class="form-check-label" for="mail_separate_incoming">
-                  <strong>Separate Eingangsserver-Konfiguration</strong>
+
+                  <strong>{{ _t('admin.settings_mail_separate_incoming_label', 'Separate incoming server configuration') }}</strong>
+
                   <div class="text-muted small">Eingangsserver (IMAP/POP3) und Ausgangsserver (SMTP) unterschiedlich konfigurieren.</div>
+
                 </label>
+
               </div>
+
               <div id="mail-outgoing-section">
-                <h6 class="text-muted small text-uppercase fw-semibold mb-2 outgoing-label" style="display:none;"><i class="bi bi-send"></i> Ausgehend (SMTP)</h6>
+
+                <h6 class="text-muted small text-uppercase fw-semibold mb-2 outgoing-label" style="display:none;"><i class="bi bi-send"></i> {{ _t('admin.settings_mail_outgoing', 'Outgoing (SMTP)') }}</h6>
+
                 <div class="row g-2">
+
                   <div class="col-md-8">
-                    <label class="form-label small">SMTP-Server</label>
+
+                    <label class="form-label small">{{ _t('admin.settings_smtp_server', 'SMTP Server') }}</label>
+
                     <input type="text" name="mail_server" class="form-control" value="{{ s.get('mail_server', '') }}" placeholder="smtp.gmail.com">
+
                   </div>
+
                   <div class="col-md-4">
+
                     <label class="form-label small">Port</label>
+
                     <input type="number" id="mail_port" name="mail_port" class="form-control" value="{{ s.get('mail_port', '587') }}" placeholder="587">
+
                   </div>
+
                   <div class="col-12">
-                    <label class="form-label small">VerschlÃ¼sselung</label>
+
+                    <label class="form-label small">{{ _t('admin.settings_mail_encryption', 'Encryption') }}</label>
+
                     {% if s.get('mail_use_ssl') %}{% set _mail_enc = 'ssl' %}{% elif s.get('mail_use_tls', True) %}{% set _mail_enc = 'starttls' %}{% else %}{% set _mail_enc = 'none' %}{% endif %}
+
                     <select name="mail_encryption" class="form-select" id="mail_encryption" onchange="autoFillPort(this.value)">
-                      <option value="starttls" {% if _mail_enc == 'starttls' %}selected{% endif %}>STARTTLS â€” Port 587 (empfohlen)</option>
-                      <option value="ssl" {% if _mail_enc == 'ssl' %}selected{% endif %}>SSL/TLS â€” Port 465</option>
-                      <option value="none" {% if _mail_enc == 'none' %}selected{% endif %}>Keine VerschlÃ¼sselung â€” Port 25</option>
+
+                      <option value="starttls" {% if _mail_enc == 'starttls' %}selected{% endif %}>STARTTLS — Port 587 ({{ _t('admin.settings_recommended', 'recommended') }})</option>
+
+                      <option value="ssl" {% if _mail_enc == 'ssl' %}selected{% endif %}>SSL/TLS — Port 465</option>
+
+                      <option value="none" {% if _mail_enc == 'none' %}selected{% endif %}>{{ _t('admin.settings_no_encryption', 'No Encryption') }} — Port 25</option>
+
                     </select>
+
                     <div class="form-text text-warning" id="mail_enc_warning" style="display:none;">
-                      <i class="bi bi-exclamation-triangle"></i> Port 25 ist bei vielen ISPs und Firewalls blockiert. Verwende mÃ¶glichst STARTTLS (587) oder SSL (465).
+
+                      <i class="bi bi-exclamation-triangle"></i> Port 25 ist bei vielen ISPs und Firewalls blockiert. Verwende möglichst STARTTLS (587) oder SSL (465).
+
                     </div>
+
                   </div>
+
                   <div class="col-md-6">
-                    <label class="form-label small">Benutzername</label>
+
+                    <label class="form-label small">{{ _t('common.username', 'Username') }}</label>
+
                     <input type="text" name="mail_username" class="form-control" value="{{ s.get('mail_username', '') }}" placeholder="user@example.com">
+
                   </div>
+
                   <div class="col-md-6">
-                    <label class="form-label small">Passwort</label>
-                    <input type="password" name="mail_password" class="form-control" value="{{ s.get('mail_password', '') }}" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autocomplete="new-password">
+
+                    <label class="form-label small">{{ _t('common.password', 'Password') }}</label>
+
+                    <input type="password" name="mail_password" class="form-control" value="{{ s.get('mail_password', '') }}" placeholder="••••••••" autocomplete="new-password">
+
                   </div>
+
                   <div class="col-12">
-                    <label class="form-label small">Absender-Adresse (From)</label>
+
+                    <label class="form-label small">{{ _t('admin.settings_mail_from', 'Sender Address (From)') }}</label>
+
                     <input type="email" name="mail_default_sender" class="form-control" value="{{ s.get('mail_default_sender', '') }}" placeholder="noreply@example.com">
+
                   </div>
+
                 </div>
+
               </div>
+
               <div id="mail-incoming-section" style="display:none;" class="mt-3 pt-3 border-top">
-                <h6 class="text-muted small text-uppercase fw-semibold mb-2"><i class="bi bi-inbox"></i> Eingehend (IMAP / POP3)</h6>
+
+                <h6 class="text-muted small text-uppercase fw-semibold mb-2"><i class="bi bi-inbox"></i> {{ _t('admin.settings_mail_incoming', 'Incoming (IMAP / POP3)') }}</h6>
+
                 <div class="row g-2">
+
                   <div class="col-md-4">
-                    <label class="form-label small">Protokoll</label>
+
+                    <label class="form-label small">{{ _t('admin.settings_mail_protocol', 'Protocol') }}</label>
+
                     <select name="mail_incoming_protocol" class="form-select">
+
                       <option value="imap" {% if s.get('mail_incoming_protocol', 'imap') == 'imap' %}selected{% endif %}>IMAP</option>
+
                       <option value="pop3" {% if s.get('mail_incoming_protocol') == 'pop3' %}selected{% endif %}>POP3</option>
+
                     </select>
+
                   </div>
+
                   <div class="col-md-5">
-                    <label class="form-label small">Server</label>
+
+                    <label class="form-label small">{{ _t('admin.settings_server', 'Server') }}</label>
+
                     <input type="text" name="mail_incoming_server" class="form-control" value="{{ s.get('mail_incoming_server', '') }}" placeholder="imap.gmail.com">
+
                   </div>
+
                   <div class="col-md-3">
+
                     <label class="form-label small">Port</label>
+
                     <input type="number" name="mail_incoming_port" class="form-control" value="{{ s.get('mail_incoming_port', '993') }}" placeholder="993">
+
                   </div>
+
                   <div class="col-12">
+
                     <div class="form-check form-switch">
+
                       <input type="checkbox" class="form-check-input" id="mail_incoming_use_tls" name="mail_incoming_use_tls" {% if s.get('mail_incoming_use_tls', True) %}checked{% endif %}>
-                      <label class="form-check-label small" for="mail_incoming_use_tls">TLS/SSL verwenden</label>
+
+                      <label class="form-check-label small" for="mail_incoming_use_tls">{{ _t('admin.settings_mail_use_tls', 'Use TLS/SSL') }}</label>
+
                     </div>
+
                   </div>
+
                   <div class="col-md-6">
-                    <label class="form-label small">Benutzername</label>
+
+                    <label class="form-label small">{{ _t('common.username', 'Username') }}</label>
+
                     <input type="text" name="mail_incoming_username" class="form-control" value="{{ s.get('mail_incoming_username', '') }}" placeholder="user@example.com">
+
                   </div>
+
                   <div class="col-md-6">
-                    <label class="form-label small">Passwort</label>
-                    <input type="password" name="mail_incoming_password" class="form-control" value="{{ s.get('mail_incoming_password', '') }}" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" autocomplete="new-password">
+
+                    <label class="form-label small">{{ _t('common.password', 'Password') }}</label>
+
+                    <input type="password" name="mail_incoming_password" class="form-control" value="{{ s.get('mail_incoming_password', '') }}" placeholder="••••••••" autocomplete="new-password">
+
                   </div>
+
                 </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="col-lg-4">
+
+          <div class="card shadow-sm">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-tools"></i> {{ _t('admin.settings_mail_test_header', 'Test Connection') }}</h6></div>
+
+            <div class="card-body">
+
+              <p class="text-muted small mb-3">Testet die aktuell <strong>gespeicherten</strong> {{ _t('admin.settings_mail_test_hint', 'SMTP settings. Save first, then test.') }}</p>
+
+              <button type="button" class="btn btn-outline-info w-100" onclick="testMailConnection()">
+
+                <i class="bi bi-plug"></i> {{ _t('admin.settings_mail_test_btn', 'Test SMTP Connection') }}
+
+              </button>
+
+              <div id="mail-test-result" class="mt-3" style="display:none;">
+
+                <div id="mail-test-alert" class="alert mb-0 small"></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    {# â•â• TAB 3 — E-Mail-Vorlagen â•â• #}
+
+    <div class="tab-pane fade" id="tab-templates" role="tabpanel">
+
+      <div class="alert alert-info small mb-4">
+
+        <i class="bi bi-info-circle me-1"></i>
+
+        {{ _t('admin.settings_mail_tpl_hint', 'Leave a field empty to use the built-in default template.') }}
+
+        Platzhalter: <code>{verify_url}</code> (Verifikations-Link), <code>{reset_url}</code> (Reset-Link).
+
+        Der Inhalt wird als <strong>HTML</strong> gesendet.
+
+      </div>
+
+      <div class="row g-4">
+
+        <div class="col-12">
+
+          <div class="card shadow-sm">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-envelope-check"></i> {{ _t('admin.settings_mail_verify_header', 'E-Mail Verification') }}</h6></div>
+
+            <div class="card-body row g-3">
+
+              <div class="col-md-6">
+
+                <label class="form-label">{{ _t('admin.settings_mail_subject', 'Subject') }}</label>
+
+                <input type="text" name="mail_verify_subject" class="form-control"
+
+                       value="{{ s.get('mail_verify_subject', '') }}"
+
+                       placeholder="BPM-Tutor – E-Mail bestätigen (Standard)">
+
+              </div>
+
+              <div class="col-12">
+
+                <label class="form-label">{{ _t('admin.settings_mail_body', 'Content (HTML)') }}</label>
+
+                <textarea name="mail_verify_body" class="form-control font-monospace" rows="10"
+
+                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {verify_url}">{{ s.get('mail_verify_body', '') }}</textarea>
+
+                <div class="form-text">Platzhalter: <code>{verify_url}</code></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="col-12">
+
+          <div class="card shadow-sm">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-key"></i> {{ _t('admin.settings_mail_reset_header', 'Password Reset') }}</h6></div>
+
+            <div class="card-body row g-3">
+
+              <div class="col-md-6">
+
+                <label class="form-label">{{ _t('admin.settings_mail_subject', 'Subject') }}</label>
+
+                <input type="text" name="mail_reset_subject" class="form-control"
+
+                       value="{{ s.get('mail_reset_subject', '') }}"
+
+                       placeholder="BPM-Tutor – Passwort zurücksetzen (Standard)">
+
+              </div>
+
+              <div class="col-12">
+
+                <label class="form-label">{{ _t('admin.settings_mail_body', 'Content (HTML)') }}</label>
+
+                <textarea name="mail_reset_body" class="form-control font-monospace" rows="10"
+
+                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {reset_url}">{{ s.get('mail_reset_body', '') }}</textarea>
+
+                <div class="form-text">Platzhalter: <code>{reset_url}</code></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    {# â•â• TAB 4 — Branding â•â• #}
+
+    <div class="tab-pane fade" id="tab-branding" role="tabpanel">
+
+      <div class="card shadow-sm">
+
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-palette"></i> {{ _t('admin.settings_branding_header', 'Branding &amp; Display') }}</h6></div>
+
+        <div class="card-body">
+
+          <div class="row g-3">
+
+            <div class="col-md-6">
+
+              <label class="form-label">{{ _t('admin.settings_brand_primary', 'Primary Color') }}</label>
+
+              <div class="input-group">
+
+                <input type="color" id="brand_primary_picker" class="form-control form-control-color"
+
+                       value="{{ s.get('brand_primary_color', '#84BD00') }}"
+
+                       oninput="document.getElementById('brand_primary_text').value=this.value; updatePreview()">
+
+                <input type="text" id="brand_primary_text" name="brand_primary" class="form-control"
+
+                       value="{{ s.get('brand_primary_color', '#84BD00') }}"
+
+                       pattern="^#[0-9a-fA-F]{3,8}$"
+
+                       oninput="document.getElementById('brand_primary_picker').value=this.value; updatePreview()">
+
+              </div>
+
+              <div class="form-text">Hauptfarbe für Buttons, Links, aktive Elemente (hex).</div>
+
+            </div>
+
+            <div class="col-md-6">
+
+              <label class="form-label">{{ _t('admin.settings_brand_sidebar_bg', 'Sidebar Background Color') }}</label>
+
+              <div class="input-group">
+
+                <input type="color" id="sidebar_bg_picker" class="form-control form-control-color"
+
+                       value="{{ s.get('brand_sidebar_bg', '#162700') }}"
+
+                       oninput="document.getElementById('sidebar_bg_text').value=this.value">
+
+                <input type="text" id="sidebar_bg_text" name="brand_sidebar_bg" class="form-control"
+
+                       value="{{ s.get('brand_sidebar_bg', '#162700') }}"
+
+                       pattern="^#[0-9a-fA-F]{3,8}$"
+
+                       oninput="document.getElementById('sidebar_bg_picker').value=this.value">
+
+              </div>
+
+            </div>
+
+            <div class="col-12">
+
+              <label class="form-label fw-semibold">{{ _t('admin.settings_brand_logo', 'Logo') }}</label>
+
+              {% if brand_logo_src %}
+
+              <div class="d-flex align-items-center gap-3 mb-2 p-2 border rounded">
+
+                <img src="{{ brand_logo_src }}" style="max-height:48px;max-width:180px;object-fit:contain;" alt="Aktuelles Logo">
+
+                <div>
+
+                  <div class="small text-muted mb-1">{{ _t('admin.settings_brand_current_logo', 'Currently saved logo') }}</div>
+
+                  <button type="submit" name="logo_action" value="clear" class="btn btn-sm btn-outline-danger">
+
+                    <i class="bi bi-x-circle"></i> {{ _t('admin.settings_brand_logo_remove', 'Remove logo') }}
+
+                  </button>
+
+                </div>
+
+              </div>
+
+              {% endif %}
+
+              <div class="row g-2">
+
+                <div class="col-md-6">
+
+                  <label class="form-label small">{{ _t('admin.settings_brand_logo_upload', 'Upload logo (PNG, JPG, SVG, max. 2 MB)') }}</label>
+
+                  <input type="file" name="brand_logo_file" class="form-control" accept="image/*" onchange="previewLogo(this)">
+
+                  <div id="logoPreview" class="mt-2" style="display:none;">
+
+                    <img id="logoPreviewImg" style="max-height:48px;border-radius:4px;" alt="Vorschau">
+
+                  </div>
+
+                </div>
+
+                <div class="col-md-6">
+
+                  <label class="form-label small">{{ _t('admin.settings_brand_logo_or_url', '— or enter logo URL') }}</label>
+
+                  <input type="url" name="brand_logo_url" class="form-control"
+
+                         value="{{ s.get('brand_logo_url', '') }}" placeholder="https://example.com/logo.png">
+
+                  <div class="form-text">{{ _t('admin.settings_brand_logo_url_hint', 'File upload takes priority over URL. Leave empty = logo placeholder.') }}</div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div class="col-md-6">
+
+              <label class="form-label">{{ _t('admin.settings_brand_logo_link', 'Logo Link Target') }}</label>
+
+              <input type="text" name="brand_logo_link" class="form-control" value="{{ s.get('brand_logo_link', '/') }}" placeholder="/">
+
+            </div>
+
+            <div class="col-md-6">
+
+              <div class="d-flex align-items-center gap-3 p-2 border rounded mt-1">
+
+                <span class="text-muted small">Vorschau:</span>
+
+                <span id="colorPreview" class="badge px-3 py-2"
+
+                      style="background: {{ s.get('brand_primary_color', '#84BD00') }}">Button</span>
+
+              </div>
+
+            </div>
+
+            <div class="col-md-6">
+
+              <label class="form-label">{{ _t('admin.settings_tagline_de', 'Tagline (DE)') }}</label>
+
+              <input type="text" name="site_tagline_de" class="form-control" value="{{ s.get('site_tagline_de', 'BPMN-Modellierungs-Lernumgebung') }}">
+
+            </div>
+
+            <div class="col-md-6">
+
+              <label class="form-label">{{ _t('admin.settings_tagline_en', 'Tagline (EN)') }}</label>
+
+              <input type="text" name="site_tagline" class="form-control" value="{{ s.get('site_tagline', 'BPMN Modeling Learning Environment') }}">
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    {# â•â• TAB 5 — Datenbank â•â• #}
+
+    <div class="tab-pane fade" id="tab-database" role="tabpanel">
+
+      <div class="row g-3">
+
+        <div class="col-md-6">
+
+          <div class="card shadow-sm h-100">
+
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-download"></i> {{ _t('admin.settings_db_export_header', 'Export') }}</h6></div>
+
+            <div class="card-body">
+
+              <p class="text-muted small mb-3">{{ _t('admin.settings_db_export_hint', 'Downloads the current database as a .db file. Ideal as backup before major changes.') }}</p>
+
+              <a href="{{ url_for('admin.db_export') }}" class="btn btn-outline-primary">
+
+                <i class="bi bi-download"></i> {{ _t('admin.settings_db_download_btn', 'Download Database') }}
+
+              </a>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="col-md-6">
+
+          <div class="card shadow-sm h-100 border-danger">
+
+            <div class="card-header bg-danger-subtle"><h6 class="mb-0 text-danger"><i class="bi bi-upload"></i> {{ _t('admin.settings_db_import_header', 'Import') }}</h6></div>
+
+            <div class="card-body">
+
+              <p class="text-muted small mb-3">
+
+                {{ _t('admin.settings_db_import_desc', 'Replaces the current database with an uploaded .db file.') }}
+
+                <strong class="text-danger">{{ _t('admin.settings_db_import_warning', 'All current data will be overwritten.') }}</strong>
+
+                {{ _t('admin.settings_db_import_backup', 'A backup (.bak) is created automatically.') }}
+
+              </p>
+
+              <div class="input-group">
+
+                <input type="file" name="db_file" class="form-control" accept=".db" required form="db-import-form">
+
+                <button type="submit" class="btn btn-danger" form="db-import-form">
+
+                  <i class="bi bi-upload"></i> {{ _t('admin.settings_db_import_header', 'Import') }}ieren
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+  
+
+<div class="tab-pane fade" id="tab-regfields" role="tabpanel">
+      <div class="row g-3 mt-1">
+        <div class="col-lg-8">
+          <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">{{ _t('admin.regfields_configurable', 'Configurable Fields') }}</h6>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addFieldReg('text')"><i class="bi bi-plus"></i> {{ _t('admin.regfields_add_text', 'Text Field') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addFieldReg('select')"><i class="bi bi-plus"></i> {{ _t('admin.regfields_add_select', 'Dropdown') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addFieldReg('date')"><i class="bi bi-plus"></i> {{ _t('admin.regfields_add_date', 'Date') }}</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addFieldReg('number')"><i class="bi bi-plus"></i> {{ _t('admin.regfields_add_number', 'Number') }}</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="regFieldsContainer"></div>
+              <div id="regFieldsEmpty" class="text-center text-muted py-3">
+                <i class="bi bi-plus-circle fs-3"></i><br>{{ _t('admin.regfields_empty_msg', 'No fields yet. Click above to add a field.') }}
               </div>
             </div>
           </div>
         </div>
         <div class="col-lg-4">
           <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-tools"></i> Verbindung testen</h6></div>
-            <div class="card-body">
-              <p class="text-muted small mb-3">Testet die aktuell <strong>gespeicherten</strong> SMTP-Einstellungen. Speichere zuerst, dann teste.</p>
-              <button type="button" class="btn btn-outline-info w-100" onclick="testMailConnection()">
-                <i class="bi bi-plug"></i> SMTP-Verbindung testen
-              </button>
-              <div id="mail-test-result" class="mt-3" style="display:none;">
-                <div id="mail-test-alert" class="alert mb-0 small"></div>
-              </div>
-            </div>
+            <div class="card-header"><h6 class="mb-0">{{ _t('admin.regfields_required_always', 'Required Fields (always)') }}</h6></div>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item"><i class="bi bi-lock-fill text-muted me-2"></i> E-Mail</li>
+              <li class="list-group-item"><i class="bi bi-lock-fill text-muted me-2"></i> {{ _t('common.username', 'Username') }}</li>
+              <li class="list-group-item"><i class="bi bi-lock-fill text-muted me-2"></i> {{ _t('common.password', 'Password') }}</li>
+            </ul>
           </div>
         </div>
-      </div>
-    </div>
+      </div></div>
 
-    {# â•â• TAB 3 â€” E-Mail-Vorlagen â•â• #}
-    <div class="tab-pane fade" id="tab-templates" role="tabpanel">
-      <div class="alert alert-info small mb-4">
-        <i class="bi bi-info-circle me-1"></i>
-        Lasse ein Feld leer, um die <strong>eingebaute Standard-Vorlage</strong> zu verwenden.
-        Platzhalter: <code>{verify_url}</code> (Verifikations-Link), <code>{reset_url}</code> (Reset-Link).
-        Der Inhalt wird als <strong>HTML</strong> gesendet.
-      </div>
-      <div class="row g-4">
+    {# ══ TAB: BPMN Rules ══ #}
+    <div class="tab-pane fade" id="tab-bpmn-rules" role="tabpanel">
+      <div class="row g-4 mt-1">
         <div class="col-12">
-          <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-envelope-check"></i> E-Mail-Verifizierung</h6></div>
-            <div class="card-body row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Betreff</label>
-                <input type="text" name="mail_verify_subject" class="form-control"
-                       value="{{ s.get('mail_verify_subject', '') }}"
-                       placeholder="BPM-Tutor â€“ E-Mail bestÃ¤tigen (Standard)">
-              </div>
-              <div class="col-12">
-                <label class="form-label">Inhalt (HTML)</label>
-                <textarea name="mail_verify_body" class="form-control font-monospace" rows="10"
-                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {verify_url}">{{ s.get('mail_verify_body', '') }}</textarea>
-                <div class="form-text">Platzhalter: <code>{verify_url}</code></div>
-              </div>
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="bi bi-diagram-3 me-1"></i> {{ _t('admin.settings_bpmn_rules_header', 'BPMN Rules & Element Reference') }}</h6>
             </div>
-          </div>
-        </div>
-        <div class="col-12">
-          <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-key"></i> Passwort zurÃ¼cksetzen</h6></div>
-            <div class="card-body row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Betreff</label>
-                <input type="text" name="mail_reset_subject" class="form-control"
-                       value="{{ s.get('mail_reset_subject', '') }}"
-                       placeholder="BPM-Tutor â€“ Passwort zurÃ¼cksetzen (Standard)">
-              </div>
-              <div class="col-12">
-                <label class="form-label">Inhalt (HTML)</label>
-                <textarea name="mail_reset_body" class="form-control font-monospace" rows="10"
-                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {reset_url}">{{ s.get('mail_reset_body', '') }}</textarea>
-                <div class="form-text">Platzhalter: <code>{reset_url}</code></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {# â•â• TAB 4 â€” Branding â•â• #}
-    <div class="tab-pane fade" id="tab-branding" role="tabpanel">
-      <div class="card shadow-sm">
-        <div class="card-header"><h6 class="mb-0"><i class="bi bi-palette"></i> Branding &amp; Darstellung</h6></div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">PrimÃ¤rfarbe</label>
-              <div class="input-group">
-                <input type="color" id="brand_primary_picker" class="form-control form-control-color"
-                       value="{{ s.get('brand_primary_color', '#84BD00') }}"
-                       oninput="document.getElementById('brand_primary_text').value=this.value; updatePreview()">
-                <input type="text" id="brand_primary_text" name="brand_primary" class="form-control"
-                       value="{{ s.get('brand_primary_color', '#84BD00') }}"
-                       pattern="^#[0-9a-fA-F]{3,8}$"
-                       oninput="document.getElementById('brand_primary_picker').value=this.value; updatePreview()">
-              </div>
-              <div class="form-text">Hauptfarbe fÃ¼r Buttons, Links, aktive Elemente (hex).</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Sidebar-Hintergrundfarbe</label>
-              <div class="input-group">
-                <input type="color" id="sidebar_bg_picker" class="form-control form-control-color"
-                       value="{{ s.get('brand_sidebar_bg', '#162700') }}"
-                       oninput="document.getElementById('sidebar_bg_text').value=this.value">
-                <input type="text" id="sidebar_bg_text" name="brand_sidebar_bg" class="form-control"
-                       value="{{ s.get('brand_sidebar_bg', '#162700') }}"
-                       pattern="^#[0-9a-fA-F]{3,8}$"
-                       oninput="document.getElementById('sidebar_bg_picker').value=this.value">
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label fw-semibold">Logo</label>
-              {% if brand_logo_src %}
-              <div class="d-flex align-items-center gap-3 mb-2 p-2 border rounded">
-                <img src="{{ brand_logo_src }}" style="max-height:48px;max-width:180px;object-fit:contain;" alt="Aktuelles Logo">
-                <div>
-                  <div class="small text-muted mb-1">Aktuell gespeichertes Logo</div>
-                  <button type="submit" name="logo_action" value="clear" class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-x-circle"></i> Logo entfernen
-                  </button>
-                </div>
-              </div>
-              {% endif %}
-              <div class="row g-2">
-                <div class="col-md-6">
-                  <label class="form-label small">Logo hochladen (PNG, JPG, SVG, max. 2 MB)</label>
-                  <input type="file" name="brand_logo_file" class="form-control" accept="image/*" onchange="previewLogo(this)">
-                  <div id="logoPreview" class="mt-2" style="display:none;">
-                    <img id="logoPreviewImg" style="max-height:48px;border-radius:4px;" alt="Vorschau">
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small">â€” oder Logo-URL angeben</label>
-                  <input type="url" name="brand_logo_url" class="form-control"
-                         value="{{ s.get('brand_logo_url', '') }}" placeholder="https://example.com/logo.png">
-                  <div class="form-text">Datei-Upload hat Vorrang vor URL. Leer lassen = Logo-Platzhalter.</div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Logo-Linkziel</label>
-              <input type="text" name="brand_logo_link" class="form-control" value="{{ s.get('brand_logo_link', '/') }}" placeholder="/">
-            </div>
-            <div class="col-md-6">
-              <div class="d-flex align-items-center gap-3 p-2 border rounded mt-1">
-                <span class="text-muted small">Vorschau:</span>
-                <span id="colorPreview" class="badge px-3 py-2"
-                      style="background: {{ s.get('brand_primary_color', '#84BD00') }}">Button</span>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Tagline (DE)</label>
-              <input type="text" name="site_tagline_de" class="form-control" value="{{ s.get('site_tagline_de', 'BPMN-Modellierungs-Lernumgebung') }}">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Tagline (EN)</label>
-              <input type="text" name="site_tagline" class="form-control" value="{{ s.get('site_tagline', 'BPMN Modeling Learning Environment') }}">
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {# â•â• TAB 5 â€” Datenbank â•â• #}
-    <div class="tab-pane fade" id="tab-database" role="tabpanel">
-      <div class="row g-3">
-        <div class="col-md-6">
-          <div class="card shadow-sm h-100">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-download"></i> Export</h6></div>
             <div class="card-body">
-              <p class="text-muted small mb-3">LÃ¤dt die aktuelle Datenbank als <code>.db</code>-Datei herunter. Ideal als Backup vor grÃ¶ÃŸeren Ã„nderungen.</p>
-              <a href="{{ url_for('admin.db_export') }}" class="btn btn-outline-primary">
-                <i class="bi bi-download"></i> Datenbank herunterladen
-              </a>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6">
-          <div class="card shadow-sm h-100 border-danger">
-            <div class="card-header bg-danger-subtle"><h6 class="mb-0 text-danger"><i class="bi bi-upload"></i> Import</h6></div>
-            <div class="card-body">
-              <p class="text-muted small mb-3">
-                Ersetzt die aktuelle Datenbank durch eine hochgeladene <code>.db</code>-Datei.
-                <strong class="text-danger">Alle aktuellen Daten werden Ã¼berschrieben.</strong>
-                Eine Sicherungskopie (<code>.bak</code>) wird automatisch erstellt.
+              <p class="text-muted small">
+                {{ _t('admin.settings_bpmn_rules_desc', 'These rules are injected into the system prompt of every AI agent. Leave blank to use the built-in defaults. Changes take effect immediately for new conversations.') }}
               </p>
-              <div class="input-group">
-                <input type="file" name="db_file" class="form-control" accept=".db" required form="db-import-form">
-                <button type="submit" class="btn btn-danger" form="db-import-form">
-                  <i class="bi bi-upload"></i> Importieren
-                </button>
+
+              <div class="mb-4">
+                <label class="form-label fw-semibold">{{ _t('admin.settings_bpmn_syntax_rules', 'BPMN Syntax & Modeling Rules') }} <code>{bpmn_standards}</code></label>
+                <textarea name="bpmn_syntax_rules" class="form-control font-monospace" rows="18"
+                          placeholder="{{ _t('admin.settings_bpmn_syntax_rules_placeholder', 'Leave blank to use the built-in BPMN standards rules.') }}">{{ s['bpmn_syntax_rules'] if 'bpmn_syntax_rules' in db_keys else bpmn_standards_default }}</textarea>
+                <div class="form-text">{{ _t('admin.settings_bpmn_syntax_rules_hint', 'Replaces the {bpmn_standards} placeholder. Plain text or Markdown-style rules.') }}</div>
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label fw-semibold">{{ _t('admin.settings_bpmn_elements', 'BPMN Element Reference') }} <code>{bpmn_elements}</code></label>
+                <textarea name="bpmn_elements" class="form-control font-monospace" rows="18"
+                          placeholder="{{ _t('admin.settings_bpmn_elements_placeholder', 'Leave blank to use the built-in BPMN element reference.') }}">{{ s['bpmn_elements'] if 'bpmn_elements' in db_keys else bpmn_elements_default }}</textarea>
+                <div class="form-text">{{ _t('admin.settings_bpmn_elements_hint', 'Replaces the {bpmn_elements} placeholder. Lists supported BPMN element types and their IDs.') }}</div>
               </div>
             </div>
           </div>
@@ -437,105 +1025,280 @@
       </div>
     </div>
 
-  </div>{# /tab-content #}
+</div>{# /tab-content #}
 
-  {# â”€â”€ Save bar (hidden on Datenbank tab) â”€â”€ #}
-  <div id="settings-save-bar" class="d-flex gap-2 flex-wrap align-items-center mt-4">
-    <button type="submit" class="btn btn-primary btn-lg">
-      <i class="bi bi-save"></i> Einstellungen speichern
+
+<div id="settings-save-bar" class="d-flex gap-2 flex-wrap align-items-center mt-4">
+
+    <button type="submit" class="btn btn-primary">
+
+      <i class="bi bi-save"></i> {{ _t('admin.settings_save_btn', 'Save Settings') }}
+
     </button>
-    <a href="{{ url_for('admin.registration_fields') }}" class="btn btn-outline-secondary btn-lg">
-      <i class="bi bi-ui-checks"></i> Registrierungsfelder
-    </a>
+
   </div>
 
+
+
 </form>
+
 {% endblock %}
 
+
+
 {% block extra_js %}
+
 <script>
+
 function toggleGlobalKey() {
+
   const mode = document.getElementById('api_key_mode').value;
+
   document.getElementById('globalKeySection').style.display = mode === 'global' ? '' : 'none';
+
 }
+
 function toggleIncomingMail(enabled) {
+
   document.getElementById('mail-incoming-section').style.display = enabled ? '' : 'none';
+
   document.querySelectorAll('.outgoing-label').forEach(el => el.style.display = enabled ? '' : 'none');
+
 }
+
 function autoFillPort(enc) {
+
   const portEl = document.getElementById('mail_port');
+
   const warn   = document.getElementById('mail_enc_warning');
+
   if (!portEl) return;
+
   const currentPort = portEl.value;
+
   if (enc === 'ssl'      && (currentPort == 587 || currentPort == 25 || currentPort == '')) portEl.value = 465;
+
   else if (enc === 'starttls' && (currentPort == 465 || currentPort == 25 || currentPort == '')) portEl.value = 587;
+
   else if (enc === 'none'     && (currentPort == 587 || currentPort == 465 || currentPort == '')) portEl.value = 25;
+
   if (warn) warn.style.display = enc === 'none' ? '' : 'none';
+
 }
+
 function testMailConnection() {
+
   const btn       = document.querySelector('[onclick="testMailConnection()"]');
+
   const resultDiv = document.getElementById('mail-test-result');
+
   const alertDiv  = document.getElementById('mail-test-alert');
+
   btn.disabled    = true;
-  btn.innerHTML   = '<span class="spinner-border spinner-border-sm me-1"></span> Teste Verbindungâ€¦';
+
+  btn.innerHTML   = '<span class="spinner-border spinner-border-sm me-1"></span> {{ _t('admin.settings_mail_testing', 'Testing connection…') }}';
+
   const csrfToken = document.querySelector('#settings-form input[name="csrf_token"]').value;
+
   fetch('{{ url_for("admin.test_mail") }}', {
+
     method: 'POST',
+
     headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+
     body: 'csrf_token=' + encodeURIComponent(csrfToken),
+
   })
+
   .then(r => r.json())
+
   .then(data => {
+
     resultDiv.style.display = '';
+
     alertDiv.className = 'alert ' + (data.ok ? 'alert-success' : 'alert-danger') + ' mb-0';
+
     alertDiv.innerHTML = (data.ok ? '<i class="bi bi-check-circle me-2"></i>' : '<i class="bi bi-exclamation-triangle me-2"></i>') + data.msg;
+
     resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
   })
+
   .catch(err => {
+
     resultDiv.style.display = '';
+
     alertDiv.className = 'alert alert-danger mb-0';
-    alertDiv.textContent = 'Fehler: ' + err;
+
+    alertDiv.textContent = '{{ _t('common.error', 'Error') }}: ' + err;
+
   })
+
   .finally(() => {
+
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-plug"></i> SMTP-Verbindung testen';
+
+    btn.innerHTML = '<i class="bi bi-plug"></i> {{ _t('admin.settings_mail_test_btn', 'Test SMTP Connection') }}';
+
   });
+
 }
+
 function updatePreview() {
+
   const c = document.getElementById('brand_primary_text').value;
+
   if (/^#[0-9a-fA-F]{3,8}$/.test(c)) document.getElementById('colorPreview').style.background = c;
+
 }
+
 function previewLogo(input) {
+
   if (input.files && input.files[0]) {
+
     const reader = new FileReader();
+
     reader.onload = e => {
+
       document.getElementById('logoPreviewImg').src = e.target.result;
+
       document.getElementById('logoPreview').style.display = '';
+
     };
+
     reader.readAsDataURL(input.files[0]);
+
   }
+
 }
+
 document.addEventListener('DOMContentLoaded', function () {
+
   // Init incoming mail toggle
+
   const sep = document.getElementById('mail_separate_incoming');
+
   if (sep) toggleIncomingMail(sep.checked);
+
   // Init encryption warning
+
   const enc = document.getElementById('mail_encryption');
+
   if (enc) { const warn = document.getElementById('mail_enc_warning'); if (warn) warn.style.display = enc.value === 'none' ? '' : 'none'; }
+
   // Hide save bar on Datenbank tab
+
   const saveBar   = document.getElementById('settings-save-bar');
+
   const dbTabBtn  = document.getElementById('tab-database-btn');
+  const regTabBtn = document.getElementById('tab-regfields-btn');
+
   document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]').forEach(btn => {
+
     btn.addEventListener('show.bs.tab', function (e) {
+
       saveBar.style.display = e.target === dbTabBtn ? 'none' : '';
+
     });
+
   });
+
   // Restore last active tab
+
   const stored = sessionStorage.getItem('settingsTab');
+
   if (stored) { const btn = document.querySelector('#settingsTabs button[data-bs-target="' + stored + '"]'); if (btn) { new bootstrap.Tab(btn).show(); } }
+
   document.querySelectorAll('#settingsTabs button').forEach(btn => {
+
     btn.addEventListener('shown.bs.tab', e => sessionStorage.setItem('settingsTab', e.target.dataset.bsTarget));
+
   });
+
 });
+
+
+// ── Registration Fields Tab JS ────────────────────────────────────────────
+(function() {
+  const existingRegFields = {{ reg_fields_data | tojson }};
+  let regFields = existingRegFields.map(f => ({
+    name: f.name, label: f.label, label_de: f.label_de || '',
+    field_type: f.field_type, required: f.required, options: f.options || []
+  }));
+
+  function renderRegFields() {
+    var container = document.getElementById('regFieldsContainer');
+    var emptyMsg  = document.getElementById('regFieldsEmpty');
+    if (!container) return;
+    emptyMsg.style.display = regFields.length ? 'none' : '';
+    container.innerHTML = '';
+    regFields.forEach(function(f, i) {
+      var types = ['text','textarea','select','number','date','checkbox'];
+      var selectOpts = types.map(function(t) {
+        return '<option value="' + t + '"' + (f.field_type===t?' selected':'') + '>' + t + '</option>';
+      }).join('');
+      var optTA = '';
+      if (f.field_type === 'select') {
+        var optVals = (f.options||[]).map(function(o){ return o.value+'='+o.label; }).join('\n');
+        optTA = '<div class="col-12"><label class="form-label small">{{ _t('admin.regfields_options', 'Options (line: value=Label)') }}</label><textarea class="form-control form-control-sm" rows="2" onchange="regFields['+i+'].options=window.parseRegOptions(this.value)">'+optVals+'</textarea></div>';
+      }
+      var html = '<div class="border rounded p-3 mb-2 bg-light">'
+        + '<div class="row g-2 align-items-center">'
+        + '<div class="col-md-3"><label class="form-label small">Name (intern)</label>'
+        + '<input type="text" class="form-control form-control-sm" value="'+f.name+'" onchange="regFields['+i+'].name=this.value" placeholder="{{ _t('admin.regfields_field_name_ph', 'e.g. student_id') }}"></div>'
+        + '<div class="col-md-3"><label class="form-label small">Label</label>'
+        + '<input type="text" class="form-control form-control-sm" value="'+f.label+'" onchange="regFields['+i+'].label=this.value"></div>'
+        + '<div class="col-md-2"><label class="form-label small">Typ</label>'
+        + '<select class="form-select form-select-sm" onchange="regFields['+i+'].field_type=this.value; renderRegFields()">'+selectOpts+'</select></div>'
+        + '<div class="col-md-2 d-flex align-items-end"><div class="form-check">'
+        + '<input type="checkbox" class="form-check-input" '+(f.required?'checked':'')+' onchange="regFields['+i+'].required=this.checked">'
+        + '<label class="form-check-label small"> {{ _t('admin.regfields_required_badge', 'Required') }}</label></div></div>'
+        + '<div class="col-md-2 d-flex align-items-end">'
+        + '<button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="regFields.splice('+i+',1); renderRegFields()"><i class="bi bi-trash"></i></button></div>'
+        + optTA + '</div></div>';
+      container.insertAdjacentHTML('beforeend', html);
+    });
+  }
+
+  window.addFieldReg = function(type) {
+    regFields.push({ name: 'field_'+Date.now(), label: '', label_de: '', field_type: type, required: false, options: [] });
+    renderRegFields();
+  };
+
+  window.parseRegOptions = function(text) {
+    return text.split('\n').filter(function(l){ return l.trim(); }).map(function(l) {
+      var parts = l.split('=');
+      var val = parts[0].trim();
+      var lbl = parts.slice(1).join('=').trim() || val;
+      return { value: val, label: lbl };
+    });
+  };
+
+  window.saveRegFields = function() {
+    var csrfInput = document.querySelector('input[name="csrf_token"]');
+    var csrfToken = csrfInput ? csrfInput.value : '';
+    var fd = new FormData();
+    fd.append('csrf_token', csrfToken);
+    fd.append('fields_json', JSON.stringify(regFields));
+    fetch('{{ url_for("admin.registration_fields_api") }}', { method: 'POST', body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          var a = document.createElement('div');
+          a.className = 'alert alert-success alert-dismissible position-fixed top-0 end-0 m-3';
+          a.style.zIndex = '9999';
+          a.innerHTML = '<i class="bi bi-check-circle"></i> {{ _t('admin.regfields_save_success', 'Fields saved.') }}. <button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+          document.body.appendChild(a);
+          setTimeout(function(){ a.remove(); }, 3000);
+        } else {
+          alert('{{ _t('common.error', 'Error') }}: ' + (d.error || '{{ _t('common.unknown_error', 'Unknown error') }}'));
+        }
+      });
+  };
+
+  renderRegFields();
+})();
 </script>
+
 {% endblock %}
+

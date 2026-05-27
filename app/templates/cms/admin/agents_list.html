@@ -1,0 +1,117 @@
+{% extends "cms/base.html" %}
+{% block title %}{{ _t('admin.agent_list_title', 'AI Agents') }}{% endblock %}
+{% block page_title %}{{ _t('admin.agent_list_title', 'AI Agents') }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.agent_create') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg"></i> {{ _t('admin.agent_new_btn', 'New Agent') }}
+</a>
+<form method="POST" action="{{ url_for('admin.agents_reset_all_prompts') }}" class="d-inline ms-2"
+      onsubmit="return confirm('Alle System-Agenten auf die aktuellen Standard-Prompts zurücksetzen?');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-warning btn-sm">
+    <i class="bi bi-arrow-counterclockwise"></i> Alle Prompts zurücksetzen
+  </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-robot me-2"></i>{{ _t('admin.agents_configured', 'Configured AI Agents') }}</span>
+    <span class="text-muted small">{{ agents | length }} Agent(en)</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _t('common.name', 'Name') }}</th>
+          <th>{{ _t('common.type', 'Type') }}</th>
+          <th>{{ _t('admin.agent_completion_control', 'Completion Control') }}</th>
+          <th>{{ _t('admin.agent_col_capabilities', 'Modeling Mode') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for agent in agents %}
+        <tr>
+          <td>
+            <strong>{{ agent.name }}</strong>
+            {% if agent.is_default %}
+            <span class="badge bg-primary ms-1">{{ _t('common.standard', 'Standard') }}</span>
+            {% endif %}
+            {% if agent.is_system %}
+            <span class="badge bg-secondary ms-1"><i class="bi bi-lock"></i> System</span>
+            {% endif %}
+            {% if agent.description %}
+            <div class="text-muted small">{{ agent.description | truncate(80) }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <code class="small">{{ agent.agent_type }}</code>
+          </td>
+          <td>
+            {% if agent.control_mode == 'human' %}
+            <span class="badge bg-secondary">
+              <i class="bi bi-person-fill"></i> {{ _t('admin.agent_ctrl_human', 'Mensch') }}
+            </span>
+            {% elif agent.control_mode == 'shared' %}
+            <span class="badge bg-info text-dark">
+              <i class="bi bi-people-fill"></i> {{ _t('admin.agent_ctrl_shared', 'Geteilt') }}
+            </span>
+            {% else %}
+            <span class="badge bg-warning text-dark">
+              <i class="bi bi-robot"></i> {{ _t('admin.agent_ctrl_agent', 'Agent') }}
+            </span>
+            {% endif %}
+          </td>
+          <td>
+            {% if agent.modeling_mode == 'none' %}
+            <span class="text-muted small"><i class="bi bi-dash"></i> {{ _t('admin.agent_modeling_none', 'Kein Modeling') }}</span>
+            {% elif agent.modeling_mode == 'collaborative' %}
+            <span class="badge bg-success"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_collab', 'Kollaborativ') }}</span>
+            {% elif agent.modeling_mode == 'ai_then_human' %}
+            <span class="badge bg-info text-dark"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_aifirst', 'KI zuerst') }}</span>
+            {% elif agent.modeling_mode == 'ai_only' %}
+            <span class="badge bg-warning text-dark"><i class="bi bi-robot"></i> {{ _t('admin.agent_modeling_aionly', 'Nur KI') }}</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.agent_edit', agent_id=agent.id) }}"
+               class="btn btn-sm btn-outline-primary" title="{{ _t('common.edit', 'Edit') }}">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('admin.agent_copy', agent_id=agent.id) }}"
+                  class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-secondary ms-1" title="{{ _t('common.copy', 'Copy') }}">
+                <i class="bi bi-copy"></i>
+              </button>
+            </form>
+            {% if not agent.is_system %}
+            <form method="post" action="{{ url_for('admin.agent_delete', agent_id=agent.id) }}"
+                  class="d-inline"
+                  onsubmit="return confirm('{{ _t('admin.agent_delete_confirm', 'Really delete agent?') }}: \'' + '{{ agent.name | e }}' + '\'')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger ms-1" title="{{ _t('common.delete', 'Delete') }}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-4">
+            {{ _t('admin.agent_empty', 'No agents configured yet.') }}
+            <a href="{{ url_for('admin.agent_create') }}">{{ _t('admin.agent_create_first', 'Create first agent') }}</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

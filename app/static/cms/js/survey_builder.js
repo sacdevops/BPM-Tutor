@@ -97,20 +97,21 @@ const SurveyBuilder = (() => {
   function renderQuestion(pi, qi, q) {
     const needsOptions = ['select', 'radio', 'checkbox'].includes(q.type);
     const isScale = q.type === 'scale' || q.type === 'likert';
+    const isImage = q.type === 'image';
     return `
       <div class="border rounded p-3 mb-2 bg-white question-item" id="question_${pi}_${qi}">
         <div class="d-flex align-items-center gap-2 mb-2">
           <span class="badge bg-secondary">${escHtml(q.type)}</span>
           <input type="text" class="form-control form-control-sm flex-grow-1"
-                 placeholder="Frage / Label *"
+                 placeholder="${isImage ? 'Bildunterschrift (optional)' : 'Frage / Label *'}"
                  value="${escHtml(q.label)}"
                  oninput="SurveyBuilder._setQField(${pi},${qi},'label',this.value)">
-          <div class="form-check mb-0">
+          ${!isImage ? `<div class="form-check mb-0">
             <input type="checkbox" class="form-check-input" id="req_${pi}_${qi}"
                    ${q.required ? 'checked' : ''}
                    onchange="SurveyBuilder._setQField(${pi},${qi},'required',this.checked)">
             <label class="form-check-label small" for="req_${pi}_${qi}">Pflicht</label>
-          </div>
+          </div>` : ''}
           <div class="d-flex gap-1">
             ${qi > 0 ? `<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1"
                 onclick="SurveyBuilder._moveQ(${pi},${qi},-1)">↑</button>` : ''}
@@ -121,10 +122,24 @@ const SurveyBuilder = (() => {
                     onclick="SurveyBuilder._removeQ(${pi},${qi})">×</button>
           </div>
         </div>
-        <input type="text" class="form-control form-control-sm mb-2"
-               placeholder="Beschreibung / Hilfetext (optional)"
-               value="${escHtml(q.description || '')}"
-               oninput="SurveyBuilder._setQField(${pi},${qi},'description',this.value)">
+        ${isImage ? `
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="file" class="form-control form-control-sm" accept="image/*"
+                   id="imgUpload_${pi}_${qi}"
+                   onchange="SurveyBuilder._uploadQuestionImage(${pi},${qi},this)">
+            <span class="text-muted small">oder</span>
+            <input type="url" class="form-control form-control-sm"
+                   placeholder="Bild-URL (https://...)"
+                   value="${escHtml(q.config?.image_url || '')}"
+                   oninput="SurveyBuilder._setCfg(${pi},${qi},'image_url',this.value)">
+          </div>
+          ${q.config?.image_url ? `<img src="${escHtml(q.config.image_url)}" style="max-height:120px;border-radius:6px;margin-top:4px;" onerror="this.style.display='none'" id="imgPreview_${pi}_${qi}">` : `<img id="imgPreview_${pi}_${qi}" style="max-height:120px;border-radius:6px;display:none;">`}
+        ` : `
+          <input type="text" class="form-control form-control-sm mb-2"
+                 placeholder="Beschreibung / Hilfetext (optional)"
+                 value="${escHtml(q.description || '')}"
+                 oninput="SurveyBuilder._setQField(${pi},${qi},'description',this.value)">
+        `}
         ${needsOptions ? `
           <label class="form-label small">Optionen (eine pro Zeile: wert=Label)</label>
           <textarea class="form-control form-control-sm" rows="3"
@@ -201,10 +216,29 @@ const SurveyBuilder = (() => {
   }
   function _removeQ(pi, qi) { pages[pi].questions.splice(qi, 1); render(); }
 
+  function _uploadQuestionImage(pi, qi, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/survey/upload-image', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.url) {
+          _setCfg(pi, qi, 'image_url', data.url);
+          const preview = document.getElementById(`imgPreview_${pi}_${qi}`);
+          if (preview) { preview.src = data.url; preview.style.display = ''; }
+        } else {
+          alert('Bild-Upload fehlgeschlagen: ' + (data.error || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(() => alert('Bild-Upload fehlgeschlagen.'));
+  }
+
   return {
     init, addPage, addQuestion, getPages,
     _setActive, _setPageTitle, _movePage, _removePage,
-    _setQField, _setQOptions, _setCfg, _moveQ, _removeQ
+    _setQField, _setQOptions, _setCfg, _moveQ, _removeQ, _uploadQuestionImage
   };
 })();
 

@@ -1,12 +1,12 @@
 {% extends "cms/base.html" %}
-{% block title %}Registrieren{% endblock %}
+{% block title %}{{ _t('auth.register_page_title', 'Register') }}{% endblock %}
 
 {% block content %}
 <div class="auth-card auth-card-wide">
   <div class="auth-logo">
     <i class="bi bi-diagram-3-fill"></i>
     <h1>{{ cms_site_name }}</h1>
-    <p class="text-muted">Neues Konto erstellen</p>
+    <p class="text-muted">{{ _t('auth.register_subtitle', 'Create new account') }}</p>
   </div>
 
   <form method="post" action="{{ url_for('auth.register') }}" class="auth-form">
@@ -15,7 +15,7 @@
     <div class="row g-3">
       <!-- Required: E-Mail -->
       <div class="col-md-6">
-        <label for="email" class="form-label">E-Mail <span class="text-danger">*</span></label>
+        <label for="email" class="form-label">{{ _t('auth.email_label', 'Email') }} <span class="text-danger">*</span></label>
         <input type="email" id="email" name="email" class="form-control {% if errors.email %}is-invalid{% endif %}"
                value="{{ request.form.get('email', '') }}" required>
         {% if errors.email %}<div class="invalid-feedback">{{ errors.email }}</div>{% endif %}
@@ -23,7 +23,7 @@
 
       <!-- Required: Username -->
       <div class="col-md-6">
-        <label for="username" class="form-label">Benutzername <span class="text-danger">*</span></label>
+        <label for="username" class="form-label">{{ _t('profile.username_label', 'Username') }} <span class="text-danger">*</span></label>
         <input type="text" id="username" name="username" class="form-control {% if errors.username %}is-invalid{% endif %}"
                value="{{ request.form.get('username', '') }}" required>
         {% if errors.username %}<div class="invalid-feedback">{{ errors.username }}</div>{% endif %}
@@ -31,28 +31,29 @@
 
       <!-- Optional: Name -->
       <div class="col-md-6">
-        <label for="first_name" class="form-label">Vorname</label>
+        <label for="first_name" class="form-label">{{ _t('auth.first_name_label', 'First name') }}</label>
         <input type="text" id="first_name" name="first_name" class="form-control"
                value="{{ request.form.get('first_name', '') }}">
       </div>
       <div class="col-md-6">
-        <label for="last_name" class="form-label">Nachname</label>
+        <label for="last_name" class="form-label">{{ _t('auth.last_name_label', 'Last name') }}</label>
         <input type="text" id="last_name" name="last_name" class="form-control"
                value="{{ request.form.get('last_name', '') }}">
       </div>
 
       <!-- Required: Password -->
       <div class="col-md-6">
-        <label for="password" class="form-label">Passwort <span class="text-danger">*</span></label>
+        <label for="password" class="form-label">{{ _t('auth.password_placeholder', 'Password') }} <span class="text-danger">*</span></label>
         <input type="password" id="password" name="password"
                class="form-control {% if errors.password %}is-invalid{% endif %}" required>
         {% if errors.password %}<div class="invalid-feedback">{{ errors.password }}</div>{% endif %}
-        <div class="form-text">Mindestens 8 Zeichen</div>
+        <div class="form-text">{{ _t('auth.password_hint', 'Minimum 8 characters') }}</div>
       </div>
       <div class="col-md-6">
-        <label for="password2" class="form-label">Passwort bestätigen <span class="text-danger">*</span></label>
+        <label for="password2" class="form-label">{{ _t('auth.password_confirm_label', 'Confirm password') }} <span class="text-danger">*</span></label>
         <input type="password" id="password2" name="password2"
-               class="form-control {% if errors.password2 %}is-invalid{% endif %}" required>
+               class="form-control {% if errors.password2 %}is-invalid{% endif %}"
+               placeholder="{{ _t('auth.password_confirm_placeholder', 'Repeat password') }}" required>
         {% if errors.password2 %}<div class="invalid-feedback">{{ errors.password2 }}</div>{% endif %}
       </div>
 
@@ -74,7 +75,7 @@
         {% elif field.field_type == 'select' %}
         <select id="extra_{{ field.name }}" name="extra_{{ field.name }}"
                 class="form-select {% if field_error %}is-invalid{% endif %}">
-          <option value="">-- Auswählen --</option>
+          <option value="">{{ _t('auth.select_placeholder', '-- Select --') }}</option>
           {% for opt in field.options %}
           <option value="{{ opt.value }}" {% if field_val == opt.value %}selected{% endif %}>{{ opt.label }}</option>
           {% endfor %}
@@ -112,8 +113,8 @@
                  class="form-check-input {% if errors.data_consent %}is-invalid{% endif %}"
                  {% if request.form.get('data_consent') %}checked{% endif %} required>
           <label class="form-check-label" for="data_consent">
-            Ich bin einverstanden, dass meine Daten zum Zweck der Nutzung dieser Plattform
-            gespeichert und verarbeitet werden. <span class="text-danger">*</span>
+            {{ _t('auth.data_consent_check', 'I have read the privacy policy and agree.') }}
+            <span class="text-danger">*</span>
           </label>
           {% if errors.data_consent %}
           <div class="invalid-feedback">{{ errors.data_consent }}</div>
@@ -124,13 +125,13 @@
 
     <div class="mt-4">
       <button type="submit" class="btn btn-primary w-100 btn-lg">
-        <i class="bi bi-person-plus"></i> Registrieren
+        <i class="bi bi-person-plus"></i> {{ _t('auth.register_btn', 'Register') }}
       </button>
     </div>
 
     <hr>
-    <p class="text-center mb-0">Bereits registriert?
-      <a href="{{ url_for('auth.login') }}">Anmelden</a>
+    <p class="text-center mb-0">{{ _t('auth.already_account', 'Already have an account?') }}
+      <a href="{{ url_for('auth.login') }}">{{ _t('auth.login_link', 'Log in') }}</a>
     </p>
   </form>
 </div>

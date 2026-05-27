@@ -1,20 +1,64 @@
 version: "3.9"
 
 services:
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── nginx reverse proxy — serves /static/ directly, proxies rest to app ─────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "5000:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./app/static:/app/static:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t 2>/dev/null && echo ok"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Application ──────────────────────────────────────────────────────────────
   app:
     build: .
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Port no longer exposed directly — nginx handles all external traffic
     environment:
-      # Flask core — override in production!
       FLASK_ENV: production
+      # HTTPS is terminated by nginx (or an external load balancer).
+      # Set FORCE_HTTPS=true only when the app itself must redirect HTTP→HTTPS.
+      FORCE_HTTPS: "false"
+      HOME: /tmp
+
+      # Secrets — set via .env file or server environment variables
       SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
 
-      # Mail (set in Railway Variables or .env — leave empty to disable)
+      # SQLite database path inside the container (shared volume)
+      DATABASE_URL: sqlite:////app/data/bpmtutor.db
+
+      # Redis connection string
+      REDIS_URL: redis://redis:6379/0
+
+      # Mail (leave empty to disable)
       MAIL_SERVER: ${MAIL_SERVER:-}
       MAIL_PORT: ${MAIL_PORT:-587}
-      # MAIL_ENCRYPTION: starttls | ssl | none  (default: starttls)
       MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-starttls}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -25,16 +69,51 @@ services:
       GLOBAL_API_KEY: ${GLOBAL_API_KEY:-}
 
     volumes:
-      # Persist database and uploads outside the container
-      - bpmtutor_data:/app/data
+      # Persist SQLite database, uploads and task stats across container restarts
+      - app_data:/app/data
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+
+  # ── Celery worker — processes async LLM calls ─────────────────────────────
+  worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      ROLE: worker
+      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      DATABASE_URL: sqlite:////app/data/bpmtutor.db
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://chat.kiconnect.nrw/api}
+      GLOBAL_API_KEY: ${GLOBAL_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - app_data:/app/data
+
+  # ── Celery Beat scheduler — fires periodic tasks (backups, notifications) ─────
+  beat:
+    build: .
+    restart: unless-stopped
+    environment:
+      ROLE: beat
+      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      DATABASE_URL: sqlite:////app/data/bpmtutor.db
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      # beat stores its schedule state file here so it survives restarts
+      - app_data:/app/data
 
 volumes:
-  bpmtutor_data:
+  redis_data:
+    driver: local
+  app_data:
     driver: local

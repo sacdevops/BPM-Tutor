@@ -1,13 +1,13 @@
 {% extends "cms/base.html" %}
-{% block title %}Sprachen & Texte{% endblock %}
-{% block page_title %}Sprachen & Übersetzungen{% endblock %}
+{% block title %}{{ _t('admin.i18n_title', 'Languages & Texts') }}{% endblock %}
+{% block page_title %}{{ _t('admin.i18n_translations_title', 'Languages & Translations') }}{% endblock %}
 
 {% block content %}
 <div class="row g-4">
   <!-- Language list / new language -->
   <div class="col-md-3">
     <div class="card mb-3">
-      <div class="card-header fw-semibold">Sprachen</div>
+      <div class="card-header fw-semibold">{{ _t('admin.i18n_languages', 'Languages') }}</div>
       <div class="list-group list-group-flush">
         {% for lang in languages %}
         <a href="{{ url_for('admin.language_strings', lang_code=lang.code) }}"
@@ -18,39 +18,39 @@
             {{ lang.name }}
             <code class="ms-1 small">({{ lang.code }})</code>
           </span>
-          {% if lang.is_default %}<span class="badge bg-primary">Standard</span>{% endif %}
-          {% if not lang.is_active %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+          {% if lang.is_default %}<span class="badge bg-primary">{{ _t('common.standard', 'Standard') }}</span>{% endif %}
+          {% if not lang.is_active %}<span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>{% endif %}
         </a>
         {% else %}
-        <div class="list-group-item text-muted small">Noch keine Sprachen.</div>
+        <div class="list-group-item text-muted small">{{ _t('admin.i18n_no_languages', 'No languages yet.') }}</div>
         {% endfor %}
       </div>
     </div>
 
     <!-- New language form -->
     <div class="card">
-      <div class="card-header fw-semibold">Neue Sprache</div>
+      <div class="card-header fw-semibold">{{ _t('admin.i18n_new_lang', 'New Language') }}</div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.language_new') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-2">
-            <input type="text" name="code" class="form-control form-control-sm" placeholder="Code (z.B. en)" required maxlength="10">
+            <input type="text" name="code" class="form-control form-control-sm" placeholder="{{ _t('admin.i18n_code_placeholder', 'Code (e.g. en)') }}" required maxlength="10">
           </div>
           <div class="mb-2">
-            <input type="text" name="name" class="form-control form-control-sm" placeholder="Name (z.B. English)" required>
+            <input type="text" name="name" class="form-control form-control-sm" placeholder="{{ _t('admin.i18n_name_placeholder', 'Name (e.g. English)') }}" required>
           </div>
           <div class="mb-2">
-            <input type="text" name="flag" class="form-control form-control-sm" placeholder="Emoji-Flagge (z.B. 🇩🇪)" maxlength="4">
+            <input type="text" name="flag" class="form-control form-control-sm" placeholder="{{ _t('admin.i18n_flag_placeholder', 'Emoji flag (e.g. 🇩🇪)') }}" maxlength="4">
           </div>
           <div class="form-check mb-2">
             <input class="form-check-input" type="checkbox" name="is_active" id="newActive" checked>
-            <label class="form-check-label small" for="newActive">Aktiv</label>
+            <label class="form-check-label small" for="newActive">{{ _t('common.active', 'Active') }}</label>
           </div>
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="is_default" id="newDefault">
-            <label class="form-check-label small" for="newDefault">Standard</label>
+            <label class="form-check-label small" for="newDefault">{{ _t('common.standard', 'Standard') }}</label>
           </div>
-          <button type="submit" class="btn btn-sm btn-success w-100">Erstellen</button>
+          <button type="submit" class="btn btn-sm btn-success w-100">{{ _t('common.create', 'Create') }}</button>
         </form>
       </div>
     </div>
@@ -68,7 +68,7 @@
         <div class="d-flex gap-2">
           <!-- Meta update -->
           <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#metaModal">
-            <i class="bi bi-gear"></i> Einstellungen
+            <i class="bi bi-gear"></i> {{ _t('admin.i18n_settings_btn', 'Settings') }}
           </button>
         </div>
       </div>
@@ -76,7 +76,7 @@
 
     <!-- Bulk JSON editor -->
     <div class="card mb-3">
-      <div class="card-header fw-semibold">Texte als JSON bearbeiten</div>
+      <div class="card-header fw-semibold">{{ _t('admin.i18n_json_editor', 'Edit Texts as JSON') }}</div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.language_strings', lang_code=selected_lang.code) }}">
           <input type="hidden" name="action" value="bulk_save">
@@ -84,9 +84,9 @@
           {% set strings_dict = {} %}
           {% for s in strings %}{% set _ = strings_dict.update({s.key: s.value}) %}{% endfor %}
           <textarea name="strings_json" class="form-control font-monospace" rows="20"
-            style="font-size:0.8rem">{{ strings_dict | tojson(indent=2) }}</textarea>
+            style="font-size:0.7rem">{{ strings_dict | tojson(indent=2) }}</textarea>
           <button type="submit" class="btn btn-primary mt-2">
-            <i class="bi bi-save me-1"></i>Alle speichern
+            <i class="bi bi-save me-1"></i>{{ _t('admin.i18n_save_all', 'Save all') }}
           </button>
         </form>
       </div>
@@ -94,11 +94,11 @@
 
     <!-- Individual string table -->
     <div class="card">
-      <div class="card-header fw-semibold">Einzelne Texte</div>
+      <div class="card-header fw-semibold">{{ _t('admin.i18n_individual_strings', 'Individual Texts') }}</div>
       <div class="table-responsive">
         <table class="table table-sm mb-0">
           <thead class="table-light">
-            <tr><th>Schlüssel</th><th>Wert</th><th></th></tr>
+            <tr><th>{{ _t('admin.i18n_col_key', 'Key') }}</th><th>{{ _t('admin.i18n_col_value', 'Value') }}</th><th></th></tr>
           </thead>
           <tbody>
             {% for s in strings %}
@@ -120,14 +120,14 @@
                   <input type="hidden" name="action" value="delete_string">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="key" value="{{ s.key }}">
-                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Löschen?')">
+                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('{{ _t('common.delete', 'Delete') }}?')">
                     <i class="bi bi-trash"></i>
                   </button>
                 </form>
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="3" class="text-muted text-center py-3">Keine Texte vorhanden.</td></tr>
+            <tr><td colspan="3" class="text-muted text-center py-3">{{ _t('admin.i18n_no_strings', 'No texts available.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -138,13 +138,13 @@
           <input type="hidden" name="action" value="save_string">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-5">
-            <input type="text" name="key" class="form-control form-control-sm" placeholder="Schlüssel (z.B. nav.home)">
+            <input type="text" name="key" class="form-control form-control-sm" placeholder="{{ _t('admin.i18n_key_placeholder', 'Key (e.g. nav.home)') }}">
           </div>
           <div class="col-5">
-            <input type="text" name="value" class="form-control form-control-sm" placeholder="Wert">
+            <input type="text" name="value" class="form-control form-control-sm" placeholder="{{ _t('admin.i18n_value_placeholder', 'Value') }}">
           </div>
           <div class="col-2">
-            <button class="btn btn-sm btn-success w-100">Hinzufügen</button>
+            <button class="btn btn-sm btn-success w-100">{{ _t('common.add', 'Add') }}</button>
           </div>
         </form>
       </div>
@@ -158,41 +158,45 @@
             <input type="hidden" name="action" value="update_meta">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="modal-header">
-              <h5 class="modal-title">Sprache bearbeiten</h5>
+              <h5 class="modal-title">{{ _t('admin.i18n_edit_lang', 'Edit Language') }}</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
               <div class="mb-3">
-                <label class="form-label">Name</label>
+                <label class="form-label">{{ _t('common.name', 'Name') }}</label>
                 <input type="text" name="name" class="form-control" value="{{ selected_lang.name }}" required>
               </div>
               <div class="mb-3">
-                <label class="form-label">Flagge-Emoji</label>
+                <label class="form-label">{{ _t('admin.i18n_flag_label', 'Flag emoji') }}</label>
                 <input type="text" name="flag" class="form-control" value="{{ selected_lang.flag or '' }}">
               </div>
               <div class="mb-3">
-                <label class="form-label">Sortierung</label>
+                <label class="form-label">{{ _t('common.order', 'Sort order') }}</label>
                 <input type="number" name="sort_order" class="form-control" value="{{ selected_lang.sort_order }}">
               </div>
               <div class="form-check mb-2">
                 <input class="form-check-input" type="checkbox" name="is_active" id="editActive"
                   {% if selected_lang.is_active %}checked{% endif %}>
-                <label class="form-check-label" for="editActive">Aktiv</label>
+                <label class="form-check-label" for="editActive">{{ _t('common.active', 'Active') }}</label>
               </div>
               <div class="form-check mb-3">
                 <input class="form-check-input" type="checkbox" name="is_default" id="editDefault"
                   {% if selected_lang.is_default %}checked{% endif %}>
-                <label class="form-check-label" for="editDefault">Standard</label>
+                <label class="form-check-label" for="editDefault">{{ _t('common.standard', 'Standard') }}</label>
               </div>
             </div>
             <div class="modal-footer justify-content-between">
+              {% if selected_lang.code != 'en' %}
               <button type="submit" name="action" value="delete_language" class="btn btn-outline-danger"
-                onclick="return confirm('Sprache wirklich löschen?')">
-                <i class="bi bi-trash me-1"></i>Löschen
+                onclick="return confirm('{{ _t('admin.i18n_delete_lang_confirm', 'Really delete language?') }}')">
+                <i class="bi bi-trash me-1"></i>{{ _t('common.delete', 'Delete') }}
               </button>
+              {% else %}
+              <span class="text-muted small"><i class="bi bi-lock-fill me-1"></i>{{ _t('admin.i18n_english_locked', 'English cannot be deleted') }}</span>
+              {% endif %}
               <div>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _t('common.cancel', 'Cancel') }}</button>
+                <button type="submit" class="btn btn-primary">{{ _t('common.save', 'Save') }}</button>
               </div>
             </div>
           </form>
@@ -201,7 +205,7 @@
     </div>
 
     {% else %}
-    <div class="alert alert-info">Wähle eine Sprache aus der Liste, um ihre Texte zu bearbeiten.</div>
+    <div class="alert alert-info">{{ _t('admin.i18n_select_lang_hint', 'Select a language from the list to edit its texts.') }}</div>
     {% endif %}
   </div>
 </div>

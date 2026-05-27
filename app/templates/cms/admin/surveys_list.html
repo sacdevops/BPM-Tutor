@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}Umfragen{% endblock %}
-{% block page_title %}Umfragen{% endblock %}
+{% block title %}{{ _t('admin.survey_list_title', 'Surveys') }}{% endblock %}
+{% block page_title %}{{ _t('admin.survey_list_title', 'Surveys') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.survey_create') }}" class="btn btn-primary btn-sm">
-  <i class="bi bi-plus-lg"></i> Neue Umfrage
+  <i class="bi bi-plus-lg"></i> {{ _t('admin.survey_new_btn', 'New Survey') }}
 </a>
 {% endblock %}
 
@@ -13,7 +13,7 @@
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Name</th><th>Typ</th><th>Aufgabe</th><th>Seiten/Fragen</th><th>Status</th><th>Antworten</th><th class="text-end">Aktionen</th></tr>
+        <tr><th>{{ _t('common.name', 'Name') }}</th><th>{{ _t('common.type', 'Type') }}</th><th>{{ _t('common.task', 'Task') }}</th><th>{{ _t('admin.survey_pages_questions', 'Pages/Questions') }}</th><th>{{ _t('common.status', 'Status') }}</th><th>{{ _t('admin.survey_responses', 'Responses') }}</th><th class="text-end">{{ _t('common.actions', 'Actions') }}</th></tr>
       </thead>
       <tbody>
         {% for s in surveys %}
@@ -21,18 +21,18 @@
           <td><strong>{{ s.name }}</strong></td>
           <td>
             {% if s.survey_type == 'pre_all' %}
-            <span class="badge bg-primary">Vor allen</span>
+            <span class="badge bg-primary">{{ _t('admin.survey_type_pre_all', 'Before all') }}</span>
             {% elif s.survey_type == 'post_task' %}
-            <span class="badge bg-info">Nach Aufgabe</span>
+            <span class="badge bg-info">{{ _t('admin.survey_type_post_task', 'After task') }}</span>
             {% else %}
-            <span class="badge bg-secondary">Nach allen</span>
+            <span class="badge bg-secondary">{{ _t('admin.survey_type_post_all', 'After all') }}</span>
             {% endif %}
           </td>
           <td><code>{{ s.task_id or '—' }}</code></td>
           <td>
-            <span class="badge bg-light text-dark">{{ s.pages|length }} Seiten</span>
+            <span class="badge bg-light text-dark">{{ s.pages|length }} {{ _t('admin.survey_pages_label', 'Pages') }}</span>
             <span class="badge bg-light text-dark ms-1">
-              {{ s.pages | map(attribute='questions') | map('list') | map('length') | sum }} Fragen
+              {{ s.pages | map(attribute='questions') | map('list') | map('length') | sum }} {{ _t('admin.survey_questions_label', 'Questions') }}
             </span>
           </td>
           <td>{% if s.is_active %}<span class="badge bg-success">Aktiv</span>
@@ -49,7 +49,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Keine Umfragen erstellt.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">{{ _t('admin.survey_empty', 'No surveys created.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -59,14 +59,14 @@
 <div class="modal fade" id="deleteModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header"><h5 class="modal-title">Umfrage löschen</h5>
+      <div class="modal-header"><h5 class="modal-title">{{ _t('admin.survey_delete_title', 'Delete Survey') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">Umfrage <strong id="deleteName"></strong> löschen? Alle Antworten werden entfernt.</div>
+      <div class="modal-body">{{ _t('admin.survey_delete_confirm_prefix', 'Delete survey') }} <strong id="deleteName"></strong>{{ _t('admin.survey_delete_confirm_suffix', '? All responses will be removed.') }}</div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _t('common.cancel', 'Cancel') }}</button>
         <form method="post" id="deleteForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-danger">Löschen</button>
+          <button type="submit" class="btn btn-danger">{{ _t('common.delete', 'Delete') }}</button>
         </form>
       </div>
     </div>

@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}{{ cohort.name if cohort else 'Neue Gruppe' }}{% endblock %}
-{% block page_title %}{{ cohort.name if cohort else 'Neue Gruppe' }}{% endblock %}
+{% block title %}{{ cohort.name if cohort else _t('admin.cohort_new_btn', 'New Group') }}{% endblock %}
+{% block page_title %}{{ cohort.name if cohort else _t('admin.cohort_new_btn', 'New Group') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.cohorts_list') }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-arrow-left me-1"></i>Zurück
+  <i class="bi bi-arrow-left me-1"></i>{{ _t('common.back', 'Back') }}
 </a>
 {% endblock %}
 
@@ -13,40 +13,41 @@
   <!-- Meta form -->
   <div class="col-md-5">
     <div class="card">
-      <div class="card-header fw-semibold">Gruppendetails</div>
+      <div class="card-header fw-semibold">{{ _t('admin.cohort_details', 'Group Details') }}</div>
       <div class="card-body">
         <form method="post"
           action="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) if cohort else url_for('admin.cohort_new') }}">
-          {{ csrf_token() if csrf_token is defined else '' | safe }}
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="update">
           <div class="mb-3">
-            <label class="form-label">Name *</label>
+            <label class="form-label">{{ _t('common.name', 'Name') }} *</label>
             <input type="text" name="name" class="form-control" required
               value="{{ cohort.name if cohort else '' }}">
           </div>
           <div class="mb-3">
-            <label class="form-label">Beschreibung</label>
+            <label class="form-label">{{ _t('common.description', 'Description') }}</label>
             <textarea name="description" class="form-control" rows="3">{{ cohort.description if cohort else '' }}</textarea>
           </div>
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
               {% if not cohort or cohort.is_active %}checked{% endif %}>
-            <label class="form-check-label" for="isActive">Aktiv</label>
+            <label class="form-check-label" for="isActive">{{ _t('common.active', 'Active') }}</label>
           </div>
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
-              {{ 'Speichern' if cohort else 'Erstellen' }}
+              {{ _t('common.save', 'Save') if cohort else _t('common.create', 'Create') }}
             </button>
             {% if cohort %}
             <button type="submit" form="deleteForm" class="btn btn-outline-danger ms-auto"
-              onclick="return confirm('Gruppe wirklich löschen?')">
-              <i class="bi bi-trash"></i> Löschen
+              onclick="return confirm('{{ _t('admin.cohort_delete_confirm', 'Really delete group?') }}')">
+              <i class="bi bi-trash"></i> {{ _t('common.delete', 'Delete') }}
             </button>
             {% endif %}
           </div>
         </form>
         {% if cohort %}
         <form id="deleteForm" method="post" action="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}" class="d-none">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="delete">
         </form>
         {% endif %}
@@ -59,23 +60,41 @@
   <div class="col-md-7">
     <div class="card">
       <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-        Mitglieder <span class="badge bg-primary">{{ members | length }}</span>
+        {{ _t('admin.cohort_members', 'Members') }} <span class="badge bg-primary">{{ members | length }}</span>
       </div>
       <div class="card-body pb-0">
-        <!-- Add member -->
-        <form method="post" action="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}" class="d-flex gap-2 mb-3">
-          <input type="hidden" name="action" value="add_member">
-          <select name="user_id" class="form-select form-select-sm">
-            <option value="">Nutzer auswählen…</option>
-            {% for u in all_users %}
-              {% if u.id not in member_ids %}
-              <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-          <button class="btn btn-sm btn-success text-nowrap">
-            <i class="bi bi-plus-lg"></i> Hinzufügen
-          </button>
+        <!-- Add members (searchable multi-select) -->
+        <form method="post" action="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}" id="addMembersForm" class="mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add_members_bulk">
+          <div class="input-group input-group-sm mb-2">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" id="memberSearch" class="form-control"
+                   placeholder="{{ _t('admin.cohort_search_placeholder', 'Search by name or email…') }}"
+                   oninput="filterMemberList(this.value)">
+          </div>
+          <div id="memberSelectList"
+               style="max-height:220px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;background:#fff">
+            {% set non_members = all_users | rejectattr('id', 'in', member_ids) | list %}
+            {% if non_members %}
+              {% for u in non_members %}
+              <label class="d-flex align-items-center gap-2 px-2 py-1 member-row"
+                     style="cursor:pointer;border-bottom:1px solid #f0f0f0"
+                     data-search="{{ (u.username ~ ' ' ~ u.email) | lower }}">
+                <input type="checkbox" name="user_ids[]" value="{{ u.id }}" class="form-check-input mt-0 flex-shrink-0">
+                <span class="text-truncate">{{ u.display_name or u.username }}<small class="text-muted ms-1">{{ u.email }}</small></span>
+              </label>
+              {% endfor %}
+            {% else %}
+              <p class="text-muted text-center small py-2 mb-0" id="noNonMembersMsg">{{ _t('admin.cohort_no_users', 'All users are already members.') }}</p>
+            {% endif %}
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-muted" id="selectedCount">{{ _t('common.n_selected', '0 selected').replace('{n}', '0') }}</small>
+            <button type="submit" class="btn btn-sm btn-success">
+              <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.cohort_add_selected', 'Add Selected') }}
+            </button>
+          </div>
         </form>
         <!-- Member list -->
         <ul class="list-group list-group-flush">
@@ -86,16 +105,17 @@
               <small class="text-muted ms-2">{{ u.email }}</small>
             </span>
             <form method="post" action="{{ url_for('admin.cohort_detail', cohort_id=cohort.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="action" value="remove_member">
               <input type="hidden" name="user_id" value="{{ u.id }}">
               <button class="btn btn-xs btn-outline-danger py-0 px-1"
-                onclick="return confirm('Mitglied entfernen?')">
+                onclick="return confirm('{{ _t('admin.cohort_remove_confirm', 'Remove member?') }}')">
                 <i class="bi bi-x-lg"></i>
               </button>
             </form>
           </li>
           {% else %}
-          <li class="list-group-item text-muted text-center">Noch keine Mitglieder.</li>
+          <li class="list-group-item text-muted text-center">{{ _t('admin.cohort_no_members', 'No members yet.') }}</li>
           {% endfor %}
         </ul>
       </div>
@@ -103,4 +123,26 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterMemberList(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('#memberSelectList .member-row').forEach(row => {
+    const matches = !q || row.dataset.search.includes(q);
+    row.style.display = matches ? '' : 'none';
+  });
+}
+
+function updateSelectedCount() {
+  const n = document.querySelectorAll('#memberSelectList input[type=checkbox]:checked').length;
+  const el = document.getElementById('selectedCount');
+  if (el) el.textContent = n + ' {{ _t('common.n_selected', '{n} selected').replace('{n}','') }}'.trim() || n + ' selected';
+}
+
+document.querySelectorAll('#memberSelectList input[type=checkbox]').forEach(cb => {
+  cb.addEventListener('change', updateSelectedCount);
+});
+</script>
 {% endblock %}

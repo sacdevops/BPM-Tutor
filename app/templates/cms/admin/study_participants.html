@@ -1,0 +1,179 @@
+{% extends "cms/base.html" %}
+{% block title %}{{ _t('common.participants', 'Participants') }}: {{ study.title }}{% endblock %}
+{% block page_title %}{{ _t('common.participants', 'Participants') }}: {{ study.title }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.study_edit', study_id=study.id) }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> {{ _t('admin.participants_back_to_study', 'Back to Study') }}
+</a>
+<a href="{{ url_for('admin.study_analytics', study_id=study.id) }}" class="btn btn-outline-info btn-sm">
+  <i class="bi bi-bar-chart"></i> Analytics
+</a>
+<a href="{{ url_for('admin.study_export', study_id=study.id) }}" class="btn btn-outline-success btn-sm">
+  <i class="bi bi-download"></i> CSV Export
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Add participant manually -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-plus me-1"></i>{{ _t('admin.participants_add', 'Add Participant') }}</h6></div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.study_participant_add', study_id=study.id) }}"
+          class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-6">
+        <label class="form-label small">{{ _t('common.user', 'User') }}</label>
+        <select name="user_id" class="form-select form-select-sm" required>
+          <option value="">— {{ _t('admin.participants_select_user', 'Select user') }} —</option>
+          {% for u in all_users %}
+          <option value="{{ u.id }}">{{ u.username }} ({{ u.email }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> {{ _t('common.add', 'Add') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- D1: Broadcast message -->
+{% if study.conditions or participants %}
+<div class="card shadow-sm mb-3 border-info-subtle">
+  <div class="card-header bg-info-subtle">
+    <h6 class="mb-0"><i class="bi bi-megaphone me-1"></i>{{ _t('admin.participants_broadcast', 'Send message to participants') }}</h6>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin.study_broadcast', study_id=study.id) }}"
+          class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">{{ _t('common.title', 'Title') }} <span class="text-danger">*</span></label>
+        <input type="text" name="title" class="form-control form-control-sm" required
+               placeholder="{{ _t('admin.participants_broadcast_title_ph', 'e.g. Study note') }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">{{ _t('admin.participants_broadcast_msg', 'Message') }}</label>
+        <input type="text" name="message" class="form-control form-control-sm"
+               placeholder="{{ _t('admin.participants_broadcast_msg_ph', 'Optional text') }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small fw-semibold">{{ _t('admin.cond_title_prefix', 'Condition') }}</label>
+        <select name="condition_id" class="form-select form-select-sm">
+          <option value="">— {{ _t('admin.participants_all_conditions', 'All') }} —</option>
+          {% for cond in study.conditions %}
+          <option value="{{ cond.id }}">{{ cond.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex flex-column justify-content-end">
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" name="send_email" id="send_email">
+          <label class="form-check-label small" for="send_email">+ E-Mail</label>
+        </div>
+        <button class="btn btn-info btn-sm text-white">
+          <i class="bi bi-send me-1"></i>{{ _t('admin.send_notification', 'Send') }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Participant table -->
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-people me-2"></i>{{ _t('admin.participants_enrolled', 'Enrolled Participants') }}</span>
+    <span class="text-muted small">{{ participants | length }} {{ _t('common.participants', 'Participants') }}</span>
+  </div>
+  {% if not participants %}
+  <div class="card-body text-center text-muted py-4">
+    <i class="bi bi-people" style="font-size:1.8rem"></i>
+    <p class="mt-2">{{ _t('admin.participants_empty', 'No participants enrolled yet.') }}</p>
+  </div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _t('common.user', 'User') }}</th>
+          <th>{{ _t('admin.participants_col_enrolled', 'Enrolled') }}</th>
+          <th>{{ _t('admin.cond_title_prefix', 'Condition') }}</th>
+          <th>{{ _t('admin.participants_col_progress', 'Progress') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in participants %}
+        <tr>
+          <td>
+            <strong>{{ p.user.username if p.user else '—' }}</strong>
+            <div class="text-muted small">{{ p.user.email if p.user else '' }}</div>
+          </td>
+          <td class="small text-muted">{{ p.enrolled_at.strftime('%d.%m.%Y') if p.enrolled_at else '—' }}</td>
+          <td>
+            {% if study.conditions %}
+            <!-- C3: inline condition select -->
+            <form method="post"
+                  action="{{ url_for('admin.study_participant_set_condition', study_id=study.id, participant_id=p.id) }}"
+                  class="d-flex gap-1 align-items-center">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <select name="condition_id" class="form-select form-select-sm"
+                      style="min-width:110px;max-width:160px"
+                      onchange="this.form.submit()">
+                <option value="">— {{ _t('admin.participants_no_condition', 'none') }} —</option>
+                {% for cond in study.conditions %}
+                <option value="{{ cond.id }}"
+                  {% if p.condition_id == cond.id %}selected{% endif %}>
+                  {{ cond.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </form>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress flex-grow-1" style="height:6px;min-width:70px">
+                <div class="progress-bar bg-primary" style="width:{{ p.progress_pct }}%"></div>
+              </div>
+              <span class="small text-muted">{{ p.current_step }}/{{ study.steps | length }}</span>
+            </div>
+          </td>
+          <td>
+            {% if p.is_dropped_out %}
+            <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>{{ _t('admin.participants_dropped', 'Dropped out') }}</span>
+            {% elif p.is_completed %}
+            <span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>{{ _t('admin.participants_completed', 'Completed') }}</span>
+            {% else %}
+            <span class="badge bg-primary">{{ _t('common.active', 'Active') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('admin.study_participant_reset', study_id=study.id, participant_id=p.id) }}"
+                  class="d-inline" onsubmit="return confirm('{{ _t('admin.participants_reset_confirm', 'Reset progress?') }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-warning" title="{{ _t('common.reset', 'Reset') }}">
+                <i class="bi bi-arrow-counterclockwise"></i>
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('admin.study_participant_remove', study_id=study.id, participant_id=p.id) }}"
+                  class="d-inline" onsubmit="return confirm('{{ _t('admin.participants_remove_confirm', 'Remove participant?') }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-danger" title="{{ _t('admin.participants_remove_btn', 'Remove') }}">
+                <i class="bi bi-person-x"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

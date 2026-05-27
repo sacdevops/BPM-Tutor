@@ -1,0 +1,253 @@
+{% extends "cms/base.html" %}
+{% block title %}{{ _t('admin.agent_new_page_title', 'New Agent') if mode == 'create' else _t('admin.agent_edit_page_title', 'Edit Agent') }}{% endblock %}
+{% block page_title %}{{ _t('admin.agent_new_page_title', 'New AI Agent') if mode == 'create' else ('Agent: ' + agent.name) }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.agents_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> {{ _t('common.back', 'Back') }}
+</a>
+{% if mode == 'edit' %}
+<form method="post" action="{{ url_for('admin.agent_copy', agent_id=agent.id) }}" class="d-inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-secondary btn-sm ms-1">
+    <i class="bi bi-copy"></i> {{ _t('common.copy', 'Copy') }}
+  </button>
+</form>
+{% if agent.is_system %}
+<form method="post" action="{{ url_for('admin.agent_reset_prompts', agent_id=agent.id) }}"
+      class="d-inline" onsubmit="return confirm('{{ _t('admin.prompts_reset_confirm', 'Reset prompts to built-in defaults?') }}')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-warning btn-sm ms-1">
+    <i class="bi bi-arrow-counterclockwise"></i> {{ _t('admin.prompts_reset_btn', 'Reset Prompts') }}
+  </button>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .prompt-textarea { font-family: 'Courier New', monospace; font-size: 0.78rem; line-height: 1.45; }
+  .prompt-tab-btn { cursor: pointer; }
+  .char-count { font-size: 0.72rem; color: #888; text-align: right; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post"
+      action="{{ url_for('admin.agent_edit', agent_id=agent.id) if mode == 'edit' else url_for('admin.agent_create') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="row g-4">
+
+    {# ── Left column: identity ── #}
+    <div class="col-lg-5">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-robot me-1"></i> {{ _t('admin.agent_identity', 'Identity') }}</h6></div>
+        <div class="card-body">
+
+          <div class="mb-3">
+            <label class="form-label" for="name">{{ _t('common.name', 'Name') }} <span class="text-danger">*</span></label>
+            <input type="text" id="name" name="name" class="form-control {% if errors.name %}is-invalid{% endif %}"
+                   value="{{ agent.name if agent else '' }}" placeholder="{{ _t('admin.agent_name_placeholder', 'e.g. Mentor') }}" required>
+            {% if errors.name %}<div class="invalid-feedback">{{ errors.name }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">{{ _t('common.type', 'Type') }}</label>
+            {% if agent and agent.is_system %}
+              <input type="text" class="form-control bg-light" value="{{ agent.agent_type }}" readonly>
+              <div class="form-text"><i class="bi bi-lock"></i> {{ _t('admin.agent_type_locked', 'System agents cannot change their type.') }}</div>
+            {% else %}
+              <input type="text" class="form-control bg-light" value="custom" readonly>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="description">{{ _t('common.description', 'Description') }}</label>
+            <textarea id="description" name="description" class="form-control" rows="3"
+                      placeholder="{{ _t('admin.agent_desc_placeholder', 'What is this agent for?') }}">{{ agent.description if agent else '' }}</textarea>
+          </div>
+
+          <div class="form-check form-switch mb-2">
+            <input type="checkbox" class="form-check-input" id="is_default" name="is_default"
+                   {% if agent and agent.is_default %}checked{% endif %}>
+            <label class="form-check-label" for="is_default">
+              {{ _t('admin.agent_default_label', 'Default Agent') }}
+              <div class="text-muted small">{{ _t('admin.agent_default_hint', 'Used when no specific agent is selected.') }}</div>
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-sliders me-1"></i> {{ _t('admin.agent_capabilities', 'Capabilities') }} <span class="badge bg-secondary ms-1">Preview</span></h6></div>
+        <div class="card-body">
+
+          <div class="mb-3">
+            <label class="form-label" for="control_mode">{{ _t('admin.agent_completion_control', 'Completion Control') }}</label>
+            <select id="control_mode" name="control_mode" class="form-select">
+              <option value="human" {% if not agent or agent.control_mode == 'human' %}selected{% endif %}>
+                {{ _t('admin.agent_ctrl_human', 'Mensch') }} — {{ _t('admin.agent_ctrl_human_desc', 'Student entscheidet, wann die Aufgabe abgeschlossen ist') }}
+              </option>
+              <option value="shared" {% if agent and agent.control_mode == 'shared' %}selected{% endif %}>
+                {{ _t('admin.agent_ctrl_shared', 'Geteilt') }} — {{ _t('admin.agent_ctrl_shared_desc', 'Beide Seiten müssen dem Abschluss zustimmen') }}
+              </option>
+              <option value="agent" {% if agent and agent.control_mode == 'agent' %}selected{% endif %}>
+                {{ _t('admin.agent_ctrl_agent', 'Agent') }} — {{ _t('admin.agent_ctrl_agent_desc', 'Der Agent entscheidet, wann die Anforderungen erfüllt sind') }}
+              </option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="modeling_mode">{{ _t('admin.agent_modeling_mode', 'Modeling Mode') }}</label>
+            <select id="modeling_mode" name="modeling_mode" class="form-select">
+              <option value="none" {% if not agent or agent.modeling_mode == 'none' %}selected{% endif %}>
+                {{ _t('admin.agent_modeling_none', 'Kein Modeling') }} — {{ _t('admin.agent_modeling_none_desc', 'Agent arbeitet nie am Canvas') }}
+              </option>
+              <option value="collaborative" {% if agent and agent.modeling_mode == 'collaborative' %}selected{% endif %}>
+                {{ _t('admin.agent_modeling_collab', 'Kollaborativ') }} — {{ _t('admin.agent_modeling_collab_desc', 'Agent und Student teilen sich die Arbeit am Canvas') }}
+              </option>
+              <option value="ai_then_human" {% if agent and agent.modeling_mode == 'ai_then_human' %}selected{% endif %}>
+                {{ _t('admin.agent_modeling_aifirst', 'KI zuerst') }} — {{ _t('admin.agent_modeling_aifirst_desc', 'Agent erstellt einen Entwurf, Student überarbeitet') }}
+              </option>
+              <option value="ai_only" {% if agent and agent.modeling_mode == 'ai_only' %}selected{% endif %}>
+                {{ _t('admin.agent_modeling_aionly', 'Nur KI') }} — {{ _t('admin.agent_modeling_aionly_desc', 'Agent übernimmt die gesamte Modellierung') }}
+              </option>
+            </select>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    {# ── Right column: prompts ── #}
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h6 class="mb-0"><i class="bi bi-chat-left-text me-1"></i> {{ _t('admin.agent_system_prompts', 'System Prompts') }}</h6>
+        </div>
+        <div class="card-body">
+
+          <ul class="nav nav-tabs mb-3" id="promptTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-greeting" type="button">
+                <i class="bi bi-hand-wave me-1"></i> {{ _t('admin.agent_greeting_tab', 'Greeting') }}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-analysis" type="button">
+                <i class="bi bi-search me-1"></i> {{ _t('admin.agent_analysis_tab', 'Analysis') }}
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-reaction" type="button">
+                <i class="bi bi-reply me-1"></i> {{ _t('admin.agent_reaction_tab', 'Reaction') }}
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="promptTabContent">
+
+            {% for ptype, ptitle in [('greeting',_t('admin.agent_greeting_tab','Greeting')), ('analysis',_t('admin.agent_analysis_tab','Analysis')), ('reaction',_t('admin.agent_reaction_tab','Reaction'))] %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ ptype }}">
+
+              <ul class="nav nav-pills nav-sm mb-2" id="langTabs-{{ ptype }}">
+                <li class="nav-item">
+                  <button class="nav-link active btn-sm py-0 px-2" data-bs-toggle="tab"
+                          data-bs-target="#pane-{{ ptype }}-en" type="button">
+                    🇬🇧 EN
+                  </button>
+                </li>
+                <li class="nav-item">
+                  <button class="nav-link btn-sm py-0 px-2" data-bs-toggle="tab"
+                          data-bs-target="#pane-{{ ptype }}-de" type="button">
+                    🇩🇪 DE
+                  </button>
+                </li>
+              </ul>
+
+              <div class="tab-content">
+                {% for lang, langLabel in [('en','English'), ('de','Deutsch')] %}
+                {% set field = 'prompt_' + ptype + '_' + lang %}
+                {% set db_val = agent|attr(field) if agent else none %}
+                {% set val = db_val if db_val is not none else (prompt_defaults[field] if prompt_defaults is defined and field in prompt_defaults else '') %}
+                <div class="tab-pane fade {% if loop.first %}show active{% endif %}"
+                     id="pane-{{ ptype }}-{{ lang }}">
+                  <textarea name="{{ field }}" class="form-control prompt-textarea"
+                            rows="16" placeholder="{{ _t('admin.agent_prompt_placeholder', 'System prompt for') }} {{ ptitle }}…"
+                            oninput="updateCharCount(this)">{{ val }}</textarea>
+                  <div class="char-count mt-1">{{ val | length }} {{ _t('admin.chars_label', 'characters') }}</div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <div class="form-text mt-2">
+                <i class="bi bi-info-circle"></i>
+                {% if ptype == 'greeting' %}
+                  {{ _t('admin.agent_greeting_hint', 'Passed as system role when entering a task. The task description is added as a user message.') }}
+                {% elif ptype == 'analysis' %}
+                  {{ _t('admin.agent_analysis_hint', 'Called when the student requests an analysis. Contains the current BPMN model.') }}
+                {% else %}
+                  {{ _t('admin.agent_reaction_hint', 'Used as system role for each regular chat message.') }}
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header"><h6 class="mb-0"><i class="bi bi-toggles me-1"></i> {{ _t('admin.agent_scopes', 'Use Cases') }}</h6></div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">{{ _t('admin.agent_scopes_hint', 'In which context should this agent be active?') }}</p>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="use_standard" name="use_standard" value="1"
+               {{ 'checked' if agent.use_standard }}>
+        <label class="form-check-label" for="use_standard">
+          <strong>{{ _t('common.standard', 'Standard') }}</strong> — {{ _t('admin.agent_scope_standard', 'normal task mode') }}
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="use_leveling" name="use_leveling" value="1"
+               {{ 'checked' if agent.use_leveling }}>
+        <label class="form-check-label" for="use_leveling">
+          <strong>{{ _t('admin.level_list_title', 'Level System') }}</strong> — {{ _t('admin.agent_scope_leveling', 'level-based learning') }}
+        </label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="use_research" name="use_research" value="1"
+               {{ 'checked' if agent.use_research }}>
+        <label class="form-check-label" for="use_research">
+          <strong>{{ _t('nav.research_mode', 'Research Mode') }}</strong> — Research Studies
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mt-4">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-save"></i> {{ _t('admin.agent_create_btn', 'Create Agent') if mode == 'create' else _t('admin.agent_save_btn', 'Save Changes') }}
+    </button>
+    <a href="{{ url_for('admin.agents_list') }}" class="btn btn-outline-secondary">{{ _t('common.cancel', 'Cancel') }}</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateCharCount(ta) {
+  const countEl = ta.closest('.tab-pane').querySelector('.char-count');
+  if (countEl) countEl.textContent = ta.value.length + ' {{ _t('admin.chars_label', 'characters') }}';
+}
+// Initialise character counts
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.prompt-textarea').forEach(ta => updateCharCount(ta));
+});
+</script>
+{% endblock %}

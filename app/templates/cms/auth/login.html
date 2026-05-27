@@ -1,12 +1,12 @@
 {% extends "cms/base.html" %}
-{% block title %}Anmelden{% endblock %}
+{% block title %}{{ _t('auth.login_page_title', 'Login') }}{% endblock %}
 
 {% block content %}
 <div class="auth-card">
   <div class="auth-logo">
     <i class="bi bi-diagram-3-fill"></i>
     <h1>{{ cms_site_name }}</h1>
-    <p class="text-muted">Melde dich an, um fortzufahren</p>
+    <p class="text-muted">{{ _t('auth.login_subtitle', 'Sign in to continue') }}</p>
   </div>
 
   <form method="post" action="{{ url_for('auth.login') }}" class="auth-form">
@@ -17,20 +17,20 @@
     {% endif %}
 
     <div class="mb-3">
-      <label for="identifier" class="form-label">E-Mail oder Benutzername</label>
+      <label for="identifier" class="form-label">{{ _t('auth.identifier_label', 'Email or Username') }}</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-person"></i></span>
         <input type="text" id="identifier" name="identifier" class="form-control"
-               placeholder="E-Mail oder Benutzername" autofocus required>
+               placeholder="{{ _t('auth.identifier_placeholder', 'Email or Username') }}" autofocus required>
       </div>
     </div>
 
     <div class="mb-3">
-      <label for="password" class="form-label">Passwort</label>
+      <label for="password" class="form-label">{{ _t('auth.password_placeholder', 'Password') }}</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-lock"></i></span>
         <input type="password" id="password" name="password" class="form-control"
-               placeholder="Passwort" required>
+               placeholder="{{ _t('auth.password_placeholder', 'Password') }}" required>
         <button class="btn btn-outline-secondary" type="button" onclick="togglePw('password')">
           <i class="bi bi-eye" id="pw-eye"></i>
         </button>
@@ -40,19 +40,19 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="remember" name="remember">
-        <label class="form-check-label" for="remember">Angemeldet bleiben</label>
+        <label class="form-check-label" for="remember">{{ _t('auth.remember_me', 'Stay logged in') }}</label>
       </div>
-      <a href="{{ url_for('auth.forgot_password') }}" class="text-primary small">Passwort vergessen?</a>
+      <a href="{{ url_for('auth.forgot_password') }}" class="text-primary small">{{ _t('auth.forgot_password_link', 'Forgot password?') }}</a>
     </div>
 
     <button type="submit" class="btn btn-primary w-100 btn-lg">
-      <i class="bi bi-box-arrow-in-right"></i> Anmelden
+      <i class="bi bi-box-arrow-in-right"></i> {{ _t('auth.login_btn', 'Sign in') }}
     </button>
 
     {% if allow_registration %}
     <hr>
-    <p class="text-center mb-0">Noch kein Konto?
-      <a href="{{ url_for('auth.register') }}">Jetzt registrieren</a>
+    <p class="text-center mb-0">{{ _t('auth.no_account', 'No account yet?') }}
+      <a href="{{ url_for('auth.register') }}">{{ _t('auth.register_now', 'Register now') }}</a>
     </p>
     {% endif %}
   </form>

@@ -1,14 +1,26 @@
 {% extends "cms/base.html" %}
-{% block title %}Aufgabenverwaltung{% endblock %}
-{% block page_title %}Aufgabenverwaltung{% endblock %}
+{% block title %}{{ _t('admin.task_list_title', 'Task Management') }}{% endblock %}
+{% block page_title %}{{ _t('admin.task_list_title', 'Task Management') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.task_create') }}" class="btn btn-primary btn-sm">
-  <i class="bi bi-plus-lg"></i> Neue Aufgabe
+  <i class="bi bi-plus-lg"></i> {{ _t('admin.task_new_btn', 'New Task') }}
 </a>
 {% endblock %}
 
 {% block content %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="d-flex gap-2">
+      <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm"
+             placeholder="{{ _t('admin.task_search_ph', 'Search tasks (title or ID)…') }}" style="max-width:320px;">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-search"></i>
+      </button>
+      {% if q %}<a href="{{ url_for('admin.tasks_list') }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-x"></i></a>{% endif %}
+    </form>
+  </div>
+</div>
 <div class="card shadow-sm">
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0" id="tasksTable">
@@ -16,18 +28,18 @@
         <tr>
           <th width="30"></th>
           <th>ID</th>
-          <th>Titel</th>
-          <th>Bewertung</th>
-          <th>Verfügbarkeit</th>
-          <th>Status</th>
-          <th>Einreichungen</th>
-          <th class="text-end">Aktionen</th>
+          <th>{{ _t('common.title', 'Title') }}</th>
+          <th>{{ _t('admin.grading_form_header', 'Grade') }}</th>
+          <th>{{ _t('admin.task_availability', 'Availability') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
+          <th>{{ _t('admin.task_submissions', 'Submissions') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
         </tr>
       </thead>
       <tbody id="sortableBody">
         {% for task in tasks %}
         <tr data-id="{{ task.id }}">
-          <td class="drag-handle text-muted" title="Reihenfolge ändern (drag)">
+          <td class="drag-handle text-muted" title="{{ _t('admin.task_reorder_hint', 'Change order (drag)') }}">
             <i class="bi bi-grip-vertical"></i>
           </td>
           <td><code>{{ task.id }}</code></td>
@@ -37,9 +49,9 @@
           </td>
           <td>
             {% if task.grading_type == 'points' %}
-            <span class="badge bg-info">Punkte (max. {{ task.max_points or '?' }})</span>
+            <span class="badge bg-info">{{ _t('admin.grading_type_points', 'Points') }} (max. {{ task.max_points or '?' }})</span>
             {% elif task.grading_type == 'pass_fail' %}
-            <span class="badge bg-secondary">Best./Nicht best.</span>
+            <span class="badge bg-secondary">{{ _t('admin.grading_type_pass_fail_short', 'Pass/Fail') }}</span>
             {% else %}
             <span class="text-muted small">—</span>
             {% endif %}
@@ -50,46 +62,61 @@
               →
               {{ task.available_until.strftime('%d.%m.%Y') if task.available_until else '∞' }}
             {% else %}
-              Immer
+              {{ _t('admin.task_always_available', 'Always') }}
             {% endif %}
           </td>
           <td>
             {% if task.is_active %}
-            <span class="badge bg-success">Aktiv</span>
+            <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
             {% else %}
-            <span class="badge bg-secondary">Inaktiv</span>
+            <span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>
             {% endif %}
             {% if not task.is_available_now() and task.is_active %}
-            <span class="badge bg-warning text-dark ms-1">Zeit abgelaufen</span>
+            <span class="badge bg-warning text-dark ms-1">{{ _t('admin.task_time_expired', 'Time expired') }}</span>
             {% endif %}
           </td>
           <td>
             <span class="badge bg-light text-dark">{{ task.submissions.count() }}</span>
           </td>
           <td class="text-end">
-            <a href="{{ url_for('task_page', task_id=task.id) }}" target="_blank"
-               class="btn btn-sm btn-outline-secondary" title="Vorschau">
+            <a href="{{ url_for('main.task_page', task_id=task.id) }}" target="_blank"
+               class="btn btn-sm btn-outline-secondary" title="{{ _t('common.preview', 'Preview') }}">
               <i class="bi bi-eye"></i>
             </a>
             <a href="{{ url_for('admin.task_edit', task_id=task.id) }}"
-               class="btn btn-sm btn-outline-primary ms-1" title="Bearbeiten">
+               class="btn btn-sm btn-outline-primary ms-1" title="{{ _t('common.edit', 'Edit') }}">
               <i class="bi bi-pencil"></i>
             </a>
             <button class="btn btn-sm btn-outline-danger ms-1"
                     onclick="confirmDelete('{{ url_for('admin.task_delete', task_id=task.id) }}', '{{ task.title|e }}')"
-                    title="Löschen">
+                    title="{{ _t('common.delete', 'Delete') }}">
               <i class="bi bi-trash"></i>
             </button>
           </td>
         </tr>
         {% else %}
         <tr><td colspan="8" class="text-center text-muted py-4">
-          Noch keine Aufgaben. <a href="{{ url_for('admin.task_create') }}">Erste Aufgabe erstellen</a>
+          Noch keine Aufgaben. <a href="{{ url_for('admin.task_create') }}">{{ _t('admin.task_create_first', 'Create first task') }}</a>
         </td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if pagination.pages > 1 %}
+  <div class="card-footer">
+    <nav><ul class="pagination pagination-sm mb-0 justify-content-center">
+      {% for page in pagination.iter_pages() %}
+        {% if page %}
+        <li class="page-item {% if page == pagination.page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('admin.tasks_list', page=page, q=q) }}">{{ page }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+    </ul></nav>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Delete Modal -->
@@ -97,18 +124,17 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Aufgabe löschen</h5>
+        <h5 class="modal-title">{{ _t('admin.task_delete_modal_title', 'Delete Task') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        Aufgabe <strong id="deleteTaskTitle"></strong> wirklich löschen?
-        Alle zugehörigen Einreichungen und Umfrageantworten werden ebenfalls gelöscht.
+        {{ _t('admin.task_delete_confirm', 'Task') }} <strong id="deleteTaskTitle"></strong> {{ _t('admin.task_delete_confirm_suffix', 'really delete? All related submissions and survey responses will also be deleted.') }}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _t('common.cancel', 'Cancel') }}</button>
         <form method="post" id="deleteForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-danger">Löschen</button>
+          <button type="submit" class="btn btn-danger">{{ _t('common.delete', 'Delete') }}</button>
         </form>
       </div>
     </div>

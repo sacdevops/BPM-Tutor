@@ -1,6 +1,6 @@
 {% extends "cms/base.html" %}
-{% block title %}Bewertungen{% endblock %}
-{% block page_title %}Bewertungen{% endblock %}
+{% block title %}{{ _t('admin.grading_list_title', 'Grading') }}{% endblock %}
+{% block page_title %}{{ _t('admin.grading_list_title', 'Grading') }}{% endblock %}
 
 {% block content %}
 <div class="card shadow-sm mb-3">
@@ -8,7 +8,7 @@
     <form method="get" class="row g-2 align-items-center">
       <div class="col-md-4">
         <select name="task_id" class="form-select">
-          <option value="">Alle Aufgaben</option>
+          <option value="">{{ _t('admin.grading_all_tasks', 'All Tasks') }}</option>
           {% for t in tasks %}
           <option value="{{ t.id }}" {% if task_filter == t.id %}selected{% endif %}>{{ t.title }}</option>
           {% endfor %}
@@ -16,16 +16,16 @@
       </div>
       <div class="col-md-3">
         <select name="graded" class="form-select">
-          <option value="">Alle</option>
-          <option value="no" {% if graded_filter == 'no' %}selected{% endif %}>Noch nicht bewertet</option>
-          <option value="yes" {% if graded_filter == 'yes' %}selected{% endif %}>Bereits bewertet</option>
+          <option value="">{{ _t('admin.grading_all_filter', 'All') }}</option>
+          <option value="no" {% if graded_filter == 'no' %}selected{% endif %}>{{ _t('admin.grading_ungraded', 'Not yet graded') }}</option>
+          <option value="yes" {% if graded_filter == 'yes' %}selected{% endif %}>{{ _t('admin.grading_already_graded', 'Already graded') }}</option>
         </select>
       </div>
       <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-primary w-100">Filtern</button>
+        <button type="submit" class="btn btn-outline-primary w-100">{{ _t('common.filter', 'Filter') }}</button>
       </div>
       <div class="col-md-2">
-        <a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary w-100">Reset</a>
+        <a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary w-100">{{ _t('common.reset', 'Reset') }}</a>
       </div>
     </form>
   </div>
@@ -34,13 +34,13 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Benutzer</th>
-          <th>Aufgabe</th>
-          <th>Abgeschlossen</th>
-          <th>Dauer</th>
-          <th>Interakt.</th>
-          <th>Bewertung</th>
-          <th class="text-end">Aktion</th>
+          <th>{{ _t('common.user', 'User') }}</th>
+          <th>{{ _t('common.task', 'Task') }}</th>
+          <th>{{ _t('admin.col_completed', 'Completed') }}</th>
+          <th>{{ _t('admin.col_duration', 'Duration') }}</th>
+          <th>{{ _t('admin.col_interactions', 'Interact.') }}</th>
+          <th>{{ _t('admin.col_rating', 'Rating') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -50,7 +50,7 @@
             {% if sub.user %}
             <a href="{{ url_for('admin.user_detail', user_id=sub.user_id) }}">{{ sub.user.username }}</a>
             <div class="text-muted small">{{ sub.user.email }}</div>
-            {% else %}<span class="text-muted">Anonym</span>{% endif %}
+            {% else %}<span class="text-muted">{{ _t('common.anonymous', 'Anonymous') }}</span>{% endif %}
           </td>
           <td><code>{{ sub.task_id }}</code></td>
           <td class="small text-muted">{{ sub.completed_at.strftime('%d.%m.%y %H:%M') if sub.completed_at else '—' }}</td>
@@ -60,24 +60,31 @@
           <td>{{ sub.interactions }}</td>
           <td>
             {% if sub.grade_value is not none %}
-            <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+            <span class="badge bg-success">{{ sub.grade_value }} {{ _t('admin.grading_pts_suffix', 'pts.') }}</span>
             {% elif sub.grade_passed is not none %}
             <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
-              {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+              {% if sub.grade_passed %}{{ _t('grading.pass', 'Passed') }}{% else %}{{ _t('grading.fail', 'Failed') }}{% endif %}
             </span>
             {% else %}
-            <span class="badge bg-warning text-dark">Ausstehend</span>
+            <span class="badge bg-warning text-dark">{{ _t('admin.status_pending', 'Pending') }}</span>
             {% endif %}
           </td>
           <td class="text-end">
             <a href="{{ url_for('admin.grading_detail', sub_id=sub.id) }}"
                class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-pencil-square"></i> Bewerten
+              <i class="bi bi-pencil-square"></i> {{ _t('admin.grading_grade_btn', 'Grade') }}
             </a>
+            <form method="post" action="{{ url_for('admin.submission_delete', sub_id=sub.id) }}"
+                  class="d-inline" onsubmit="return confirm('{{ _t('admin.grading_delete_submission_confirm', 'Really delete submission?') }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Keine Einreichungen gefunden.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">{{ _t('admin.grading_empty', 'No submissions found.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

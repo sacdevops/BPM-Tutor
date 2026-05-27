@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}Benutzer{% endblock %}
-{% block page_title %}Benutzerverwaltung{% endblock %}
+{% block title %}{{ _t('admin.user_list_title', 'Users') }}{% endblock %}
+{% block page_title %}{{ _t('admin.user_management_title', 'User Management') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.user_create') }}" class="btn btn-primary btn-sm">
-  <i class="bi bi-person-plus"></i> Neuer Benutzer
+  <i class="bi bi-person-plus"></i> {{ _t('admin.user_new_btn', 'New User') }}
 </a>
 {% endblock %}
 
@@ -16,24 +16,24 @@
       <div class="col-md-5">
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
-          <input type="text" name="q" class="form-control" placeholder="Suche nach Name, E-Mail, Benutzername"
+          <input type="text" name="q" class="form-control" placeholder="{{ _t('admin.user_search_ph', 'Search by name, email, username') }}"
                  value="{{ q }}">
         </div>
       </div>
       <div class="col-md-3">
         <select name="role" class="form-select">
-          <option value="">Alle Rollen</option>
-          <option value="student" {% if role_filter == 'student' %}selected{% endif %}>Studierende</option>
-          <option value="instructor" {% if role_filter == 'instructor' %}selected{% endif %}>Lehrende</option>
-          <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admins</option>
+          <option value="">{{ _t('admin.user_all_roles', 'All Roles') }}</option>
+          <option value="student" {% if role_filter == 'student' %}selected{% endif %}>{{ _t('admin.user_role_student', 'Students') }}</option>
+          <option value="tutor" {% if role_filter == 'tutor' %}selected{% endif %}>{{ _t('admin.user_role_tutor', 'Tutor') }}</option>
+          <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>{{ _t('admin.user_role_admin', 'Admins') }}</option>
         </select>
       </div>
       <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-primary w-100">Filtern</button>
+        <button type="submit" class="btn btn-outline-primary w-100">{{ _t('common.filter', 'Filter') }}</button>
       </div>
       <div class="col-md-2">
         <a href="{{ url_for('admin.users_list') }}" class="btn btn-outline-secondary w-100">
-          Zurücksetzen
+          {{ _t('common.reset', 'Reset') }}
         </a>
       </div>
     </form>
@@ -47,13 +47,13 @@
       <div id="bulkHiddenInputs"></div>
       <div class="d-flex gap-2">
         <select name="bulk_action" class="form-select form-select-sm" style="width:180px">
-          <option value="">Aktion auswählen…</option>
-          <option value="activate">Aktivieren</option>
-          <option value="deactivate">Deaktivieren</option>
-          <option value="delete">Löschen</option>
+          <option value="">{{ _t('admin.user_bulk_select', 'Select action…') }}</option>
+          <option value="activate">{{ _t('admin.user_bulk_activate', 'Activate') }}</option>
+          <option value="deactivate">{{ _t('admin.user_bulk_deactivate', 'Deactivate') }}</option>
+          <option value="delete">{{ _t('common.delete', 'Delete') }}</option>
         </select>
         <button type="submit" class="btn btn-sm btn-danger"
-          onclick="return confirm('Aktion auf ausgewählte Nutzer anwenden?')">
+          onclick="return confirm('{{ _t('admin.user_bulk_confirm', 'Apply action to selected users?') }}')">
           Ausführen
         </button>
       </div>
@@ -65,12 +65,12 @@
       <thead class="table-light">
         <tr>
           <th><input type="checkbox" id="selectAll" class="form-check-input"></th>
-          <th>Benutzer</th>
-          <th>Rolle</th>
-          <th>Status</th>
-          <th>Registriert</th>
-          <th>Letzter Login</th>
-          <th class="text-end">Aktionen</th>
+          <th>{{ _t('admin.user_col_user', 'User') }}</th>
+          <th>{{ _t('admin.user_col_role', 'Role') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
+          <th>{{ _t('admin.user_col_registered', 'Registered') }}</th>
+          <th>{{ _t('admin.user_col_last_login', 'Last Login') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -86,13 +86,13 @@
           <td><span class="role-badge role-{{ user.role }}">{{ user.role }}</span></td>
           <td>
             {% if user.is_locked %}
-            <span class="badge bg-danger">Gesperrt</span>
+            <span class="badge bg-danger">{{ _t('admin.user_status_locked', 'Locked') }}</span>
             {% elif not user.is_active %}
-            <span class="badge bg-secondary">Deaktiviert</span>
+            <span class="badge bg-secondary">{{ _t('admin.user_status_deactivated', 'Deactivated') }}</span>
             {% elif not user.is_verified %}
-            <span class="badge bg-warning text-dark">Nicht verifiziert</span>
+            <span class="badge bg-warning text-dark">{{ _t('admin.user_status_unverified', 'Not verified') }}</span>
             {% else %}
-            <span class="badge bg-success">Aktiv</span>
+            <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
             {% endif %}
           </td>
           <td class="text-muted small">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
@@ -111,7 +111,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Keine Benutzer gefunden.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">{{ _t('admin.user_none_found', 'No users found.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -142,17 +142,17 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Benutzer löschen</h5>
+        <h5 class="modal-title">{{ _t('admin.user_delete_modal_title', 'Delete User') }}</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        Benutzer <strong id="deleteUsername"></strong> wirklich löschen? Alle zugehörigen Daten werden entfernt.
+        {{ _t('admin.user_delete_confirm_text', 'User') }} <strong id="deleteUsername"></strong> {{ _t('admin.user_delete_confirm_suffix', 'really delete? All associated data will be removed.') }}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _t('common.cancel', 'Cancel') }}</button>
         <form method="post" id="deleteForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-danger">Löschen</button>
+          <button type="submit" class="btn btn-danger">{{ _t('common.delete', 'Delete') }}</button>
         </form>
       </div>
     </div>
@@ -187,7 +187,7 @@ function updateBulkBar() {
   if (checked.length > 0) {
     bulkBar.classList.remove('d-none');
     bulkBar.classList.add('d-flex');
-    bulkCount.textContent = checked.length + ' ausgewählt';
+    bulkCount.textContent = checked.length + ' {{ _t('admin.user_bulk_selected', 'selected') }}';
   } else {
     bulkBar.classList.add('d-none');
     bulkBar.classList.remove('d-flex');

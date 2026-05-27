@@ -18,7 +18,12 @@
     <div class="task-sidebar">
         <div class="task-header">
             <div class="task-meta">
+                {% if not (study_id is defined and study_id) %}
                 <a href="/" class="back-link" data-i18n="task.back">&#8592; Back</a>
+                {% endif %}
+                {% if not is_custom and task.time_limit_minutes %}
+                <div id="taskCountdownTimer" class="task-timer" style="display:none"></div>
+                {% endif %}
             </div>
         </div>
 
@@ -68,7 +73,7 @@
                 <button id="completeTaskBtn" class="completion-btn" onclick="requestCompletion()"{% if is_custom %} style="display:none;"{% endif %}>
                     <span id="completeText" data-i18n="task.submit">Complete Task</span>
                     <span id="completeSpinner" style="display: none;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
                             <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
                             <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
                         </svg>
@@ -81,6 +86,8 @@
     <!-- Middle Column: BPMN Canvas -->
     <div class="bpmn-container" id="bpmn-container">
         <div id="bpmn-canvas"></div>
+        <!-- AI cursor – animated dot that moves when the AI places elements -->
+        <div id="aiCursor"></div>
 
         <!-- Zoom Controls -->
         <div class="zoom-overlay">
@@ -90,10 +97,18 @@
         </div>
     </div>
 
-    <!-- Right Column: Mentor Chat -->
+        <!-- Right Column: Agent Chat -->
     <div class="chat-sidebar">
         <div class="chat-header">
-            <div class="chat-header-title" data-i18n="task.mentor">&#127891; Mentor</div>
+            <div class="chat-header-title" id="agentChatTitle">{{ agent.name if agent else 'Mentor' }}</div>
+            <button onclick="openFeedbackModal()" class="feedback-btn-task"
+              title="{{ _t('feedback.report', 'Report Issue') }}"
+              >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15z"/>
+              </svg>
+              <span data-i18n="feedback.report">{{ _t('feedback.report', 'Report Issue') }}</span>
+            </button>
         </div>
 
         <div class="chat-messages" id="chatMessages">
@@ -116,7 +131,7 @@
                 >
                     <span id="sendText"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></span>
                     <span id="sendSpinner" style="display: none;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin-icon">
                             <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
                             <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.75"></path>
                         </svg>
@@ -127,10 +142,22 @@
     </div>
 </div>
 
+<!-- Timer Expired Modal -->
+<div id="timerExpiredModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-icon modal-icon-danger">&#9201;</div>
+        <h2 class="modal-title" data-i18n="task.timer_title">{{ _t('task.timer_title', 'Time is up') }}</h2>
+        <p data-i18n="task.timer_msg">{{ _t('task.timer_msg', 'Your time is up. The task will now be submitted automatically.') }}</p>
+        <div class="modal-buttons">
+            <button class="btn btn-primary" onclick="document.getElementById('timerExpiredModal').style.display='none'; completeTask();">OK</button>
+        </div>
+    </div>
+</div>
+
 <!-- Completion: Confirmation Modal -->
 <div id="completionConfirmModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
-        <div class="modal-icon" style="background-color: #ffc107; color: #333;">&#9888;</div>
+        <div class="modal-icon modal-icon-warning">&#9888;</div>
         <h2 class="modal-title" data-i18n="task.submit_confirm_title">Complete Task?</h2>
         <p data-i18n="task.submit_confirm_msg">Your model still has syntax or semantic errors. Are you sure you want to complete the task?</p>
         <div class="modal-buttons">
@@ -145,15 +172,200 @@
 <script id="task-config" type="application/json">
 {
     "taskId": "{{ task.id }}",
-    "isCustom": {{ is_custom | tojson }}
+    "isCustom": {{ is_custom | tojson }},
+    "timeLimitMinutes": {{ (task.time_limit_minutes if not is_custom and task.time_limit_minutes else 0) | tojson }},
+    "studyId": {{ (study_id | tojson) if study_id is defined and study_id else 'null' }},
+    "agentId": {{ (agent.id | tojson) if agent else 'null' }},
+    "agentName": {{ (agent.name | tojson) if agent else '"Mentor"' }},
+    "modelingMode": {{ (agent.modeling_mode | tojson) if agent else '"none"' }},
+    "controlMode": {{ (agent.control_mode | tojson) if agent else '"human"' }}
 }
 </script>
 <script type="text/javascript">
     var config = JSON.parse(document.getElementById('task-config').textContent);
     var TASK_ID = config.taskId;
     var IS_CUSTOM = config.isCustom || false;
+    var TIME_LIMIT_MINUTES = config.timeLimitMinutes || 0;
+    var STUDY_ID = config.studyId || null;
+    var AGENT_ID = config.agentId || '';
+    var AGENT_NAME = config.agentName || 'Mentor';
+    var MODELING_MODE = config.modelingMode || 'none';
+    var CONTROL_MODE = config.controlMode || 'human';
     var modeler;
     var socket;
+    // Set by task_joined when resuming an in-progress task; overrides the full time limit
+    var _overrideTimerRemaining = 0;
 </script>
+<script type="text/javascript" src="{{ url_for('static', filename='js/bpmn.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js/chat.js') }}"></script>
 <script type="text/javascript" src="{{ url_for('static', filename='js/task.js') }}"></script>
+
+<script type="text/javascript">
+// ── Countdown Timer ────────────────────────────────────────────────────────
+  if (TIME_LIMIT_MINUTES > 0) {
+    document.addEventListener('DOMContentLoaded', function() {
+      var timerEl = document.getElementById('taskCountdownTimer');
+      if (!timerEl) return;
+      timerEl.style.display = '';
+
+      // Wait until task_joined resolves _overrideTimerRemaining (up to 10s)
+      var startDelay = 0;
+      var checkInterval = setInterval(function() {
+        startDelay += 200;
+        var remainingSec;
+        if (_overrideTimerRemaining > 0) {
+          remainingSec = _overrideTimerRemaining;
+        } else if (startDelay >= 10000) {
+          // Timeout waiting — use full limit
+          remainingSec = TIME_LIMIT_MINUTES * 60;
+        } else {
+          return; // keep waiting
+        }
+        clearInterval(checkInterval);
+
+        var endTime = Date.now() + remainingSec * 1000;
+        var ticker = setInterval(function() {
+          var remaining = Math.max(0, endTime - Date.now());
+          var mins = Math.floor(remaining / 60000);
+          var secs = Math.floor((remaining % 60000) / 1000);
+          timerEl.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+          if (remaining <= 60000) {
+            timerEl.classList.add('timer-urgent');
+          } else {
+            timerEl.classList.remove('timer-urgent');
+          }
+          if (remaining === 0) {
+            clearInterval(ticker);
+            timerEl.textContent = '0:00';
+            document.getElementById('timerExpiredModal').style.display = 'flex';
+          }
+        }, 1000);
+      }, 200);
+
+      // But also start counting immediately if task_joined never fires (e.g. new task)
+      // Set _overrideTimerRemaining = full limit as default after socket connects
+      if (socket) {
+        var onConnect = function() {
+          if (!_overrideTimerRemaining) {
+            _overrideTimerRemaining = TIME_LIMIT_MINUTES * 60;
+          }
+        };
+        socket.on('task_joined', function(d) {
+          if (!_overrideTimerRemaining) {
+            _overrideTimerRemaining = TIME_LIMIT_MINUTES * 60;
+          }
+        });
+      }
+    });
+  }
+</script>
+
+<!-- ── Feedback Modal (shared with index.html logic) ── -->
+<div id="feedbackModal">
+  <div class="fb-dialog">
+    <div class="fb-header">
+      <div class="fb-header-left">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#84BD00" viewBox="0 0 16 16">
+          <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15z"/>
+        </svg>
+        <span class="fb-title" data-i18n="feedback.title">Problem melden</span>
+      </div>
+      <button onclick="closeFeedbackModal()" class="fb-close" aria-label="Schließen">&times;</button>
+    </div>
+    <div class="fb-body">
+      <p class="fb-intro" data-i18n="feedback.intro">
+        Hast du einen Fehler gefunden oder einen Verbesserungsvorschlag? Lass es uns wissen!
+      </p>
+      <div class="fb-field">
+        <label class="fb-label" data-i18n="feedback.category_label">Kategorie</label>
+        <select id="feedbackCategory" class="fb-select">
+          <option value="" disabled selected data-i18n="feedback.cat_placeholder">-- Bitte wählen --</option>
+          <option value="🐛 Fehler / Bug">🐛 Fehler / Bug</option>
+          <option value="⚠️ Technisches Problem">⚠️ Technisches Problem</option>
+          <option value="💡 Verbesserungsvorschlag">💡 Verbesserungsvorschlag</option>
+          <option value="❓ Unklarheit / Verständnisproblem">❓ Unklarheit / Verständnisproblem</option>
+          <option value="💬 Allgemeines Feedback">💬 Allgemeines Feedback</option>
+        </select>
+      </div>
+      <div class="fb-field-last">
+        <label class="fb-label" data-i18n="feedback.message_label">Beschreibung</label>
+        <textarea id="feedbackMessage" rows="5" class="fb-textarea"
+          data-i18n="feedback.message_placeholder"
+          placeholder="Beschreibe das Problem oder deinen Vorschlag..."></textarea>
+      </div>
+      <div id="feedbackStatus"></div>
+      <div class="fb-actions">
+        <button onclick="closeFeedbackModal()" id="feedbackCancelBtn" class="fb-cancel-btn"
+          data-i18n="feedback.cancel">Abbrechen</button>
+        <button onclick="submitFeedback()" id="feedbackSubmitBtn" class="fb-submit-btn"
+          data-i18n="feedback.submit">Absenden</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openFeedbackModal() {
+    document.getElementById('feedbackModal').style.display = 'flex';
+    document.getElementById('feedbackStatus').style.display = 'none';
+    document.getElementById('feedbackMessage').value = '';
+    document.getElementById('feedbackCategory').value = '';
+    var sb = document.getElementById('feedbackSubmitBtn');
+    sb.disabled = false;
+    sb.style.display = '';
+    sb.textContent = (typeof t === 'function' ? t('feedback.submit') : null) || 'Absenden';
+    document.getElementById('feedbackCancelBtn').textContent = (typeof t === 'function' ? t('feedback.cancel') : null) || 'Abbrechen';
+}
+function closeFeedbackModal() {
+    document.getElementById('feedbackModal').style.display = 'none';
+}
+document.getElementById('feedbackModal').addEventListener('click', function(e) {
+    if (e.target === this) closeFeedbackModal();
+});
+function submitFeedback() {
+    var category = document.getElementById('feedbackCategory').value;
+    var message = document.getElementById('feedbackMessage').value.trim();
+    var statusEl = document.getElementById('feedbackStatus');
+    var submitBtn = document.getElementById('feedbackSubmitBtn');
+    var _t = function(k, fb) { return (typeof t === 'function' ? t(k) : null) || fb; };
+    if (!category) {
+        statusEl.textContent = _t('feedback.err_category', 'Bitte wähle eine Kategorie.');
+        statusEl.style.cssText = 'display:block;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;background:#fff3cd;color:#856404';
+        return;
+    }
+    if (!message) {
+        statusEl.textContent = _t('feedback.err_message', 'Bitte beschreibe das Problem.');
+        statusEl.style.cssText = 'display:block;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;background:#fff3cd;color:#856404';
+        return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = '...';
+    var pageCtx = typeof TASK_ID !== 'undefined' ? ('Aufgabe: ' + TASK_ID) : window.location.pathname;
+    fetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: category, message: message, page: pageCtx })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            statusEl.textContent = _t('feedback.success', '✓ Danke! Dein Feedback wurde gesendet.');
+            statusEl.style.cssText = 'display:block;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;background:#d1e7dd;color:#0a3622';
+            submitBtn.style.display = 'none';
+            document.getElementById('feedbackCancelBtn').textContent = _t('feedback.close', 'Schließen');
+        } else {
+            statusEl.textContent = data.error || 'Fehler beim Senden.';
+            statusEl.style.cssText = 'display:block;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;background:#f8d7da;color:#842029';
+            submitBtn.disabled = false;
+            submitBtn.textContent = _t('feedback.submit', 'Absenden');
+        }
+    })
+    .catch(function() {
+        statusEl.textContent = _t('feedback.err_network', 'Netzwerkfehler. Bitte erneut versuchen.');
+        statusEl.style.cssText = 'display:block;padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:14px;background:#f8d7da;color:#842029';
+        submitBtn.disabled = false;
+        submitBtn.textContent = _t('feedback.submit', 'Absenden');
+    });
+}
+</script>
 {% endblock %}

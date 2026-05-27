@@ -1,28 +1,40 @@
 {% extends "cms/base.html" %}
-{% block title %}Forschungsdaten exportieren{% endblock %}
-{% block page_title %}Forschungsdaten exportieren{% endblock %}
+{% block title %}{{ _t('admin.export_research_title', 'Export Research Data') }}{% endblock %}
+{% block page_title %}{{ _t('admin.export_research_title', 'Export Research Data') }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header fw-semibold">ZIP-Export erzeugen</div>
+      <div class="card-header fw-semibold">{{ _t('admin.export_zip_create', 'Create ZIP Export') }}</div>
       <div class="card-body">
         <p class="text-muted">
-          Exportiert alle Einreichungen, Nutzerdaten, Aufgaben, BPMN-Modelle und Chat-Protokolle
-          als ZIP-Archiv. Die Datei enthält keine Passwörter oder API-Schlüssel.
+          {{ _t('admin.export_research_desc', 'Exports all submissions, user data, tasks, BPMN models and chat logs as a ZIP archive. The file contains no passwords or API keys.') }}
         </p>
         <ul class="small text-muted mb-4">
-          <li><code>submissions.csv</code> – alle Einreichungen mit Bewertungen</li>
-          <li><code>users.csv</code> – Nutzer (ohne Passwort)</li>
-          <li><code>tasks.csv</code> – Aufgabenliste</li>
-          <li><code>bpmn/</code> – BPMN-XML-Dateien aller Einreichungen</li>
-          <li><code>chat_logs/</code> – Chat-Verläufe als JSON</li>
+          <li><code>submissions.csv</code> – {{ _t('admin.export_file_submissions', 'all submissions with grades') }}</li>
+          <li><code>users.csv</code> – {{ _t('admin.export_file_users', 'users (without password)') }}</li>
+          <li><code>tasks.csv</code> – {{ _t('admin.export_file_tasks_list', 'task list') }}</li>
+          <li><code>bpmn/</code> – {{ _t('admin.export_file_bpmn', 'BPMN XML files of all submissions') }}</li>
+          <li><code>chat_logs/</code> – {{ _t('admin.export_file_chatlogs', 'chat logs as JSON') }}</li>
         </ul>
         <form method="post" action="{{ url_for('admin.export_generate') }}" id="exportForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ _t('common.format', 'Format') }}</label>
+            <div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="export_format" id="fmt_zip" value="zip" checked>
+                <label class="form-check-label" for="fmt_zip">ZIP (CSV + BPMN + {{ _t('admin.export_chat_logs', 'Chat Logs') }})</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="export_format" id="fmt_json" value="json">
+                <label class="form-check-label" for="fmt_json">JSON ({{ _t('admin.export_research_data_anon', 'Research data, anonymized') }})</label>
+              </div>
+            </div>
+          </div>
           <button type="submit" class="btn btn-primary" id="exportBtn">
-            <i class="bi bi-download me-1"></i>Export starten
+            <i class="bi bi-download me-1"></i>{{ _t('admin.export_start_btn', 'Start Export') }}
           </button>
         </form>
       </div>
@@ -36,8 +48,8 @@
 document.getElementById('exportForm').addEventListener('submit', function() {
   const btn = document.getElementById('exportBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Wird erstellt…';
-  setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>Export starten'; }, 8000);
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _t('admin.export_generating', 'Generating…') }}';
+  setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>{{ _t('admin.export_start_btn', 'Start Export') }}'; }, 8000);
 });
 </script>
 {% endblock %}

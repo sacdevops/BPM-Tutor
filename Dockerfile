@@ -19,8 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 # Copy application code
 COPY . .
 
-# Create data directory for the SQLite database and uploads
+# Create data directory for SQLite DB, uploads and task stats
 RUN mkdir -p /app/data/llm_logs /app/data/task_stats /app/data/uploads
+
+# Copy entrypoint before switching to non-root user so chmod succeeds
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
 
 # Non-root user for security
 RUN useradd -r -u 1001 bpmtutor && chown -R bpmtutor:bpmtutor /app
@@ -28,6 +31,4 @@ USER bpmtutor
 
 EXPOSE 8080
 
-# Gunicorn + gevent (Flask-SocketIO async worker)
-# Railway injects $PORT at runtime; fall back to 8080 locally
-CMD ["sh", "-c", "gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:${PORT:-8080} --timeout 120 --access-logfile - --error-logfile - main:app"]
+ENTRYPOINT ["/entrypoint.sh"]

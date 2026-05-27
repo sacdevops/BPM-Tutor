@@ -1,25 +1,25 @@
 {% extends "cms/base.html" %}
-{% block title %}Registrierungsfelder{% endblock %}
-{% block page_title %}Registrierungsfelder konfigurieren{% endblock %}
+{% block title %}{{ _t('admin.regfields_title', 'Registration Fields') }}{% endblock %}
+{% block page_title %}{{ _t('admin.regfields_config_title', 'Configure Registration Fields') }}{% endblock %}
 
 {% block content %}
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Konfigurierbare Felder</h6>
+        <h6 class="mb-0">{{ _t('admin.regfields_configurable', 'Configurable Fields') }}</h6>
         <div class="d-flex gap-2">
           <button type="button" class="btn btn-sm btn-outline-primary" onclick="addField('text')">
-            <i class="bi bi-plus"></i> Text-Feld
+            <i class="bi bi-plus"></i> {{ _t('admin.regfields_add_text', 'Text Field') }}
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('select')">
-            <i class="bi bi-plus"></i> Dropdown
+            <i class="bi bi-plus"></i> {{ _t('admin.regfields_add_select', 'Dropdown') }}
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('date')">
-            <i class="bi bi-plus"></i> Datum
+            <i class="bi bi-plus"></i> {{ _t('admin.regfields_add_date', 'Date') }}
           </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addField('number')">
-            <i class="bi bi-plus"></i> Zahl
+            <i class="bi bi-plus"></i> {{ _t('admin.regfields_add_number', 'Number') }}
           </button>
         </div>
       </div>
@@ -37,38 +37,37 @@
     <form method="post" id="saveForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="fields_json" id="fields_json">
-      <button type="submit" class="btn btn-primary btn-lg w-100" onclick="saveFields()">
-        <i class="bi bi-save"></i> Felder speichern
+      <button type="submit" class="btn btn-primary" onclick="saveFields()">
+        <i class="bi bi-save"></i> {{ _t('admin.regfields_save_btn', 'Save Fields') }}
       </button>
     </form>
   </div>
 
   <div class="col-lg-4">
     <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0">Pflichtfelder (immer)</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.regfields_required_always', 'Required Fields (always)') }}</h6></div>
       <ul class="list-group list-group-flush">
         <li class="list-group-item d-flex align-items-center gap-2">
           <i class="bi bi-lock-fill text-primary"></i>
-          E-Mail <span class="badge bg-danger ms-auto">Pflicht</span>
+          E-Mail <span class="badge bg-danger ms-auto">{{ _t('admin.regfields_required_badge', 'Required') }}</span>
         </li>
         <li class="list-group-item d-flex align-items-center gap-2">
           <i class="bi bi-lock-fill text-primary"></i>
-          Benutzername <span class="badge bg-danger ms-auto">Pflicht</span>
+          {{ _t('common.username', 'Username') }} <span class="badge bg-danger ms-auto">{{ _t('admin.regfields_required_badge', 'Required') }}</span>
         </li>
         <li class="list-group-item d-flex align-items-center gap-2">
           <i class="bi bi-lock-fill text-primary"></i>
-          Passwort (2×) <span class="badge bg-danger ms-auto">Pflicht</span>
+          {{ _t('admin.regfields_password_twice', 'Password (2×)') }} <span class="badge bg-danger ms-auto">{{ _t('admin.regfields_required_badge', 'Required') }}</span>
         </li>
         <li class="list-group-item d-flex align-items-center gap-2">
           <i class="bi bi-lock-fill text-primary"></i>
-          Datenspeicherung zustimmen <span class="badge bg-danger ms-auto">Pflicht</span>
+          {{ _t('admin.regfields_consent', 'Agree to data storage') }} <span class="badge bg-danger ms-auto">{{ _t('admin.regfields_required_badge', 'Required') }}</span>
         </li>
       </ul>
     </div>
     <div class="alert alert-info mt-3 small">
       <i class="bi bi-info-circle"></i>
-      Vorname und Nachname sind immer optionale Felder und werden automatisch angezeigt.
-      Hier konfigurierst du zusätzliche Felder.
+      {{ _t('admin.regfields_hint', 'First and last name are always optional fields and are shown automatically. Here you configure additional fields.') }}
     </div>
   </div>
 </div>
@@ -96,17 +95,17 @@ function renderFields() {
       <div class="border rounded p-3 mb-2 bg-light" id="field_${i}">
         <div class="row g-2 align-items-center">
           <div class="col-md-3">
-            <label class="form-label small">Name (intern)</label>
+            <label class="form-label small">{{ _t('admin.regfields_field_name', 'Name (internal)') }}</label>
             <input type="text" class="form-control form-control-sm" value="${f.name}"
-                   onchange="fields[${i}].name=this.value" placeholder="z.B. matrikel_nr">
+                   onchange="fields[${i}].name=this.value" placeholder="{{ _t('admin.regfields_field_name_ph', 'e.g. student_id') }}">
           </div>
           <div class="col-md-3">
-            <label class="form-label small">Label (DE)</label>
+            <label class="form-label small">{{ _t('admin.regfields_label_de', 'Label (DE)') }}</label>
             <input type="text" class="form-control form-control-sm" value="${f.label}"
                    onchange="fields[${i}].label=this.value" placeholder="Matrikelnummer">
           </div>
           <div class="col-md-2">
-            <label class="form-label small">Typ</label>
+            <label class="form-label small">{{ _t('common.type', 'Type') }}</label>
             <select class="form-select form-select-sm" onchange="fields[${i}].field_type=this.value; renderFields()">
               ${['text','textarea','select','number','date','checkbox'].map(t =>
                 `<option value="${t}" ${f.field_type === t ? 'selected' : ''}>${t}</option>`
@@ -117,7 +116,7 @@ function renderFields() {
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="req_${i}"
                      ${f.required ? 'checked' : ''} onchange="fields[${i}].required=this.checked">
-              <label class="form-check-label small" for="req_${i}">Pflicht</label>
+              <label class="form-check-label small" for="req_${i}">{{ _t('admin.regfields_required_badge', 'Required') }}</label>
             </div>
           </div>
           <div class="col-md-2 d-flex align-items-end">
@@ -128,7 +127,7 @@ function renderFields() {
           </div>
           ${f.field_type === 'select' ? `
           <div class="col-12">
-            <label class="form-label small">Optionen (eine pro Zeile: wert=Label)</label>
+            <label class="form-label small">{{ _t('admin.regfields_options', 'Options (one per line: value=Label)') }}</label>
             <textarea class="form-control form-control-sm" rows="3"
                       onchange="fields[${i}].options=parseOptions(this.value)">${(f.options||[]).map(o => o.value+'='+o.label).join('\n')}</textarea>
           </div>` : ''}

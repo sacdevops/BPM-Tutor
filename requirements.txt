@@ -1,4 +1,4 @@
-# Web framework
+﻿# Web framework
 flask>=2.3.0
 flask-socketio>=5.3.0
 python-socketio>=5.8.0
@@ -18,7 +18,7 @@ wtforms>=3.1.0
 # Email
 flask-mail>=0.10.0
 
-# AI — HTTP client for CampusKI API
+# AI -- HTTP client for CampusKI API
 requests>=2.28.0
 
 # Environment & config
@@ -40,3 +40,19 @@ cryptography>=41.0.0
 # Benchmark
 tiktoken>=0.5.0
 openpyxl>=3.1.0
+
+# Redis -- message queue + rate limiting storage + settings cache
+redis>=5.0.0
+
+# Rate limiting
+Flask-Limiter[redis]>=3.5.0
+
+# Security headers
+flask-talisman>=1.1.0
+
+# Async task queue (LLM calls)
+celery[redis]>=5.3.0
+
+# -- Development tools (not needed in production Docker image) --
+# ruff>=0.4.0
+# black>=24.0.0

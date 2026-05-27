@@ -1,6 +1,6 @@
 {% extends "cms/base.html" %}
-{% block title %}Mein Profil{% endblock %}
-{% block page_title %}Mein Profil{% endblock %}
+{% block title %}{{ _t('nav.profile', 'My Profile') }}{% endblock %}
+{% block page_title %}{{ _t('nav.profile', 'My Profile') }}{% endblock %}
 
 {% block content %}
 <div class="row g-3">
@@ -15,32 +15,32 @@
       </div>
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">Benutzername</span>
+          <span class="text-muted small">{{ _t('profile.username_label', 'Username') }}</span>
           <strong>{{ current_user.username }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">Mitglied seit</span>
+          <span class="text-muted small">{{ _t('profile.member_since', 'Member since') }}</span>
           <strong>{{ current_user.created_at.strftime('%d.%m.%Y') }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">E-Mail bestätigt</span>
+          <span class="text-muted small">{{ _t('profile.email_verified', 'Email verified') }}</span>
           {% if current_user.is_verified %}
-            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Ja</span>
+            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
           {% else %}
-            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Nein</span>
+            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>{{ _t('common.no', 'No') }}</span>
           {% endif %}
         </div>
         {% if current_user.personal_api_key %}
         <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">API-Key</span>
-          <span class="badge bg-success"><i class="bi bi-key-fill me-1"></i>Hinterlegt</span>
+          <span class="text-muted small">{{ _t('profile.api_key_stored', 'API key stored') }}</span>
+          <span class="badge bg-success"><i class="bi bi-key-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
         </div>
         {% endif %}
         <a href="{{ url_for('user_bp.my_stats') }}" class="list-group-item list-group-item-action text-center">
-          <i class="bi bi-bar-chart me-2"></i>Meine Statistik
+          <i class="bi bi-bar-chart me-2"></i>{{ _t('profile.my_stats_link', 'My Statistics') }}
         </a>
         <a href="{{ url_for('user_bp.my_submissions') }}" class="list-group-item list-group-item-action text-center">
-          <i class="bi bi-journal-text me-2"></i>Meine Einreichungen
+          <i class="bi bi-journal-text me-2"></i>{{ _t('profile.my_submissions_link', 'My Submissions') }}
         </a>
       </div>
     </div>
@@ -50,29 +50,29 @@
   <div class="col-lg-8">
     <!-- Personal Data -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-person me-2"></i>Persönliche Daten</h6></div>
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-person me-2"></i>{{ _t('profile.personal_data', 'Personal Data') }}</h6></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-2">
             <div class="col-md-6">
-              <label class="form-label">Vorname</label>
+              <label class="form-label">{{ _t('auth.first_name_label', 'First name') }}</label>
               <input type="text" name="first_name" class="form-control"
                      value="{{ current_user.first_name or '' }}">
             </div>
             <div class="col-md-6">
-              <label class="form-label">Nachname</label>
+              <label class="form-label">{{ _t('auth.last_name_label', 'Last name') }}</label>
               <input type="text" name="last_name" class="form-control"
                      value="{{ current_user.last_name or '' }}">
             </div>
             <div class="col-12">
-              <label class="form-label">E-Mail-Adresse</label>
+              <label class="form-label">{{ _t('profile.email_address', 'Email address') }}</label>
               <input type="email" name="email" class="form-control"
                      value="{{ current_user.email }}">
             </div>
             {% if cms_active_languages | length >= 1 %}
             <div class="col-12">
-              <label class="form-label">Sprache / Language</label>
+              <label class="form-label">{{ _t('profile.language_label', 'Language') }}</label>
               <select name="language" class="form-select">
                 {% for lang in cms_active_languages %}
                 <option value="{{ lang.code }}" {% if current_user.language == lang.code or (not current_user.language and lang.code == 'en') %}selected{% endif %}>
@@ -84,7 +84,7 @@
             {% endif %}
           </div>
           <button type="submit" class="btn btn-primary mt-3">
-            <i class="bi bi-save me-1"></i>Speichern
+            <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
           </button>
         </form>
       </div>
@@ -92,20 +92,20 @@
 
     <!-- API Key + Model -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu me-2"></i>KI-Einstellungen (API-Key & Modell)</h6></div>
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu me-2"></i>{{ _t('profile.ai_settings', 'AI Settings (API Key & Model)') }}</h6></div>
       <div class="card-body">
         <p class="text-muted small mb-3">
-          Trage hier deinen OpenAI-kompatiblen API-Key ein. Dieser wird verschlüsselt gespeichert und für deine KI-gestützte BPMN-Mentorenschaft verwendet.
+          {{ _t('profile.api_key_hint', 'Enter your OpenAI-compatible API key here. It will be stored encrypted and used for your AI-supported BPMN mentoring.') }}
         </p>
         <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
-            <label class="form-label fw-semibold">API-Key</label>
+            <label class="form-label fw-semibold">{{ _t('profile.api_key_label', 'API Key') }}</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-key"></i></span>
               <input type="password" name="personal_api_key" class="form-control"
                      id="apiKeyInput" placeholder="sk-..."
-                     value="{{ current_user.personal_api_key or '' }}">
+                     value="{{ decrypted_api_key }}">
               <button type="button" class="btn btn-outline-secondary"
                       onclick="toggleApiKeyVisibility()">
                 <i class="bi bi-eye" id="apiKeyEyeIcon"></i>
@@ -113,19 +113,19 @@
             </div>
             {% if current_user.personal_api_key %}
             <div class="mt-1 d-flex align-items-center gap-2">
-              <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>API-Key hinterlegt</span>
+              <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>{{ _t('profile.api_key_stored', 'API key stored') }}</span>
               <button type="submit" name="clear_api_key" value="1"
                       class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash me-1"></i>Entfernen
+                <i class="bi bi-trash me-1"></i>{{ _t('profile.api_key_remove', 'Remove') }}
               </button>
             </div>
             {% endif %}
           </div>
           <div class="mb-3" id="modelSection" {% if not current_user.personal_api_key %}style="display:none;"{% endif %}>
-            <label class="form-label fw-semibold">KI-Modell</label>
+            <label class="form-label fw-semibold">{{ _t('profile.model_label', 'AI Model') }}</label>
             <div class="d-flex gap-2">
               <select id="modelSelect" name="preferred_model" class="form-select" disabled>
-                <option value="">-- Modelle laden --</option>
+                <option value="">{{ _t('profile.model_load_placeholder', '-- Load models --') }}</option>
               </select>
               <button type="button" class="btn btn-outline-secondary" onclick="loadModels()" id="loadModelsBtn">
                 <i class="bi bi-arrow-clockwise"></i>
@@ -134,7 +134,7 @@
             <div id="modelStatus" class="form-text mt-1"></div>
           </div>
           <button type="submit" class="btn btn-primary">
-            <i class="bi bi-save me-1"></i>API-Einstellungen speichern
+            <i class="bi bi-save me-1"></i>{{ _t('profile.save_api_settings', 'Save API Settings') }}
           </button>
         </form>
       </div>
@@ -142,26 +142,26 @@
 
     <!-- Change Password -->
     <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Passwort ändern</h6></div>
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>{{ _t('profile.change_pw_title', 'Change Password') }}</h6></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('user_bp.change_password') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="row g-2">
             <div class="col-md-4">
-              <label class="form-label">Aktuelles Passwort</label>
+              <label class="form-label">{{ _t('auth.password_placeholder', 'Password') }} ({{ _t('common.current', 'current') }})</label>
               <input type="password" name="current_password" class="form-control" required autocomplete="current-password">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Neues Passwort</label>
+              <label class="form-label">{{ _t('auth.new_password_label', 'New Password') }}</label>
               <input type="password" name="new_password" class="form-control" required minlength="8" autocomplete="new-password">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Bestätigen</label>
+              <label class="form-label">{{ _t('auth.password_confirm_label', 'Confirm password') }}</label>
               <input type="password" name="new_password2" class="form-control" required autocomplete="new-password">
             </div>
           </div>
           <button type="submit" class="btn btn-warning mt-3">
-            <i class="bi bi-key me-1"></i>Passwort ändern
+            <i class="bi bi-key me-1"></i>{{ _t('profile.change_pw_title', 'Change Password') }}
           </button>
         </form>
       </div>
@@ -184,32 +184,40 @@ function toggleApiKeyVisibility() {
   }
 }
 
-function loadModels() {
+function loadModels(silent) {
   const key = document.getElementById('apiKeyInput').value.trim();
   const select = document.getElementById('modelSelect');
   const status = document.getElementById('modelStatus');
   const btn = document.getElementById('loadModelsBtn');
-  if (!key) { status.textContent = 'Bitte zuerst API-Key eingeben.'; return; }
+  if (!key) {
+    if (!silent) status.textContent = 'Bitte zuerst API-Key eingeben.';
+    return;
+  }
   btn.disabled = true;
-  status.textContent = 'Lade Modelle...';
+  status.textContent = silent ? 'Lade verfügbare Modelle…' : 'Lade Modelle…';
   fetch('/api/models', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: key })
+    body: JSON.stringify({ api_key: key, base_url: {{ api_endpoint | tojson }} })
   })
   .then(r => r.json())
   .then(data => {
     btn.disabled = false;
     if (data.success && data.models?.length) {
+      const savedModel = {{ (current_user.preferred_model or '') | tojson }};
       select.innerHTML = '';
+      let found = false;
       data.models.forEach(m => {
         const opt = document.createElement('option');
-        opt.value = m.id; opt.textContent = m.name;
+        opt.value = m.id;
+        opt.textContent = m.name;
+        if (m.id === savedModel) { opt.selected = true; found = true; }
         select.appendChild(opt);
       });
+      // If saved model not found, keep first item selected (browser default)
       select.disabled = false;
-      status.textContent = `${data.models.length} Modelle gefunden.`;
       document.getElementById('modelSection').style.display = '';
+      status.textContent = `${data.models.length} Modelle verfügbar.${found ? '' : ' (Gespeichertes Modell nicht gefunden — bitte neu wählen.)'}`;
     } else {
       status.textContent = data.message || 'Fehler beim Laden der Modelle.';
     }
@@ -217,10 +225,11 @@ function loadModels() {
   .catch(() => { btn.disabled = false; status.textContent = 'Verbindungsfehler.'; });
 }
 
-// Show model section if API key already saved
+// Auto-load models on page load if an API key is already saved
 document.addEventListener('DOMContentLoaded', () => {
   {% if current_user.personal_api_key %}
   document.getElementById('modelSection').style.display = '';
+  loadModels(true);
   {% endif %}
 });
 </script>

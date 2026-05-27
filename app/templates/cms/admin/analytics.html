@@ -1,11 +1,11 @@
 {% extends "cms/base.html" %}
-{% block title %}Analytik{% endblock %}
-{% block page_title %}Analytik{% endblock %}
+{% block title %}{{ _t('nav.analytics', 'Analytics') }}{% endblock %}
+{% block page_title %}{{ _t('nav.analytics', 'Analytics') }}{% endblock %}
 
 {% block topbar_actions %}
 <form method="get" class="d-flex gap-2">
   <select name="period" class="form-select form-select-sm" onchange="this.form.submit()" style="width:auto">
-    {% for val, label in [('24h','24h'),('7d','7 Tage'),('30d','30 Tage'),('90d','90 Tage'),('1y','1 Jahr'),('all','Gesamt')] %}
+    {% for val, label in [('24h', _t('admin.period_24h','24h')),('7d', _t('admin.period_7d','7 Days')),('30d', _t('admin.period_30d','30 Days')),('90d', _t('admin.period_90d','90 Days')),('1y', _t('admin.period_1y','1 Year')),('all', _t('admin.period_all','Total'))] %}
     <option value="{{ val }}" {% if period == val %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
@@ -16,10 +16,10 @@
 <!-- KPI row -->
 <div class="row g-3 mb-4">
   {% set kpis = [
-    ('Einreichungen', global_stats.total_submissions, 'bi-journal-text', 'primary'),
-    ('Abgeschlossen', global_stats.completed_submissions, 'bi-check-circle', 'success'),
-    ('Ø Nachrichten', global_stats.avg_interactions | round(1), 'bi-chat-dots', 'info'),
-    ('Tokens gesamt', global_stats.total_tokens, 'bi-cpu', 'warning'),
+    (_t('analytics.submissions','Submissions'), global_stats.total_submissions, 'bi-journal-text', 'primary'),
+    (_t('analytics.completed','Completed'), global_stats.completed_submissions, 'bi-check-circle', 'success'),
+    (_t('admin.kpi_avg_messages','Avg. Messages'), global_stats.avg_interactions | round(1), 'bi-chat-dots', 'info'),
+    (_t('admin.kpi_tokens','Total Tokens'), global_stats.total_tokens, 'bi-cpu', 'warning'),
   ] %}
   {% for label, val, icon, color in kpis %}
   <div class="col-6 col-xl-3">
@@ -38,7 +38,7 @@
   <!-- Submissions timeline -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header fw-semibold">Einreichungen im Zeitverlauf</div>
+      <div class="card-header fw-semibold">{{ _t('admin.chart_submissions_time', 'Submissions over Time') }}</div>
       <div class="card-body">
         <canvas id="timelineChart" height="220"></canvas>
       </div>
@@ -48,7 +48,7 @@
   <!-- Phase distribution -->
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header fw-semibold">Mentor-Phasen</div>
+      <div class="card-header fw-semibold">{{ _t('admin.chart_mentor_phases', 'Mentor Phases') }}</div>
       <div class="card-body">
         <canvas id="phaseChart" height="220"></canvas>
       </div>
@@ -58,10 +58,10 @@
   <!-- BPMN errors -->
   <div class="col-lg-6">
     <div class="card">
-      <div class="card-header fw-semibold">Häufigste BPMN-Fehler</div>
+      <div class="card-header fw-semibold">{{ _t('admin.chart_bpmn_errors', 'Most Common BPMN Errors') }}</div>
       <div class="card-body p-0">
         <table class="table table-sm mb-0">
-          <thead class="table-light"><tr><th>Fehlertyp</th><th class="text-end">Anzahl</th></tr></thead>
+          <thead class="table-light"><tr><th>{{ _t('admin.col_action', 'Action') }}</th><th class="text-end">{{ _t('common.n_selected', 'Count').replace('{n}','') }}</th></tr></thead>
           <tbody>
             {% for e in bpmn_errors %}
             <tr>
@@ -69,7 +69,7 @@
               <td class="text-end">{{ e.count }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="2" class="text-muted text-center py-3">Keine Daten.</td></tr>
+            <tr><td colspan="2" class="text-muted text-center py-3">{{ _t('admin.no_data', 'No data.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -80,11 +80,11 @@
   <!-- Per-task analytics -->
   <div class="col-lg-6">
     <div class="card">
-      <div class="card-header fw-semibold">Aufgaben-Statistik</div>
+      <div class="card-header fw-semibold">{{ _t('admin.task_stats', 'Task Statistics') }}</div>
       <div class="card-body p-0">
         <table class="table table-sm mb-0">
           <thead class="table-light">
-            <tr><th>Aufgabe</th><th>Eingereicht</th><th>Abgeschl.</th><th>Bewertet</th><th>Ø Dauer</th></tr>
+            <tr><th>{{ _t('common.task', 'Task') }}</th><th>{{ _t('admin.col_submitted', 'Submitted') }}</th><th>{{ _t('admin.col_finished', 'Finished') }}</th><th>{{ _t('admin.col_graded', 'Graded') }}</th><th>{{ _t('admin.col_avg_duration', 'Avg. Duration') }}</th></tr>
           </thead>
           <tbody>
             {% for t in task_analytics %}
@@ -96,7 +96,7 @@
               <td>{{ (t.avg_duration_seconds / 60) | round(1) }} min</td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-muted text-center py-3">Keine Daten.</td></tr>
+            <tr><td colspan="5" class="text-muted text-center py-3">{{ _t('admin.no_data', 'No data.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -108,11 +108,11 @@
   {% if cohort_analytics %}
   <div class="col-12">
     <div class="card">
-      <div class="card-header fw-semibold">Gruppen-Vergleich</div>
+      <div class="card-header fw-semibold">{{ _t('admin.group_comparison', 'Group Comparison') }}</div>
       <div class="card-body p-0">
         <table class="table table-sm mb-0">
           <thead class="table-light">
-            <tr><th>Gruppe</th><th>Mitglieder</th><th>Einreichungen</th><th>Abgeschlossen</th></tr>
+            <tr><th>{{ _t('admin.col_group', 'Group') }}</th><th>{{ _t('admin.col_members', 'Members') }}</th><th>{{ _t('admin.col_submissions', 'Submissions') }}</th><th>{{ _t('admin.col_completed', 'Completed') }}</th></tr>
           </thead>
           <tbody>
             {% for c in cohort_analytics %}
@@ -142,7 +142,7 @@ new Chart(document.getElementById('timelineChart'), {
   type: 'bar',
   data: {
     labels: timelineData.labels,
-    datasets: [{ label: 'Einreichungen', data: timelineData.data,
+    datasets: [{ label: '{{ _t('admin.kpi_submissions', 'Submissions') }}', data: timelineData.data,
       backgroundColor: 'rgba(79,70,229,0.7)', borderRadius: 4 }]
   },
   options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }

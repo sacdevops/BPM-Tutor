@@ -85,6 +85,12 @@
     border-radius: 4px;
     display: block;
 }
+.lang-flag-img {
+    display: inline-block;
+    vertical-align: middle;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+}
 .header-site-name {
     font-size: 1.15rem;
     font-weight: 800;
@@ -154,6 +160,7 @@
     padding: .35rem .65rem; border-radius: 6px; border: 1px solid var(--border-color);
     background: var(--bg-surface); color: var(--text-secondary);
     font-size: .875rem; cursor: pointer; transition: background .15s;
+    text-decoration: none;
 }
 .header-lang-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .header-lang-menu {
@@ -245,7 +252,7 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 0.375rem;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 500;
     color: var(--text-primary);
     transition: all 0.15s;
@@ -286,7 +293,7 @@ body {
     align-items: center;
     gap: 0.4rem;
     padding: 0.5rem 0.75rem;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     cursor: pointer;
     transition: background 0.1s;
     white-space: nowrap;
@@ -400,7 +407,7 @@ body {
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--text-primary);
     background: var(--bg-input);
 }
@@ -436,7 +443,7 @@ body {
 }
 
 .settings-status {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     margin-top: 0.35rem;
     min-height: 1.2em;
 }
@@ -573,3 +580,231 @@ body {
   .index-hero h1 { font-size: 3.2rem; }
   .tasks-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 2.5rem; }
 }
+
+/* ============================================================
+   Language Dropdown — remove underline from options
+   ============================================================ */
+.header-lang-option {
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+.header-lang-option:hover {
+    text-decoration: none;
+}
+
+/* ============================================================
+   Index Page
+   ============================================================ */
+
+.index-body {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.index-hero {
+    text-align: center;
+    margin-bottom: 2.5rem;
+    padding: 2rem 1rem;
+}
+
+.index-tasks-heading {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.tasks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.task-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.task-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.task-card h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.task-card p {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.task-card .start-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.5rem 1.1rem;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.task-card .start-btn:hover { background: var(--primary-hover); }
+
+.start-btn-custom { background: #5b8dee !important; }
+.start-btn-custom:hover { background: #3a6edf !important; }
+
+.custom-task-card {
+    border: 2px dashed #5b8dee;
+    background: #f5f8ff;
+}
+
+.custom-task-card:hover {
+    border-color: #3a6edf;
+    box-shadow: 0 4px 12px rgba(91,141,238,0.2);
+}
+
+[data-theme="dark"] .task-card { background: var(--bg-surface); border-color: var(--border-color); }
+[data-theme="dark"] .custom-task-card { background: #1a2233; border-color: #4a7ade; }
+
+/* ============================================================
+   Learning Path
+   ============================================================ */
+
+.learning-path { margin-bottom: 3rem; }
+.learning-path h2 { text-align: center; margin-bottom: 1.75rem; }
+
+.lp-track {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+}
+.lp-track::before {
+    content: '';
+    position: absolute;
+    left: 36px;
+    top: 48px;
+    bottom: 48px;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--primary-color, #84BD00), #d1d5db);
+    z-index: 0;
+}
+
+.lp-step {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    padding: .75rem 0;
+    position: relative;
+    z-index: 1;
+}
+
+.lp-badge {
+    flex: 0 0 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: white;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    background: var(--primary-color, #84BD00);
+}
+.lp-badge.locked { background: #d1d5db; color: #6b7280; }
+.lp-badge.done { background: #22c55e; }
+
+.lp-card {
+    flex: 1;
+    background: var(--bg-surface);
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    transition: box-shadow .2s;
+}
+.lp-card.locked { opacity: .55; background: #f9fafb; }
+.lp-card.done { border-color: #86efac; }
+.lp-card:not(.locked):hover { box-shadow: 0 4px 14px rgba(0,0,0,.1); }
+
+.lp-card-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .5rem;
+}
+.lp-card-title { font-weight: 700; font-size: 1rem; flex: 1; }
+.lp-level-count { font-size: .8rem; color: var(--text-secondary); }
+.lp-level-desc { font-size: .85rem; color: #6b7280; margin-bottom: .5rem; }
+
+.lp-diff-badge {
+    font-size: .7rem;
+    font-weight: 600;
+    padding: .15rem .55rem;
+    border-radius: 99px;
+    background: #f3f4f6;
+    color: #6b7280;
+}
+.lp-diff-badge.beginner { background: #dcfce7; color: #166534; }
+.lp-diff-badge.intermediate { background: #fef9c3; color: #854d0e; }
+.lp-diff-badge.advanced { background: #fee2e2; color: #991b1b; }
+.lp-diff-badge.expert { background: #ede9fe; color: #5b21b6; }
+
+.lp-progress-bar {
+    height: 6px;
+    background: #e5e7eb;
+    border-radius: 99px;
+    overflow: hidden;
+    margin: .5rem 0 .75rem;
+}
+.lp-progress-fill {
+    height: 100%;
+    background: var(--primary-color, #84BD00);
+    border-radius: 99px;
+    transition: width .4s;
+    width: 0;
+}
+
+.lp-tasks { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+.lp-task-chip {
+    font-size: .75rem;
+    padding: .2rem .65rem;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    color: #374151;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+.lp-task-chip:hover { background: #e5e7eb; color: #111; text-decoration: none; }
+.lp-task-chip.done-chip { background: #dcfce7; border-color: #86efac; color: #166534; }
+.lp-task-chip.locked-chip { cursor: default; color: #9ca3af; }
+.lp-task-chip.locked-chip:hover { background: #f3f4f6; }
+
+[data-theme="dark"] .lp-card { background: var(--bg-surface); border-color: var(--border-color); }
+[data-theme="dark"] .lp-card.locked { background: #1e2533; }
+[data-theme="dark"] .lp-task-chip { background: #1e2533; border-color: var(--border-color); color: var(--text-secondary); }

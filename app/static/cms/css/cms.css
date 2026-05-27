@@ -119,6 +119,7 @@ body.cms-layout { display: flex; min-height: 100vh; margin: 0; background: #f8f9
 .role-badge { display: inline-block; padding: .18em .65em; border-radius: 999px; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .role-admin { background: #fef2f2; color: #b91c1c; }
 .role-instructor { background: #eff6ff; color: #1d4ed8; }
+.role-tutor { background: #eff6ff; color: #1d4ed8; }
 .role-student { background: #f0fdf4; color: #15803d; }
 
 /* Chat */
@@ -130,6 +131,16 @@ body.cms-layout { display: flex; min-height: 100vh; margin: 0; background: #f8f9
 
 /* Notifications */
 .notif-icon-wrap { width: 36px; height: 36px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+.notif-time {
+  font-size: .72rem;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.notif-item { transition: background .15s; }
+.notif-item:hover { background: #f9fafb !important; }
 
 /* Cards */
 .card { border: 1px solid var(--cms-border); border-radius: 12px; }
@@ -207,23 +218,23 @@ body.cms-layout { display: flex; min-height: 100vh; margin: 0; background: #f8f9
    Widescreen Scaling for CMS (1400px and larger)
    ============================================================ */
 @media (min-width: 1400px) {
-  html { font-size: 17px; }
+  html { font-size: 14px; }
   :root {
     --cms-sidebar-width: 280px;
   }
   .cms-sidebar { width: var(--cms-sidebar-width); }
   .cms-content { padding: 2rem 2.5rem; }
-  .cms-page-title { font-size: 1.8rem; }
-  .kpi-value { font-size: 2.2rem; }
-  .cms-table th, .cms-table td { padding: 0.85rem 1rem; font-size: 0.97rem; }
-  .cms-card { padding: 2rem; }
+  .cms-page-title { font-size: 1.6rem; }
+  .kpi-value { font-size: 1.9rem; }
+  .cms-table th, .cms-table td { padding: 0.75rem 1rem; font-size: 0.8rem; }
+  .cms-card { padding: 1.75rem; }
 }
 
 @media (min-width: 1800px) {
-  html { font-size: 18px; }
+  html { font-size: 14px; }
   :root {
-    --cms-sidebar-width: 310px;
+    --cms-sidebar-width: 300px;
   }
-  .cms-content { padding: 3rem 4rem; }
-  .kpi-value { font-size: 2.6rem; }
+  .cms-content { padding: 2rem 3rem; }
+  .kpi-value { font-size: 2rem; }
 }

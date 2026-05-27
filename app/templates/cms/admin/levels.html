@@ -1,18 +1,18 @@
 {% extends "cms/base.html" %}
-{% block title %}Level-System{% endblock %}
-{% block page_title %}Level-System{% endblock %}
+{% block title %}{{ _t('admin.level_list_title', 'Level System') }}{% endblock %}
+{% block page_title %}{{ _t('admin.level_list_title', 'Level System') }}{% endblock %}
 
 {% block content %}
 <!-- Header + Toggle -->
 <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
   <div>
-    <p class="text-muted mb-0">Stufenweises Lernpfad-System für Studierende. Level müssen der Reihe nach freigeschaltet werden.</p>
+    <p class="text-muted mb-0">{{ _t('admin.level_subtitle', 'Stepped learning path system for students. Levels must be unlocked in sequence.') }}</p>
   </div>
   <form method="post" action="{{ url_for('admin.levels_toggle') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn {% if level_enabled %}btn-success{% else %}btn-outline-secondary{% endif %}">
       <i class="bi bi-{% if level_enabled %}toggle-on{% else %}toggle-off{% endif %} me-1"></i>
-      Level-System {% if level_enabled %}aktiv{% else %}inaktiv{% endif %}
+      {{ _t('admin.level_system_label', 'Level System') }} {% if level_enabled %}{{ _t('common.active', 'active').lower() }}{% else %}{{ _t('common.inactive', 'inactive').lower() }}{% endif %}
     </button>
   </form>
 </div>
@@ -20,8 +20,7 @@
 {% if not level_enabled %}
 <div class="alert alert-warning">
   <i class="bi bi-info-circle me-1"></i>
-  Das Level-System ist derzeit deaktiviert. Studierende sehen normale Aufgaben ohne Stufenstruktur.
-  Aktiviere es oben, um den Lernpfad für alle sichtbar zu machen.
+  {{ _t('admin.level_disabled_alert', 'The level system is currently disabled. Students see normal tasks without a step structure. Enable it above to make the learning path visible to everyone.') }}
 </div>
 {% endif %}
 
@@ -40,7 +39,7 @@
         <div class="flex-grow-1 min-w-0">
           <div class="d-flex align-items-center gap-2">
             <strong>{{ lv.title }}</strong>
-            {% if not lv.is_active %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}
+            {% if not lv.is_active %}<span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>{% endif %}
             <span class="badge bg-light text-secondary border">{{ lv.difficulty }}</span>
           </div>
           {% if lv.description %}
@@ -48,7 +47,7 @@
           {% endif %}
         </div>
         <div class="text-end text-muted small flex-shrink-0">
-          {{ lv.task_count }} Aufgabe{{ 'n' if lv.task_count != 1 else '' }}
+          {{ lv.task_count }} {{ _t('admin.level_tasks_suffix', 'Task(s)') }}
         </div>
         <i class="bi bi-chevron-right text-muted"></i>
       </a>
@@ -58,7 +57,7 @@
     <div class="card shadow-sm">
       <div class="card-body text-center py-5 text-muted">
         <i class="bi bi-layers" style="font-size:2.5rem;"></i>
-        <p class="mt-2 mb-0">Noch keine Level erstellt. Füge unten das erste Level hinzu.</p>
+        <p class="mt-2 mb-0">{{ _t('admin.level_empty', 'No levels created yet. Add the first level below.') }}</p>
       </div>
     </div>
     {% endif %}
@@ -67,20 +66,20 @@
   <!-- New Level form -->
   <div class="col-lg-4">
     <div class="card shadow-sm">
-      <div class="card-header fw-semibold"><i class="bi bi-plus-circle me-1"></i>Neues Level</div>
+      <div class="card-header fw-semibold"><i class="bi bi-plus-circle me-1"></i>{{ _t('admin.level_new_btn', 'New Level') }}</div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.level_new') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-2">
-            <label class="form-label">Titel (EN) <span class="text-danger">*</span></label>
-            <input type="text" name="title" class="form-control" placeholder="z.B. Introduction to BPMN" required>
+            <label class="form-label">{{ _t('admin.level_title_en', 'Title (EN)') }} <span class="text-danger">*</span></label>
+            <input type="text" name="title" class="form-control" placeholder="{{ _t('admin.level_title_en_placeholder', 'e.g. Introduction to BPMN') }}" required>
           </div>
           <div class="mb-2">
-            <label class="form-label">Titel (DE)</label>
-            <input type="text" name="title_de" class="form-control" placeholder="z.B. Einführung in BPMN">
+            <label class="form-label">{{ _t('admin.level_title_de', 'Title (DE)') }}</label>
+            <input type="text" name="title_de" class="form-control" placeholder="{{ _t('admin.level_title_de_placeholder', 'e.g. Einführung in BPMN') }}">
           </div>
           <div class="mb-2">
-            <label class="form-label">Schwierigkeit</label>
+            <label class="form-label">{{ _t('admin.level_difficulty', 'Difficulty') }}</label>
             <select name="difficulty" class="form-select">
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
@@ -89,11 +88,11 @@
             </select>
           </div>
           <div class="mb-3">
-            <label class="form-label">Beschreibung</label>
-            <textarea name="description" class="form-control" rows="2" placeholder="Kurze Beschreibung (optional)"></textarea>
+            <label class="form-label">{{ _t('common.description', 'Description') }}</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="{{ _t('admin.level_desc_placeholder', 'Short description (optional)') }}"></textarea>
           </div>
           <button type="submit" class="btn btn-primary w-100">
-            <i class="bi bi-plus-lg me-1"></i>Level erstellen
+            <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.level_create_btn', 'Create Level') }}
           </button>
         </form>
       </div>
@@ -101,18 +100,18 @@
 
     {% if levels %}
     <div class="card shadow-sm mt-3">
-      <div class="card-header fw-semibold">Übersicht</div>
+      <div class="card-header fw-semibold">{{ _t('common.overview', 'Overview') }}</div>
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Level gesamt</span>
+          <span class="text-muted small">{{ _t('admin.level_total', 'Total levels') }}</span>
           <strong>{{ levels | length }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Aktive Level</span>
+          <span class="text-muted small">{{ _t('admin.level_active_count', 'Active levels') }}</span>
           <strong>{{ levels | selectattr('is_active') | list | length }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Aufgaben zugewiesen</span>
+          <span class="text-muted small">{{ _t('admin.level_tasks_assigned', 'Tasks assigned') }}</span>
           <strong>{{ levels | sum(attribute='task_count') }}</strong>
         </div>
       </div>

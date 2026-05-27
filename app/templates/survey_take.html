@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% block title %}{{ survey.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  .survey-wrapper {
+    min-height: calc(100vh - 70px);
+    background: var(--bg-color, #f5f5f5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+  .survey-card {
+    width: 100%;
+    max-width: 680px;
+    background: var(--card-bg, #fff);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    overflow: hidden;
+  }
+  .survey-header {
+    background: var(--brand-primary, #84BD00);
+    color: #fff;
+    padding: 1.5rem 2rem;
+  }
+  .survey-header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 .3rem;
+  }
+  .survey-header p {
+    margin: 0;
+    opacity: .9;
+    font-size: .95rem;
+  }
+  .survey-progress-bar-wrap {
+    background: rgba(255,255,255,.25);
+    border-radius: 4px;
+    height: 6px;
+    margin-top: .9rem;
+  }
+  .survey-progress-bar-fill {
+    background: #fff;
+    height: 6px;
+    border-radius: 4px;
+    transition: width .4s ease;
+  }
+  .survey-progress-label {
+    font-size: .78rem;
+    opacity: .85;
+    margin-top: .35rem;
+  }
+  .survey-body {
+    padding: 2rem 2rem 1.5rem;
+  }
+  .page-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary, #222);
+    margin-bottom: .25rem;
+  }
+  .page-desc {
+    color: var(--text-secondary, #666);
+    font-size: .9rem;
+    margin-bottom: 1.5rem;
+  }
+  .question-block {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color, #eee);
+  }
+  .question-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+  .question-label {
+    font-weight: 600;
+    color: var(--text-primary, #222);
+    margin-bottom: .4rem;
+    font-size: 1rem;
+  }
+  .question-desc {
+    color: var(--text-secondary, #666);
+    font-size: .88rem;
+    margin-bottom: .65rem;
+  }
+  .question-error {
+    color: #dc3545;
+    font-size: .83rem;
+    margin-top: .25rem;
+  }
+
+  /* Form controls */
+  .survey-input {
+    width: 100%;
+    padding: .55rem .85rem;
+    border: 1.5px solid var(--border-color, #ddd);
+    border-radius: 8px;
+    background: var(--input-bg, #fff);
+    color: var(--text-primary, #222);
+    font-size: .95rem;
+    transition: border-color .2s;
+  }
+  .survey-input:focus {
+    outline: none;
+    border-color: var(--brand-primary, #84BD00);
+    box-shadow: 0 0 0 3px rgba(132,189,0,.15);
+  }
+  .survey-input.is-invalid { border-color: #dc3545; }
+  textarea.survey-input { resize: vertical; min-height: 90px; }
+
+  /* Likert slider */
+  .likert-wrap {
+    padding: .5rem 0;
+  }
+  .likert-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--border-color, #ddd);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    margin: .6rem 0;
+  }
+  .likert-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    background: var(--brand-primary, #84BD00);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2);
+    transition: transform .15s;
+  }
+  .likert-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .likert-slider::-moz-range-thumb {
+    width: 22px; height: 22px;
+    background: var(--brand-primary, #84BD00);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .likert-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: .78rem;
+    color: var(--text-secondary, #888);
+    margin-top: .2rem;
+  }
+  .likert-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin: .1rem 0;
+  }
+  .likert-tick {
+    font-size: .72rem;
+    color: var(--text-secondary, #aaa);
+    text-align: center;
+    flex: 1;
+  }
+  .likert-value-display {
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--brand-primary, #84BD00);
+    margin-bottom: .2rem;
+  }
+
+  /* Radio / checkbox */
+  .survey-radio-group, .survey-check-group { display: flex; flex-direction: column; gap: .4rem; }
+  .survey-radio-item, .survey-check-item {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .5rem .75rem;
+    border: 1.5px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .survey-radio-item:hover, .survey-check-item:hover {
+    border-color: var(--brand-primary, #84BD00);
+    background: rgba(132,189,0,.06);
+  }
+  .survey-radio-item input, .survey-check-item input { accent-color: var(--brand-primary, #84BD00); }
+
+  /* Info block */
+  .survey-info-block {
+    background: rgba(132,189,0,.08);
+    border-left: 4px solid var(--brand-primary, #84BD00);
+    border-radius: 0 8px 8px 0;
+    padding: .75rem 1rem;
+    font-size: .92rem;
+    color: var(--text-primary, #333);
+  }
+
+  /* Image question */
+  .survey-img-wrap { text-align: center; }
+  .survey-img-wrap img { max-width: 100%; max-height: 420px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+
+  /* Navigation */
+  .survey-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 2rem;
+    border-top: 1px solid var(--border-color, #eee);
+    background: var(--card-bg, #fff);
+  }
+  .survey-btn {
+    padding: .55rem 1.4rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: .95rem;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .survey-btn:hover { opacity: .88; transform: translateY(-1px); }
+  .survey-btn.primary { background: var(--brand-primary, #84BD00); color: #fff; }
+  .survey-btn.secondary { background: var(--border-color, #e0e0e0); color: var(--text-primary, #333); }
+  .survey-btn.success { background: #28a745; color: #fff; }
+  .survey-btn.skip-link {
+    background: none; border: none; color: var(--text-secondary, #888);
+    text-decoration: underline; cursor: pointer; padding: .55rem 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="survey-wrapper">
+  <div class="survey-card">
+    <!-- Header -->
+    <div class="survey-header">
+      <h1>{{ survey.name }}</h1>
+      {% if survey.description %}<p>{{ survey.description }}</p>{% endif %}
+      <div class="survey-progress-bar-wrap">
+        <div class="survey-progress-bar-fill"
+             style="width:{{ (page_num / total_pages * 100)|int if total_pages > 1 else 0 }}%"></div>
+      </div>
+      <div class="survey-progress-label">
+        {{ _t('survey.page_progress', 'Page {current} of {total}').format(current=page_num + 1, total=total_pages) }}
+        {% if total_pages > 1 %}&nbsp;·&nbsp;{{ _t('survey.pct_done', '{pct}% completed').format(pct=(page_num / total_pages * 100)|int) }}{% endif %}
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="survey-body">
+      {% if page.title %}
+      <div class="page-title">{{ page.title }}</div>
+      {% endif %}
+      {% if page.description %}
+      <div class="page-desc">{{ page.description }}</div>
+      {% endif %}
+
+      <form method="post" id="surveyForm" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="page_num" value="{{ page_num }}">
+
+        {% for q in page.questions | sort(attribute='sort_order') %}
+        <div class="question-block" id="question_{{ q.id }}">
+
+          {% set ans = answers.get(q.id | string, '') %}
+
+          {# ── Info block ── #}
+          {% if q.question_type == 'info' %}
+          <div class="survey-info-block">
+            <i class="bi bi-info-circle me-2"></i>{{ q.label }}
+          </div>
+
+          {# ── Image display ── #}
+          {% elif q.question_type == 'image' %}
+          {% set img_src = q.image_path or (q.config.image_url if q.config else '') %}
+          <div class="survey-img-wrap">
+            {% if img_src %}
+            <img src="{{ img_src }}" alt="{{ q.label }}">
+            {% if q.label %}<p class="text-muted small mt-2">{{ q.label }}</p>{% endif %}
+            {% if q.description %}<p class="text-muted small">{{ q.description }}</p>{% endif %}
+            {% else %}
+            <div class="survey-info-block" style="border-left-color:#ffc107;background:rgba(255,193,7,.08)">
+              <i class="bi bi-image text-warning me-2"></i>{{ _t('survey.no_image', 'No image configured.') }}
+            </div>
+            {% endif %}
+          </div>
+
+          {% else %}
+          {# All question types that need a label #}
+          <div class="question-label">
+            {{ q.label }}
+            {% if q.required %}<span style="color:#dc3545"> *</span>{% endif %}
+          </div>
+          {% if q.description %}
+          <div class="question-desc">{{ q.description }}</div>
+          {% endif %}
+          {% if errors.get('q_' ~ q.id) %}
+          <div class="question-error"><i class="bi bi-exclamation-circle me-1"></i>{{ errors['q_' ~ q.id] }}</div>
+          {% endif %}
+
+          {# ── Text ── #}
+          {% if q.question_type == 'text' %}
+          <input type="text" name="q_{{ q.id }}"
+                 class="survey-input{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                 value="{{ ans }}"
+                 placeholder="{{ q.config.placeholder if q.config and q.config.placeholder else '' }}"
+                 {% if q.required %}required{% endif %}>
+
+          {# ── Textarea ── #}
+          {% elif q.question_type == 'textarea' %}
+          <textarea name="q_{{ q.id }}"
+                    class="survey-input{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                    {% if q.required %}required{% endif %}>{{ ans }}</textarea>
+
+          {# ── Number ── #}
+          {% elif q.question_type == 'number' %}
+          <input type="number" name="q_{{ q.id }}"
+                 class="survey-input{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                 value="{{ ans }}"
+                 {% if q.config %}
+                 {% if q.config.min is defined %}min="{{ q.config.min }}"{% endif %}
+                 {% if q.config.max is defined %}max="{{ q.config.max }}"{% endif %}
+                 {% if q.config.step is defined %}step="{{ q.config.step }}"{% endif %}
+                 {% endif %}
+                 {% if q.required %}required{% endif %}>
+
+          {# ── Date ── #}
+          {% elif q.question_type == 'date' %}
+          <input type="date" name="q_{{ q.id }}"
+                 class="survey-input{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                 value="{{ ans }}" {% if q.required %}required{% endif %}>
+
+          {# ── Likert (slider) ── #}
+          {% elif q.question_type == 'likert' %}
+          {% set steps = q.config.steps if q.config and q.config.steps else 5 %}
+          {% set min_lbl = q.config.likert_min_label if q.config and q.config.likert_min_label else _t('survey.likert_min_default', 'Strongly disagree') %}
+          {% set max_lbl = q.config.likert_max_label if q.config and q.config.likert_max_label else _t('survey.likert_max_default', 'Strongly agree') %}
+          {% set cur_val = ans if ans else '1' %}
+          <div class="likert-wrap">
+            <div class="likert-value-display" id="likert_disp_{{ q.id }}">{{ cur_val }}</div>
+            <input type="range" name="q_{{ q.id }}" id="likert_{{ q.id }}"
+                   class="likert-slider"
+                   min="1" max="{{ steps }}" step="1"
+                   value="{{ cur_val }}"
+                   oninput="document.getElementById('likert_disp_{{ q.id }}').textContent=this.value"
+                   {% if q.required %}required{% endif %}>
+            <div class="likert-ticks">
+              {% for i in range(1, steps + 1) %}
+              <span class="likert-tick">{{ i }}</span>
+              {% endfor %}
+            </div>
+            <div class="likert-labels">
+              <span>{{ min_lbl }}</span>
+              <span>{{ max_lbl }}</span>
+            </div>
+          </div>
+
+          {# ── Scale / Range ── #}
+          {% elif q.question_type == 'scale' %}
+          {% set max_val = q.config.max if q.config and q.config.max else 10 %}
+          {% set min_val = q.config.min if q.config and q.config.min else 0 %}
+          {% set cur = ans if ans else ((max_val + min_val) // 2) | string %}
+          <div class="likert-wrap">
+            <div class="likert-value-display" id="scale_disp_{{ q.id }}">{{ cur }}</div>
+            <input type="range" name="q_{{ q.id }}" id="scale_{{ q.id }}"
+                   class="likert-slider"
+                   min="{{ min_val }}" max="{{ max_val }}"
+                   step="{{ q.config.step if q.config and q.config.step else 1 }}"
+                   value="{{ cur }}"
+                   oninput="document.getElementById('scale_disp_{{ q.id }}').textContent=this.value">
+            <div class="likert-labels">
+              <span>{{ q.config.min_label if q.config and q.config.min_label else min_val }}</span>
+              <span>{{ q.config.max_label if q.config and q.config.max_label else max_val }}</span>
+            </div>
+          </div>
+
+          {# ── Select ── #}
+          {% elif q.question_type == 'select' %}
+          <select name="q_{{ q.id }}"
+                  class="survey-input{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
+                  {% if q.required %}required{% endif %}>
+            <option value="">{{ _t('survey.select_placeholder', '— Please select —') }}</option>
+            {% for opt in q.options %}
+            <option value="{{ opt.value }}" {% if ans == opt.value %}selected{% endif %}>
+              {{ opt.label }}
+            </option>
+            {% endfor %}
+          </select>
+
+          {# ── Radio ── #}
+          {% elif q.question_type == 'radio' %}
+          <div class="survey-radio-group">
+            {% for opt in q.options %}
+            <label class="survey-radio-item">
+              <input type="radio" name="q_{{ q.id }}" value="{{ opt.value }}"
+                     {% if ans == opt.value %}checked{% endif %}
+                     {% if q.required %}required{% endif %}>
+              <span>{{ opt.label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+
+          {# ── Checkbox (multi) ── #}
+          {% elif q.question_type == 'checkbox' %}
+          {% set ans_list = ans.split(',') if ans else [] %}
+          <div class="survey-check-group">
+            {% for opt in q.options %}
+            <label class="survey-check-item">
+              <input type="checkbox" name="q_{{ q.id }}" value="{{ opt.value }}"
+                     {% if opt.value in ans_list %}checked{% endif %}>
+              <span>{{ opt.label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+
+          {% endif %}
+          {% endif %}{# end non-info #}
+        </div>
+        {% endfor %}
+
+      </form>
+    </div>
+
+    <!-- Navigation -->
+    <div class="survey-nav">
+      <div>
+        {% if page_num > 0 %}
+        <button type="submit" form="surveyForm" name="action" value="prev" class="survey-btn secondary">
+          <i class="bi bi-arrow-left"></i> {{ _t('survey.prev_btn', 'Back') }}
+        </button>
+        {% elif survey.allow_skip %}
+        <button type="submit" form="surveyForm" name="action" value="skip" class="survey-btn skip-link">
+          {{ _t('survey.skip_btn', 'Skip') }}
+        </button>
+        {% else %}
+        <span></span>
+        {% endif %}
+      </div>
+      <div>
+        {% if not is_last %}
+        <button type="submit" form="surveyForm" name="action" value="next" class="survey-btn primary">
+          {{ _t('survey.next_btn', 'Next') }} <i class="bi bi-arrow-right"></i>
+        </button>
+        {% else %}
+        <button type="submit" form="surveyForm" name="action" value="finish" class="survey-btn success">
+          <i class="bi bi-check-lg"></i> {{ _t('survey.finish_btn', 'Submit') }}
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

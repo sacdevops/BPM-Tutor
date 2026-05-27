@@ -1,11 +1,18 @@
 {% extends "cms/base.html" %}
-{% block title %}Bewertung{% endblock %}
-{% block page_title %}Einreichung bewerten{% endblock %}
+{% block title %}{{ _t('admin.grading_detail_title', 'Grading') }}{% endblock %}
+{% block page_title %}{{ _t('admin.grading_detail_heading', 'Grade Submission') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary btn-sm">
-  <i class="bi bi-arrow-left"></i> Zurück zur Liste
+  <i class="bi bi-arrow-left"></i> {{ _t('admin.grading_back', 'Back to List') }}
 </a>
+<form method="post" action="{{ url_for('admin.submission_delete', sub_id=submission.id) }}"
+      class="d-inline ms-1" onsubmit="return confirm('{{ _t('admin.grading_delete_confirm', 'Really delete submission? This action cannot be undone.') }}')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-trash"></i> {{ _t('admin.grading_delete_btn', 'Delete Submission') }}
+  </button>
+</form>
 {% endblock %}
 
 {% block content %}
@@ -13,14 +20,14 @@
   <!-- Left: Info + Grading Form -->
   <div class="col-lg-4">
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0">Einreichungsdetails</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.grading_submission_details', 'Submission Details') }}</h6></div>
       <div class="list-group list-group-flush">
         <div class="list-group-item">
-          <span class="text-muted small">Aufgabe</span>
+          <span class="text-muted small">{{ _t('common.task', 'Task') }}</span>
           <div class="fw-semibold">{{ task.title if task else submission.task_id }}</div>
         </div>
         <div class="list-group-item">
-          <span class="text-muted small">Studierender</span>
+          <span class="text-muted small">{{ _t('admin.grading_col_student', 'Student') }}</span>
           <div>
             {% if submission.user %}
             <a href="{{ url_for('admin.user_detail', user_id=submission.user_id) }}">
@@ -28,22 +35,22 @@
             </a>
             <div class="text-muted small">{{ submission.user.email }}</div>
             {% else %}
-            <span class="text-muted">Anonym</span>
+            <span class="text-muted">{{ _t('common.anonymous', 'Anonymous') }}</span>
             {% endif %}
           </div>
         </div>
         <div class="list-group-item">
-          <span class="text-muted small">Begonnen / Abgeschlossen</span>
+          <span class="text-muted small">{{ _t('admin.grading_started_completed', 'Started / Completed') }}</span>
           <div>{{ submission.started_at.strftime('%d.%m.%Y %H:%M') }}</div>
           <div>{{ submission.completed_at.strftime('%d.%m.%Y %H:%M') if submission.completed_at else '—' }}</div>
         </div>
         <div class="list-group-item">
-          <span class="text-muted small">KI-Interaktionen / Tokens</span>
+          <span class="text-muted small">{{ _t('admin.grading_interactions_tokens', 'AI Interactions / Tokens') }}</span>
           <div>{{ submission.interactions }} / {{ submission.tokens_in + submission.tokens_out }}</div>
         </div>
         {% if submission.grader %}
         <div class="list-group-item">
-          <span class="text-muted small">Bewertet von</span>
+          <span class="text-muted small">{{ _t('admin.grading_graded_by', 'Graded by') }}</span>
           <div>{{ submission.grader.display_name }}</div>
           <div class="text-muted small">{{ submission.graded_at.strftime('%d.%m.%Y %H:%M') }}</div>
         </div>
@@ -54,40 +61,40 @@
     <!-- AI Suggestion card -->
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-robot"></i> KI-Bewertungsvorschlag</h6>
+        <h6 class="mb-0"><i class="bi bi-robot"></i> {{ _t('admin.grading_ai_suggestion', 'AI Grading Suggestion') }}</h6>
         <button class="btn btn-sm btn-outline-primary" id="aiSuggestBtn" onclick="requestAiSuggestion()">
-          Generieren
+          {{ _t('admin.grading_generate_btn', 'Generate') }}
         </button>
       </div>
       <div class="card-body" id="aiSuggestBody">
         {% if submission.ai_grade_generated_at %}
         <div class="alert alert-light border mb-2 py-2 small">
-          <strong>Generiert:</strong> {{ submission.ai_grade_generated_at.strftime('%d.%m.%Y %H:%M') }}<br>
+          <strong>{{ _t('common.generated', 'Generated') }}:</strong> {{ submission.ai_grade_generated_at.strftime('%d.%m.%Y %H:%M') }}<br>
           {% if submission.ai_grade_passed is not none %}
-            <strong>Ergebnis:</strong>
+            <strong>{{ _t('admin.grading_result_label', 'Result') }}:</strong>
             <span class="badge {% if submission.ai_grade_passed %}bg-success{% else %}bg-danger{% endif %}">
-              {% if submission.ai_grade_passed %}Bestanden{% else %}Nicht bestanden{% endif %}
+              {% if submission.ai_grade_passed %}{{ _t('grading.pass', 'Passed') }}{% else %}{{ _t('grading.fail', 'Not passed') }}{% endif %}
             </span>
           {% endif %}
           {% if submission.ai_grade_value is not none %}
-            <strong>Punkte:</strong> {{ submission.ai_grade_value }}
+            <strong>{{ _t('admin.grading_pts_label', 'Points') }}:</strong> {{ submission.ai_grade_value }}
           {% endif %}
         </div>
         {% if submission.ai_grade_comment %}
         <p class="small mb-2">{{ submission.ai_grade_comment }}</p>
         {% endif %}
         <button class="btn btn-sm btn-outline-secondary w-100" onclick="applyAiSuggestion()">
-          <i class="bi bi-arrow-down-circle me-1"></i>In Formular übernehmen
+          <i class="bi bi-arrow-down-circle me-1"></i>{{ _t('admin.grading_apply_to_form', 'Apply to form') }}
         </button>
         {% else %}
-        <p class="text-muted small mb-0">Noch kein KI-Vorschlag generiert.</p>
+        <p class="text-muted small mb-0">{{ _t('admin.grading_no_ai_suggestion', 'No AI suggestion generated yet.') }}</p>
         {% endif %}
       </div>
     </div>
 
     <!-- Grading Form -->
     <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> Bewertung</h6></div>
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> {{ _t('admin.grading_form_header', 'Grade') }}</h6></div>
       <div class="card-body">
         <form method="post" id="gradingForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -95,19 +102,19 @@
             value="{{ submission.grade_annotations or '[]' }}">
 
           <div class="mb-3">
-            <label class="form-label">Bewertungstyp</label>
-            <select name="grading_type" id="grading_type" class="form-select"
-                    onchange="toggleGradeFields()">
-              {% set cur_type = 'points' if submission.grade_value is not none else ('pass_fail' if submission.grade_passed is not none else (task.grading_type if task else 'none')) %}
-              <option value="none" {% if cur_type == 'none' %}selected{% endif %}>Keine Bewertung</option>
-              <option value="points" {% if cur_type == 'points' %}selected{% endif %}>Punkte</option>
-              <option value="pass_fail" {% if cur_type == 'pass_fail' %}selected{% endif %}>Bestanden / Nicht bestanden</option>
-            </select>
+            <label class="form-label">{{ _t('admin.grading_type_label', 'Grading Type') }}</label>
+            {% set cur_type = task.grading_type if task else 'none' %}
+            <input type="hidden" name="grading_type" id="grading_type" value="{{ cur_type }}">
+            <div class="form-control-plaintext fw-semibold">
+              {% if cur_type == 'points' %}{{ _t('admin.grading_type_points', 'Points') }}
+              {% elif cur_type == 'pass_fail' %}{{ _t('admin.grading_type_pass_fail', 'Passed / Not passed') }}
+              {% else %}{{ _t('admin.grading_type_none', 'No grading') }}{% endif %}
+            </div>
           </div>
 
           <div id="pointsRow" style="{% if cur_type != 'points' %}display:none{% endif %}" class="mb-3">
             <label class="form-label">
-              Punkte{% if task and task.max_points %} (max. {{ task.max_points }}){% endif %}
+              {{ _t('admin.grading_pts_label', 'Points') }}{% if task and task.max_points %} <span class="text-muted">(max. {{ task.max_points }})</span>{% endif %}
             </label>
             <input type="number" name="grade_value" id="gradeValueInput" class="form-control"
                    value="{{ submission.grade_value or '' }}"
@@ -116,37 +123,30 @@
           </div>
 
           <div id="passFailRow" style="{% if cur_type != 'pass_fail' %}display:none{% endif %}" class="mb-3">
-            <label class="form-label">Ergebnis</label>
-            <div class="d-flex gap-3">
-              <div class="form-check">
-                <input type="radio" name="grade_passed" id="passed_true" class="form-check-input"
-                       value="true" {% if submission.grade_passed == True %}checked{% endif %}>
-                <label class="form-check-label text-success" for="passed_true">Bestanden</label>
-              </div>
-              <div class="form-check">
-                <input type="radio" name="grade_passed" id="passed_false" class="form-check-input"
-                       value="false" {% if submission.grade_passed == False %}checked{% endif %}>
-                <label class="form-check-label text-danger" for="passed_false">Nicht bestanden</label>
-              </div>
-            </div>
+            <label class="form-label">{{ _t('admin.grading_result_label', 'Result') }}</label>
+            <select name="grade_passed" id="gradePassedSelect" class="form-select">
+              <option value="">{{ _t('survey.select_placeholder', '— Please select —') }}</option>
+              <option value="true" {% if submission.grade_passed == True %}selected{% endif %}>{{ _t('grading.pass', 'Passed') }}</option>
+              <option value="false" {% if submission.grade_passed == False %}selected{% endif %}>{{ _t('grading.fail', 'Not passed') }}</option>
+            </select>
           </div>
 
           <div class="mb-3">
-            <label class="form-label">Kommentar (sichtbar für Studierende)</label>
+            <label class="form-label">{{ _t('admin.grading_comment_label', 'Comment (visible to students)') }}</label>
             <textarea name="comment" id="gradeCommentInput" class="form-control" rows="4"
-                      placeholder="Feedback...">{{ submission.grade_comment or '' }}</textarea>
+                      placeholder="{{ _t('common.feedback', 'Feedback...') }}">{{ submission.grade_comment or '' }}</textarea>
           </div>
 
           <div class="form-check mb-3">
             <input type="checkbox" name="send_notification" id="send_notification"
                    class="form-check-input" checked>
             <label class="form-check-label" for="send_notification">
-              Benachrichtigung an Studierenden senden
+              {{ _t('admin.grading_send_notification', 'Send notification to student') }}
             </label>
           </div>
 
           <button type="submit" class="btn btn-success w-100">
-            <i class="bi bi-check-lg"></i> Bewertung speichern
+            <i class="bi bi-check-lg"></i> {{ _t('admin.grading_save_btn', 'Save Grade') }}
           </button>
         </form>
       </div>
@@ -158,10 +158,10 @@
     {% if submission.bpmn_xml %}
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-diagram-3"></i> BPMN-Diagramm mit Anmerkungen</h6>
+        <h6 class="mb-0"><i class="bi bi-diagram-3"></i> {{ _t('admin.grading_bpmn_diagram', 'BPMN Diagram with Annotations') }}</h6>
         <div class="d-flex gap-2">
           <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnotationMode()">
-            <i class="bi bi-pencil me-1"></i><span id="annotModeLabel">Anmerkung hinzufügen</span>
+            <i class="bi bi-pencil me-1"></i><span id="annotModeLabel">{{ _t('admin.grading_annot_add', 'Add annotation') }}</span>
           </button>
         </div>
       </div>
@@ -169,20 +169,20 @@
         <div id="bpmn-preview" style="height:400px; background:#f8f8f8"></div>
         <!-- Annotation overlay panel -->
         <div id="annotPanel" class="card" style="display:none; position:absolute; top:8px; right:8px; width:280px; z-index:100;">
-          <div class="card-header small fw-semibold py-2">Anmerkung</div>
+          <div class="card-header small fw-semibold py-2">{{ _t('admin.grading_annot_header', 'Annotation') }}</div>
           <div class="card-body py-2">
-            <p class="small text-muted mb-1">Element: <strong id="annotElementId">–</strong></p>
+            <p class="small text-muted mb-1">{{ _t('admin.grading_annot_element', 'Element') }}: <strong id="annotElementId">–</strong></p>
             <div class="mb-2">
               <select id="annotType" class="form-select form-select-sm">
-                <option value="error">Fehler</option>
-                <option value="warning">Hinweis</option>
-                <option value="ok">Korrekt</option>
+                <option value="error">{{ _t('admin.grading_annot_error', 'Error') }}</option>
+                <option value="warning">{{ _t('admin.grading_annot_warning', 'Warning') }}</option>
+                <option value="ok">{{ _t('admin.grading_annot_ok', 'Correct') }}</option>
               </select>
             </div>
-            <textarea id="annotComment" class="form-control form-control-sm" rows="3" placeholder="Kommentar…"></textarea>
+            <textarea id="annotComment" class="form-control form-control-sm" rows="3" placeholder="{{ _t('admin.grading_annot_comment_ph', 'Comment…') }}"></textarea>
             <div class="d-flex gap-2 mt-2">
-              <button class="btn btn-sm btn-primary" onclick="saveAnnotation()">Speichern</button>
-              <button class="btn btn-sm btn-outline-secondary" onclick="closeAnnotPanel()">Abbrechen</button>
+              <button class="btn btn-sm btn-primary" onclick="saveAnnotation()">{{ _t('common.save', 'Save') }}</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="closeAnnotPanel()">{{ _t('common.cancel', 'Cancel') }}</button>
             </div>
           </div>
         </div>
@@ -194,7 +194,7 @@
 
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between">
-        <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Chat-Verlauf</h6>
+        <h6 class="mb-0"><i class="bi bi-chat-dots"></i> {{ _t('admin.grading_chat_history', 'Chat History') }}</h6>
         <span class="badge bg-secondary">{{ submission.chat_history|length }} Nachrichten</span>
       </div>
       <div class="card-body p-0">
@@ -205,13 +205,40 @@
             <div class="chat-text">{{ msg.content }}</div>
           </div>
           {% else %}
-          <p class="text-muted">Kein Chat-Verlauf vorhanden.</p>
+          <p class="text-muted">{{ _t('admin.grading_no_chat', 'No chat history available.') }}</p>
           {% endfor %}
         </div>
       </div>
     </div>
   </div>
 </div>
+
+{% if snapshots %}
+<div class="card shadow-sm mt-4">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-clock-history"></i> {{ _t('admin.grading_version_history', 'Version History') }} ({{ snapshots|length }} {{ _t('admin.grading_entries', 'entries') }})</h6></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr><th>#</th><th>{{ _t('admin.col_time', 'Time') }}</th><th>{{ _t('admin.col_source', 'Source') }}</th><th></th></tr></thead>
+      <tbody>
+        {% for snap in snapshots %}
+        <tr>
+          <td class="small">{{ loop.index }}</td>
+          <td class="small text-nowrap">{{ snap.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+          <td><span class="badge bg-secondary">{{ snap.source }}</span></td>
+          <td>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+                    onclick="showSnapshot(this)"
+                    data-bpmn="{{ snap.bpmn_xml | e }}">
+              <i class="bi bi-eye"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -253,23 +280,23 @@ async function requestAiSuggestion() {
       const r = data.result;
       let html = `<div class="alert alert-light border mb-2 py-2 small">`;
       if (r.grade_passed !== null && r.grade_passed !== undefined) {
-        html += `<strong>Ergebnis:</strong> <span class="badge ${r.grade_passed ? 'bg-success' : 'bg-danger'}">${r.grade_passed ? 'Bestanden' : 'Nicht bestanden'}</span> `;
+        html += `<strong>{{ _t('admin.grading_result_label', 'Result') }}:</strong> <span class="badge ${r.grade_passed ? 'bg-success' : 'bg-danger'}">${r.grade_passed ? '{{ _t('grading.pass', 'Passed') }}' : '{{ _t('grading.fail', 'Not passed') }}'}</span> `;
       }
       if (r.grade_value !== null && r.grade_value !== undefined) {
-        html += `<strong>Punkte:</strong> ${r.grade_value}`;
+        html += `<strong>{{ _t('admin.grading_pts_label', 'Points') }}:</strong> ${r.grade_value}`;
       }
       html += '</div>';
       if (r.comment) html += `<p class="small mb-2">${r.comment.replace(/</g,'&lt;')}</p>`;
-      html += `<button class="btn btn-sm btn-outline-secondary w-100" onclick="applyAiSuggestion()"><i class="bi bi-arrow-down-circle me-1"></i>In Formular übernehmen</button>`;
+      html += `<button class="btn btn-sm btn-outline-secondary w-100" onclick="applyAiSuggestion()"><i class="bi bi-arrow-down-circle me-1"></i>{{ _t('admin.grading_apply_to_form', 'Apply to form') }}</button>`;
       body.innerHTML = html;
     } else {
-      alert('KI-Fehler: ' + (data.error || 'Unbekannt'));
+      alert('{{ _t('admin.grading_ai_error', 'AI error') }}: ' + (data.error || '{{ _t('common.unknown_error', 'Unknown error') }}'));
     }
   } catch(e) {
-    alert('Netzwerkfehler: ' + e);
+    alert('{{ _t('common.network_error', 'Network error') }}: ' + e);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = 'Generieren';
+    btn.innerHTML = '{{ _t('admin.grading_generate_btn', 'Generate') }}';
   }
 }
 
@@ -277,16 +304,10 @@ function applyAiSuggestion() {
   if (!lastAiResult) return;
   if (lastAiResult.grade_value !== null && lastAiResult.grade_value !== undefined) {
     document.getElementById('gradeValueInput').value = lastAiResult.grade_value;
-    document.getElementById('grading_type').value = 'points';
-    toggleGradeFields();
   }
   if (lastAiResult.grade_passed !== null && lastAiResult.grade_passed !== undefined) {
-    const radio = document.getElementById(lastAiResult.grade_passed ? 'passed_true' : 'passed_false');
-    if (radio) radio.checked = true;
-    if (!document.getElementById('gradeValueInput').value) {
-      document.getElementById('grading_type').value = 'pass_fail';
-      toggleGradeFields();
-    }
+    const sel = document.getElementById('gradePassedSelect');
+    if (sel) sel.value = lastAiResult.grade_passed ? 'true' : 'false';
   }
   if (lastAiResult.comment) {
     document.getElementById('gradeCommentInput').value = lastAiResult.comment;
@@ -324,7 +345,7 @@ function initBpmnViewer() {
 function toggleAnnotationMode() {
   annotMode = !annotMode;
   document.getElementById('annotModeLabel').textContent =
-    annotMode ? 'Modus beenden' : 'Anmerkung hinzufügen';
+    annotMode ? '{{ _t('admin.grading_annot_end_mode', 'End mode') }}' : '{{ _t('admin.grading_annot_add', 'Add annotation') }}';
   document.getElementById('bpmn-preview').style.cursor = annotMode ? 'crosshair' : '';
 }
 
@@ -394,5 +415,43 @@ function removeAnnotation(elementId) {
 
 renderAnnotationList();
 {% endif %}
+
+// ── Snapshot viewer ──────────────────────────────────────────────────────────
+function showSnapshot(btn) {
+  var bpmn = btn.getAttribute('data-bpmn');
+  var modal = document.getElementById('snapshotModal');
+  if (!modal) return;
+  var viewer = window._snapshotViewer;
+  if (!viewer) return;
+  viewer.importXML(bpmn).then(function() {
+    viewer.get('canvas').zoom('fit-viewport');
+    new bootstrap.Modal(modal).show();
+  }).catch(console.error);
+}
+</script>
+
+<!-- Snapshot Modal -->
+<div class="modal fade" id="snapshotModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">BPMN-Snapshot</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="snapshotCanvas" style="height:500px;width:100%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function() {
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-viewer.production.min.js';
+  s.onload = function() {
+    window._snapshotViewer = new BpmnJS({ container: '#snapshotCanvas' });
+  };
+  document.head.appendChild(s);
+})();
 </script>
 {% endblock %}

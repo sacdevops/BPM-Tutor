@@ -1,0 +1,246 @@
+{% extends "cms/base.html" %}
+{% block title %}Analytics: {{ study.title }}{% endblock %}
+{% block page_title %}Analytics: {{ study.title }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.study_edit', study_id=study.id) }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> {{ _t('admin.study_analytics_back', 'To Study') }}
+</a>
+<a href="{{ url_for('admin.study_participants', study_id=study.id) }}" class="btn btn-outline-primary btn-sm">
+  <i class="bi bi-people"></i> {{ _t('admin.participants_title', 'Participants') }}
+</a>
+<a href="{{ url_for('admin.study_export', study_id=study.id) }}" class="btn btn-outline-success btn-sm">
+  <i class="bi bi-download"></i> CSV Export
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ total }}</div>
+        <div class="small text-muted">{{ _t('admin.analytics_enrolled', 'Enrolled') }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-success">{{ completed }}</div>
+        <div class="small text-muted">{{ _t('admin.analytics_completed', 'Completed') }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-info">{{ active }}</div>
+        <div class="small text-muted">{{ _t('admin.analytics_active', 'Active (in progress)') }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card shadow-sm text-center">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-warning">{{ dropped }}</div>
+        <div class="small text-muted">{{ _t('admin.analytics_dropped', 'Dropped out') }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if study.require_consent %}
+<div class="alert alert-info small">
+  <i class="bi bi-shield-check me-1"></i>
+  {{ _t('admin.analytics_consents', 'Consents received') }}: <strong>{{ consent_given }}</strong> {{ _t('admin.analytics_of', 'of') }} {{ total }}
+</div>
+{% endif %}
+
+<!-- Completion funnel -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-funnel me-1"></i>{{ _t('admin.analytics_funnel', 'Completion Funnel per Step') }}</h6></div>
+  <div class="card-body">
+    {% if not step_stats %}
+    <p class="text-muted">{{ _t('admin.analytics_no_steps', 'No steps defined.') }}</p>
+    {% else %}
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>{{ _t('admin.col_step', 'Step') }}</th>
+            <th>{{ _t('common.type', 'Type') }}</th>
+            <th>{{ _t('admin.analytics_started', 'Started') }}</th>
+            <th>{{ _t('admin.analytics_completed', 'Completed') }}</th>
+            <th>{{ _t('admin.analytics_completion_rate', 'Completion rate') }}</th>
+            <th>{{ _t('admin.analytics_avg_time', 'Avg. time') }}</th>
+            <th>{{ _t('admin.analytics_late', 'Late') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in step_stats %}
+          <tr>
+            <td class="text-muted small">{{ loop.index }}</td>
+            <td><strong>{{ s.step.display_label }}</strong>
+              {% if s.step.wave_number %}<span class="badge bg-light text-dark ms-1">Wave {{ s.step.wave_number }}</span>{% endif %}
+            </td>
+            <td>
+              {% if s.step.step_type == 'survey' %}
+              <span class="badge bg-primary">{{ _t('admin.study_step_survey', 'Survey') }}</span>
+              {% else %}
+              <span class="badge bg-success">{{ _t('admin.study_step_task', 'Task') }}</span>
+              {% endif %}
+            </td>
+            <td>{{ s.started }}</td>
+            <td>{{ s.completed }}</td>
+            <td style="min-width:160px">
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:8px">
+                  <div class="progress-bar {% if s.pct >= 80 %}bg-success{% elif s.pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                       style="width:{{ s.pct }}%"></div>
+                </div>
+                <span class="small fw-semibold">{{ s.pct }}%</span>
+              </div>
+            </td>
+            <td class="small">
+              {% if s.avg_seconds %}
+              {% set mins = (s.avg_seconds // 60) %}
+              {% set secs = (s.avg_seconds % 60) %}
+              {{ '%d:%02d'|format(mins, secs) }} min
+              {% else %}&mdash;{% endif %}
+            </td>
+            <td class="small {% if s.late > 0 %}text-warning{% else %}text-muted{% endif %}">
+              {{ s.late }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Between-subjects breakdown -->
+{% if study.study_design == 'between' and condition_stats %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-1"></i>{{ _t('admin.analytics_conditions', 'Conditions (Between-Subjects)') }}</h6></div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for cs in condition_stats %}
+      <div class="col-sm-6 col-md-4">
+        <div class="border rounded p-3">
+          <div class="fw-semibold mb-1">{{ cs.condition.name }}</div>
+          {% if cs.condition.description %}<div class="small text-muted mb-2">{{ cs.condition.description }}</div>{% endif %}
+          <div class="d-flex justify-content-between small">
+            <span>{{ _t('admin.participants_title', 'Participants') }}: <strong>{{ cs.count }}</strong></span>
+            <span>{{ _t('admin.analytics_completed', 'Completed') }}: <strong>{{ cs.completed }}</strong></span>
+          </div>
+          {% if cs.condition.target_size %}
+          <div class="progress mt-2" style="height:5px">
+            <div class="progress-bar" style="width:{{ [100, (cs.count * 100 // cs.condition.target_size)]|min }}%"></div>
+          </div>
+          <div class="small text-muted">{{ _t('admin.cond_target_size', 'Target') }}: {{ cs.condition.target_size }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- B2: Learning Curves -->
+{% if curve_data %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0"><i class="bi bi-graph-up me-1"></i>{{ _t('admin.analytics_learning_curves', 'Learning Curves (Task Grades)') }}</h6>
+    <div class="d-flex gap-2 align-items-center">
+      <label class="form-label small mb-0 me-1">{{ _t('admin.participants_title', 'Participant') }}:</label>
+      <select id="curveParticipantSelect" class="form-select form-select-sm" style="width:auto;">
+        <option value="">— Alle (Ø) —</option>
+      </select>
+    </div>
+  </div>
+  <div class="card-body">
+    <canvas id="learningCurveChart" height="80"></canvas>
+    <p class="text-muted small mt-2 mb-0">{{ _t('admin.analytics_curve_hint', 'X-axis: task steps in order. Y-axis: grade (points or 0/1 for pass/fail).') }}</p>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  const raw = {{ curve_data | safe }};
+  const labels = raw.labels;
+  const participants = raw.participants;
+  const groupAvg = raw.group_avg;
+
+  // Populate dropdown
+  const sel = document.getElementById('curveParticipantSelect');
+  Object.keys(participants).forEach(function(ident){
+    const opt = document.createElement('option');
+    opt.value = ident;
+    opt.textContent = ident;
+    sel.appendChild(opt);
+  });
+
+  const PALETTE = [
+    '#4C9BE8','#E84C4C','#4CE874','#E8B44C','#9B4CE8',
+    '#4CE8D8','#E84CB4','#B4E84C','#E8684C','#4C4CE8',
+  ];
+
+  function buildDatasets(selectedIdent) {
+    const ds = [];
+    if (!selectedIdent) {
+      // Group average
+      ds.push({
+        label: '{{ _t('admin.analytics_group_avg', 'Group avg.') }}',
+        data: groupAvg,
+        borderColor: '#4C9BE8',
+        backgroundColor: 'rgba(76,155,232,0.15)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        borderWidth: 2,
+        spanGaps: true,
+      });
+    } else {
+      ds.push({
+        label: selectedIdent,
+        data: participants[selectedIdent] || [],
+        borderColor: PALETTE[0],
+        backgroundColor: 'rgba(76,155,232,0.15)',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 5,
+        borderWidth: 2,
+        spanGaps: true,
+      });
+    }
+    return ds;
+  }
+
+  const ctx = document.getElementById('learningCurveChart').getContext('2d');
+  let chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: buildDatasets('') },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: '{{ _t('admin.analytics_grade_axis', 'Grade') }}' } },
+        x: { title: { display: true, text: '{{ _t('admin.analytics_task_step_axis', 'Task Step') }}' } }
+      }
+    }
+  });
+
+  sel.addEventListener('change', function(){
+    chart.data.datasets = buildDatasets(this.value);
+    chart.update();
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

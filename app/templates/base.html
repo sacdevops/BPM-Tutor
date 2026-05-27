@@ -28,25 +28,27 @@
     <header class="site-header">
       <div class="site-header-inner">
         <div class="header-brand">
-          <a href="{{ brand_logo_link | default('/') }}" class="header-logo-link" aria-label="Startseite">
-            {% if brand_logo_src %}
-              <img src="{{ brand_logo_src }}" class="header-logo-img" alt="Logo">
-            {% endif %}
+          {% if brand_logo_src and brand_logo_src | trim %}
+          <a href="{{ brand_logo_link | default('/') }}" class="header-logo-link" aria-label="{{ _t('nav.home', 'Home') }}">
+            <img src="{{ brand_logo_src }}" class="header-logo-img" alt=""
+                 onerror="this.style.display='none'">
           </a>
+          {% endif %}
           <a href="/" class="header-site-name">{{ site_name | default('BPM-Tutor') }}</a>
         </div>
 
         <nav class="header-nav" aria-label="Hauptnavigation">
           {% if current_user is defined and current_user.is_authenticated %}
-            {% if current_user.has_role('admin') or current_user.has_role('instructor') %}
-            <a href="{{ url_for('admin.dashboard') }}" class="header-nav-link header-nav-admin">
+            {% if current_user.has_role('admin') or current_user.has_role('tutor') %}
+            <a href="{{ url_for('admin.dashboard') }}" class="header-nav-link header-nav-admin" data-i18n="nav.admin">
               &#9881; Admin
             </a>
             {% endif %}
-            <a href="{{ url_for('user_bp.my_stats') }}" class="header-nav-link">Statistik</a>
+            <a href="{{ url_for('user_bp.my_stats') }}" class="header-nav-link" data-i18n="nav.stats">Statistics</a>
+            <a href="{{ url_for('study.available_studies') }}" class="header-nav-link" data-i18n="nav.studies">Studies</a>
 
             <!-- Notification bell -->
-            <a href="{{ url_for('user_bp.notifications') }}" class="header-nav-link header-nav-notif" title="Benachrichtigungen">
+            <a href="{{ url_for('user_bp.notifications') }}" class="header-nav-link header-nav-notif" data-i18n-title="nav.notifications_title" title="Notifications">
               {% set unread_count = current_user.notifications | selectattr('is_read', 'equalto', False) | list | length %}
               &#128276;
               {% if unread_count > 0 %}
@@ -60,16 +62,15 @@
               <button class="header-lang-btn" onclick="toggleHeaderLang(this)">
                 <span class="header-lang-current">
                   {% set cur_code = request.cookies.get('bpmtutor_lang', current_user.language or 'en') %}
-                  {% set cur_lang = cms_active_languages | selectattr('code', 'eq', cur_code) | first %}
-                  {% if cur_lang and cur_lang.flag %}{{ cur_lang.flag }}{% elif cur_lang %}{{ flag_for_lang(cur_lang.code) or cur_code | upper }}{% else %}{{ cur_code | upper }}{% endif %}
+                  {{ flag_img_for_lang(cur_code) }} {{ cur_code | upper }}
                 </span>
                 &#9662;
               </button>
               <div class="header-lang-menu">
                 {% for lang in cms_active_languages %}
-                <button class="header-lang-option" onclick="setLanguage('{{ lang.code }}')">
-                  {% if lang.flag %}{{ lang.flag }}{% else %}{{ flag_for_lang(lang.code) }}{% endif %} {{ lang.name }}
-                </button>
+                <a class="header-lang-option" href="{{ url_for('user_bp.set_language', code=lang.code) }}">
+                  {{ flag_img_for_lang(lang.code) }} {{ lang.name }}
+                </a>
                 {% endfor %}
               </div>
             </div>
@@ -78,7 +79,7 @@
             <a href="{{ url_for('user_bp.profile') }}" class="header-nav-link header-nav-user">
               {{ current_user.display_name }}
             </a>
-            <a href="{{ url_for('auth.logout') }}" class="header-nav-link header-nav-logout">Abmelden</a>
+            <a href="{{ url_for('auth.logout') }}" class="header-nav-link header-nav-logout" data-i18n="nav.logout">Logout</a>
           {% else %}
             <!-- Language switcher for guests -->
             {% if cms_active_languages and cms_active_languages | length > 1 %}
@@ -86,24 +87,23 @@
               <button class="header-lang-btn" onclick="toggleHeaderLang(this)">
                 <span class="header-lang-current">
                   {% set guest_lang = request.cookies.get('bpmtutor_lang', 'en') %}
-                  {% set gl = cms_active_languages | selectattr('code', 'eq', guest_lang) | first %}
-                  {% if gl and gl.flag %}{{ gl.flag }}{% else %}{{ flag_for_lang(guest_lang) or guest_lang | upper }}{% endif %}
+                  {{ flag_img_for_lang(guest_lang) }} {{ guest_lang | upper }}
                 </span>
                 &#9662;
               </button>
               <div class="header-lang-menu">
                 {% for lang in cms_active_languages %}
-                <button class="header-lang-option" onclick="setLanguage('{{ lang.code }}')">
-                  {% if lang.flag %}{{ lang.flag }}{% else %}{{ flag_for_lang(lang.code) }}{% endif %} {{ lang.name }}
-                </button>
+                <a class="header-lang-option" href="{{ url_for('user_bp.set_language', code=lang.code) }}">
+                  {{ flag_img_for_lang(lang.code) }} {{ lang.name }}
+                </a>
                 {% endfor %}
               </div>
             </div>
             {% endif %}
 
-            <a href="{{ url_for('auth.login') }}" class="header-nav-link">Anmelden</a>
+            <a href="{{ url_for('auth.login') }}" class="header-nav-link" data-i18n="nav.login">Login</a>
             {% if allow_registration is not defined or allow_registration %}
-            <a href="{{ url_for('auth.register') }}" class="header-nav-link header-nav-cta">Registrieren</a>
+            <a href="{{ url_for('auth.register') }}" class="header-nav-link header-nav-cta" data-i18n="nav.register">Register</a>
             {% endif %}
           {% endif %}
         </nav>
@@ -117,5 +117,25 @@
 
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     {% block extra_js %}{% endblock %}
+    {% if current_user is defined and current_user.is_authenticated %}
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+    (function() {
+      var _notifSocket = io({ transports: ['websocket'], reconnection: true });
+      _notifSocket.on('notification', function(data) {
+        var a = document.createElement('div');
+        a.className = 'alert alert-info alert-dismissible position-fixed top-0 end-0 m-3 shadow';
+        a.style.zIndex = '9999';
+        a.style.maxWidth = '340px';
+        var link = data.link ? '<a href="' + data.link + '" class="alert-link">' + (data.title || 'Benachrichtigung') + '</a>' : (data.title || 'Benachrichtigung');
+        a.innerHTML = '<i class="bi bi-bell-fill me-1"></i><strong>' + link + '</strong>'
+          + (data.message ? '<br><small>' + data.message + '</small>' : '')
+          + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+        document.body.appendChild(a);
+        setTimeout(function() { if (a.parentNode) a.remove(); }, 8000);
+      });
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

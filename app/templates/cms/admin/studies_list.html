@@ -1,0 +1,120 @@
+{% extends "cms/base.html" %}
+{% block title %}Research Studies{% endblock %}
+{% block page_title %}Research Studies{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('admin.study_create') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg"></i> {{ _t('admin.study_new_btn', 'New Study') }}
+</a>
+{% if show_archived %}
+<a href="{{ url_for('admin.studies_list') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-eye-slash"></i> {{ _t('admin.study_hide_archived', 'Hide archived') }}
+</a>
+{% else %}
+<a href="{{ url_for('admin.studies_list', show_archived=1) }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-archive"></i> {{ _t('admin.study_show_archived', 'Show archived') }}
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-journals me-2"></i>Research Studies</span>
+    <span class="text-muted small">{{ studies | length }} Studie(n)</span>
+  </div>
+  {% if not studies %}
+  <div class="card-body text-center text-muted py-5">
+    <i class="bi bi-journals" style="font-size:2rem"></i>
+    <p class="mt-2">{{ _t('admin.study_empty', 'No research studies created yet.') }}</p>
+    <a href="{{ url_for('admin.study_create') }}" class="btn btn-primary btn-sm">{{ _t('admin.study_create_first', 'Create first study') }}</a>
+  </div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _t('common.title', 'Title') }}</th>
+          <th>{{ _t('admin.study_col_steps', 'Steps') }}</th>
+          <th>{{ _t('common.participants', 'Participants') }}</th>
+          <th>{{ _t('admin.study_col_enrollment', 'Enrollment') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for study in studies %}
+        <tr>
+          <td>
+            <strong>{{ study.title }}</strong>
+            {% if study.description %}
+            <div class="text-muted small">{{ study.description | truncate(80) }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge bg-secondary">{{ study.steps | length }} {{ _t('admin.study_steps_suffix', 'step(s)') }}</span>
+          </td>
+          <td>
+            <a href="{{ url_for('admin.study_participants', study_id=study.id) }}" class="text-decoration-none">
+              {{ study.participants.count() }} {{ _t('common.participants', 'Participants') }}
+            </a>
+          </td>
+          <td>
+            {% if study.allow_self_enrollment %}
+            <span class="badge bg-success">{{ _t('admin.study_enrollment_open', 'Open') }}</span>
+            {% if study.enrollment_start or study.enrollment_end %}
+            <div class="text-muted small">
+              {% if study.enrollment_start %}{{ _t('admin.study_enrollment_from', 'from') }} {{ study.enrollment_start.strftime('%d.%m.%Y') }}{% endif %}
+              {% if study.enrollment_end %}{{ _t('admin.study_enrollment_until', 'until') }} {{ study.enrollment_end.strftime('%d.%m.%Y') }}{% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <span class="badge bg-secondary">{{ _t('admin.study_admin_only', 'Admin only') }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if study.is_archived %}
+            <span class="badge bg-secondary"><i class="bi bi-archive me-1"></i>{{ _t('admin.study_archived', 'Archived') }}</span>
+            {% elif study.is_active %}
+            <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
+            {% else %}
+            <span class="badge bg-danger">{{ _t('common.inactive', 'Inactive') }}</span>
+            {% endif %}
+            {% if study.is_template %}<span class="badge bg-info ms-1">{{ _t('common.template', 'Template') }}</span>{% endif %}
+            {% if study.study_design == 'between' %}<span class="badge bg-warning text-dark ms-1">Between-Subjects</span>{% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('admin.study_edit', study_id=study.id) }}" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{{ url_for('admin.study_participants', study_id=study.id) }}" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-people"></i>
+            </a>
+            <a href="{{ url_for('admin.study_analytics', study_id=study.id) }}" class="btn btn-sm btn-outline-info">
+              <i class="bi bi-bar-chart"></i>
+            </a>
+            <form method="post" action="{{ url_for('admin.study_clone', study_id=study.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-secondary" title="{{ _t('common.clone', 'Clone') }}"><i class="bi bi-copy"></i></button>
+            </form>
+            {% if study.is_archived %}
+            <form method="post" action="{{ url_for('admin.study_unarchive', study_id=study.id) }}" class="d-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-success" title="{{ _t('common.reactivate', 'Reactivate') }}"><i class="bi bi-archive"></i></button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('admin.study_archive', study_id=study.id) }}" class="d-inline"
+                  onsubmit="return confirm('{{ _t('admin.study_freeze_confirm', 'Really freeze study?') }}')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-warning" title="{{ _t('common.freeze', 'Freeze') }}"><i class="bi bi-archive"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

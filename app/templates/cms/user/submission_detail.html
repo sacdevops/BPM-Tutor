@@ -1,0 +1,260 @@
+{% extends "cms/base.html" %}
+{% block title %}Bewertungsdetails{% endblock %}
+{% block page_title %}Bewertungsdetails{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('user_bp.my_submissions') }}" class="btn btn-sm btn-outline-secondary">
+  <i class="bi bi-arrow-left me-1"></i>Zurück zu meinen Einreichungen
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Left column: Info + Grade result -->
+  <div class="col-lg-4">
+
+    <!-- Submission info -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-journal-text me-1"></i>Einreichung</h6></div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item">
+          <span class="text-muted small">Aufgabe</span>
+          <div class="fw-semibold">{{ task.title if task else submission.task_id }}</div>
+        </div>
+        <div class="list-group-item">
+          <span class="text-muted small">Begonnen</span>
+          <div>{{ submission.started_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+        <div class="list-group-item">
+          <span class="text-muted small">Abgeschlossen</span>
+          <div>{{ submission.completed_at.strftime('%d.%m.%Y %H:%M') if submission.completed_at else '—' }}</div>
+        </div>
+        {% if submission.duration_seconds %}
+        <div class="list-group-item">
+          <span class="text-muted small">Bearbeitungsdauer</span>
+          {% set m = (submission.duration_seconds // 60)|int %}
+          <div>{{ '%d:%02d'|format(m, (submission.duration_seconds % 60)|int) }} min</div>
+        </div>
+        {% endif %}
+        <div class="list-group-item">
+          <span class="text-muted small">KI-Interaktionen / Tokens</span>
+          <div>{{ submission.interactions }} / {{ submission.tokens_in + submission.tokens_out }}</div>
+        </div>
+        {% if submission.grader %}
+        <div class="list-group-item">
+          <span class="text-muted small">Bewertet von</span>
+          <div>{{ submission.grader.display_name }}</div>
+          <div class="text-muted small">{{ submission.graded_at.strftime('%d.%m.%Y %H:%M') if submission.graded_at }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Grade result -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-star-fill me-1 text-warning"></i>Bewertungsergebnis</h6></div>
+      <div class="card-body">
+        {% if submission.grade_value is not none %}
+          <div class="text-center mb-2">
+            <span class="display-5 fw-bold text-success">{{ submission.grade_value }}</span>
+            {% if task and task.max_points %}
+            <span class="text-muted fs-5"> / {{ task.max_points }} Punkte</span>
+            {% else %}
+            <span class="text-muted fs-5"> Punkte</span>
+            {% endif %}
+          </div>
+          {% if task and task.max_points and task.max_points > 0 %}
+          {% set pct = ((submission.grade_value / task.max_points) * 100)|round(1) %}
+          <div class="progress mb-3" style="height:12px">
+            <div class="progress-bar bg-success" style="width:{{ [pct,100]|min }}%">{{ pct }}%</div>
+          </div>
+          {% endif %}
+        {% elif submission.grade_passed is not none %}
+          <div class="text-center mb-2">
+            {% if submission.grade_passed %}
+            <span class="badge bg-success fs-5 px-4 py-2"><i class="bi bi-check-circle me-1"></i>Bestanden</span>
+            {% else %}
+            <span class="badge bg-danger fs-5 px-4 py-2"><i class="bi bi-x-circle me-1"></i>Nicht bestanden</span>
+            {% endif %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0 text-center"><i class="bi bi-hourglass-split me-1"></i>Noch nicht bewertet</p>
+        {% endif %}
+
+        {% if submission.grade_comment %}
+        <hr>
+        <h6 class="text-muted small mb-1"><i class="bi bi-chat-quote me-1"></i>Kommentar des Bewerters</h6>
+        <div class="p-2 bg-light rounded" style="white-space:pre-wrap;font-size:0.8rem">{{ submission.grade_comment }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Annotations list (if any) -->
+    {% set annots = submission.grade_annotations_list %}
+    {% if annots %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-pin-angle me-1"></i>Anmerkungen zum Modell</h6></div>
+      <div class="list-group list-group-flush">
+        {% for a in annots %}
+        <div class="list-group-item py-2">
+          <div class="d-flex align-items-start gap-2">
+            {% if a.type == 'error' %}
+            <span class="badge bg-danger mt-1 flex-shrink-0">Fehler</span>
+            {% elif a.type == 'warning' %}
+            <span class="badge bg-warning text-dark mt-1 flex-shrink-0">Hinweis</span>
+            {% else %}
+            <span class="badge bg-success mt-1 flex-shrink-0">Korrekt</span>
+            {% endif %}
+            <div>
+              <code class="small">{{ a.element_id }}</code>
+              <div class="small mt-1">{{ a.comment }}</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right column: BPMN diagram + Chat history -->
+  <div class="col-lg-8">
+
+    {% if submission.bpmn_xml %}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-1"></i>Dein eingereichtes BPMN-Modell</h6></div>
+      <div class="card-body p-0">
+        <div id="bpmn-preview" style="height:420px; background:#f8f8f8;"></div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Chat history -->
+    {% if submission.chat_history %}
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-chat-dots me-1"></i>Chat-Verlauf mit dem KI-Mentor</h6>
+        <span class="badge bg-secondary">{{ submission.chat_history|length }} Nachrichten</span>
+      </div>
+      <div class="card-body p-0">
+        <div style="max-height:450px;overflow-y:auto;padding:1rem">
+          {% for msg in submission.chat_history %}
+          {% set role = msg.role if msg.role is defined else msg.sender %}
+          <div class="mb-3 d-flex {% if role == 'user' %}justify-content-end{% endif %}">
+            <div style="max-width:80%">
+              {% if role != 'user' %}
+              <div class="small text-muted mb-1"><i class="bi bi-robot me-1"></i>KI-Mentor</div>
+              {% else %}
+              <div class="small text-muted mb-1 text-end"><i class="bi bi-person me-1"></i>Du</div>
+              {% endif %}
+              <div class="p-2 rounded
+                {% if role == 'user' %}bg-primary text-white{% else %}bg-light border{% endif %}"
+                   style="white-space:pre-wrap;font-size:0.88rem">
+                {{ msg.content if msg.content is defined else msg.message }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if submission.bpmn_xml %}
+<script>
+(function () {
+  const BPMN_XML = {{ submission.bpmn_xml | tojson }};
+  const ANNOTATIONS = {{ (submission.grade_annotations or '[]') | tojson }};
+
+  const TYPE_COLORS = { error: '#dc3545', warning: '#fd7e14', ok: '#198754' };
+  const TYPE_LABELS = { error: 'Fehler', warning: 'Hinweis', ok: 'Korrekt' };
+
+  // Annotation popup
+  const popup = document.createElement('div');
+  popup.id = 'annotPopup';
+  popup.style.cssText = 'display:none;position:fixed;z-index:9999;background:#fff;' +
+    'border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:14px 18px;' +
+    'max-width:300px;min-width:200px;font-size:13px;line-height:1.5';
+  popup.innerHTML = '<div id="annotPopupHeader" style="font-weight:700;margin-bottom:6px"></div>' +
+    '<div id="annotPopupBody" style="color:#444"></div>' +
+    '<button onclick="document.getElementById(\'annotPopup\').style.display=\'none\'" ' +
+    'style="margin-top:10px;background:none;border:1px solid #ccc;border-radius:4px;padding:2px 10px;' +
+    'cursor:pointer;font-size:12px">Schließen</button>';
+  document.body.appendChild(popup);
+
+  document.addEventListener('click', function(e) {
+    if (!popup.contains(e.target) && !e.target.closest('.bpmn-annot-badge')) {
+      popup.style.display = 'none';
+    }
+  });
+
+  function showAnnotPopup(a, x, y) {
+    const color = TYPE_COLORS[a.type] || '#666';
+    const label = TYPE_LABELS[a.type] || a.type;
+    document.getElementById('annotPopupHeader').innerHTML =
+      '<span style="background:' + color + ';color:#fff;padding:1px 8px;border-radius:3px;margin-right:6px">' +
+      label + '</span>' + (a.element_id || '');
+    document.getElementById('annotPopupBody').textContent = a.comment || '';
+    popup.style.display = 'block';
+    // Position near click but keep in viewport
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let px = x + 12, py = y + 8;
+    if (px + 320 > vw) px = x - 320;
+    if (py + 150 > vh) py = y - 150;
+    popup.style.left = Math.max(8, px) + 'px';
+    popup.style.top = Math.max(8, py) + 'px';
+  }
+
+  function loadViewer() {
+    if (typeof BpmnJS === 'undefined') return;
+    const viewer = new BpmnJS({ container: '#bpmn-preview' });
+    viewer.importXML(BPMN_XML).then(() => {
+      viewer.get('canvas').zoom('fit-viewport');
+      let annots = [];
+      try { annots = JSON.parse(ANNOTATIONS) || []; } catch (e) {}
+      if (!annots.length) return;
+      const overlays = viewer.get('overlays');
+      annots.forEach(a => {
+        const label = TYPE_LABELS[a.type] || a.type;
+        const color = TYPE_COLORS[a.type] || '#666';
+        try {
+          overlays.add(a.element_id, {
+            position: { top: -22, right: 0 },
+            html: `<div class="bpmn-annot-badge" data-element="${a.element_id || ''}"
+              title="${(a.comment||'').replace(/"/g,'&quot;')}"
+              style="background:${color};color:#fff;
+                     padding:2px 8px;border-radius:3px;font-size:10px;
+                     white-space:nowrap;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)"
+              >${label}</div>`,
+          });
+        } catch (e) {}
+      });
+
+      // Attach click handlers to annotation badges after a short delay
+      setTimeout(() => {
+        document.querySelectorAll('.bpmn-annot-badge').forEach(el => {
+          el.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const elemId = this.dataset.element;
+            const a = annots.find(x => x.element_id === elemId);
+            if (a) showAnnotPopup(a, e.clientX, e.clientY);
+          });
+        });
+      }, 500);
+    }).catch(err => console.warn('BPMN viewer error:', err));
+  }
+
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-viewer.production.min.js';
+  s.onload = loadViewer;
+  document.head.appendChild(s);
+})();
+</script>
+{% endif %}
+{% endblock %}

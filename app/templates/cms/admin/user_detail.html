@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
 {% block title %}{{ target_user.display_name }}{% endblock %}
-{% block page_title %}Benutzerprofil{% endblock %}
+{% block page_title %}{{ _t('admin.user_profile_title', 'User Profile') }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.users_list') }}" class="btn btn-outline-secondary btn-sm">
-  <i class="bi bi-arrow-left"></i> Zurück
+  <i class="bi bi-arrow-left"></i> {{ _t('common.back', 'Back') }}
 </a>
 {% endblock %}
 
@@ -23,28 +23,28 @@
 
         <div class="mt-3 d-flex flex-column gap-2">
           {% if target_user.is_locked %}
-          <span class="badge bg-danger fs-6">Gesperrt</span>
+          <span class="badge bg-danger fs-6">{{ _t('admin.user_status_locked', 'Locked') }}</span>
           {% elif not target_user.is_active %}
-          <span class="badge bg-secondary fs-6">Deaktiviert</span>
+          <span class="badge bg-secondary fs-6">{{ _t('admin.user_status_deactivated', 'Deactivated') }}</span>
           {% elif not target_user.is_verified %}
-          <span class="badge bg-warning text-dark fs-6">Nicht verifiziert</span>
+          <span class="badge bg-warning text-dark fs-6">{{ _t('admin.user_status_unverified', 'Not verified') }}</span>
           {% else %}
-          <span class="badge bg-success fs-6">Aktiv</span>
+          <span class="badge bg-success fs-6">{{ _t('common.active', 'Active') }}</span>
           {% endif %}
         </div>
       </div>
 
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Benutzername</span>
+          <span class="text-muted small">{{ _t('common.username', 'Username') }}</span>
           <strong>{{ target_user.username }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Registriert</span>
+          <span class="text-muted small">{{ _t('admin.user_col_registered', 'Registered') }}</span>
           <strong>{{ target_user.created_at.strftime('%d.%m.%Y') }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Letzter Login</span>
+          <span class="text-muted small">{{ _t('admin.user_col_last_login', 'Last Login') }}</span>
           <strong>{{ target_user.last_login.strftime('%d.%m.%Y %H:%M') if target_user.last_login else '—' }}</strong>
         </div>
       </div>
@@ -52,38 +52,38 @@
 
     <!-- Quick Actions -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0">Schnellaktionen</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.user_quick_actions', 'Quick Actions') }}</h6></div>
       <div class="card-body d-flex flex-column gap-2">
         <!-- Toggle Active -->
         <button class="btn btn-sm {% if target_user.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
                 onclick="toggleField('is_active', '{{ 'false' if target_user.is_active else 'true' }}')">
           <i class="bi bi-{% if target_user.is_active %}pause-circle{% else %}play-circle{% endif %}"></i>
-          {% if target_user.is_active %}Deaktivieren{% else %}Aktivieren{% endif %}
+          {% if target_user.is_active %}{{ _t('admin.user_deactivate', 'Deactivate') }}{% else %}{{ _t('admin.user_activate', 'Activate') }}{% endif %}
         </button>
 
         <!-- Toggle Verified -->
         <button class="btn btn-sm {% if target_user.is_verified %}btn-outline-secondary{% else %}btn-outline-success{% endif %}"
                 onclick="toggleField('is_verified', '{{ 'false' if target_user.is_verified else 'true' }}')">
           <i class="bi bi-patch-check"></i>
-          {% if target_user.is_verified %}Verifizierung entfernen{% else %}Manuell verifizieren{% endif %}
+          {% if target_user.is_verified %}{{ _t('admin.user_remove_verify', 'Remove verification') }}{% else %}{{ _t('admin.user_verify_manual', 'Verify manually') }}{% endif %}
         </button>
 
         <!-- Toggle Locked -->
         <button class="btn btn-sm {% if target_user.is_locked %}btn-outline-success{% else %}btn-outline-danger{% endif %}"
                 onclick="toggleField('is_locked', '{{ 'false' if target_user.is_locked else 'true' }}')">
           <i class="bi bi-{% if target_user.is_locked %}unlock{% else %}lock{% endif %}"></i>
-          {% if target_user.is_locked %}Entsperren{% else %}Sperren{% endif %}
+          {% if target_user.is_locked %}{{ _t('admin.user_unlock', 'Unlock') }}{% else %}{{ _t('admin.user_lock', 'Lock') }}{% endif %}
         </button>
 
         <!-- Change Role -->
         <div class="input-group">
           <select id="roleSelect" class="form-select form-select-sm">
-            <option value="student" {% if target_user.role == 'student' %}selected{% endif %}>Studierende/r</option>
-            <option value="instructor" {% if target_user.role == 'instructor' %}selected{% endif %}>Lehrende/r</option>
-            <option value="admin" {% if target_user.role == 'admin' %}selected{% endif %}>Admin</option>
+            <option value="student" {% if target_user.role == 'student' %}selected{% endif %}>{{ _t('admin.user_role_student_singular', 'Student') }}</option>
+            <option value="tutor" {% if target_user.role == 'tutor' %}selected{% endif %}>{{ _t('admin.user_role_tutor', 'Tutor') }}</option>
+            <option value="admin" {% if target_user.role == 'admin' %}selected{% endif %}>{{ _t('admin.user_role_admin', 'Admin') }}</option>
           </select>
           <button class="btn btn-sm btn-outline-primary" onclick="toggleField('role', document.getElementById('roleSelect').value)">
-            Rolle ändern
+            {{ _t('admin.user_change_role', 'Change Role') }}
           </button>
         </div>
       </div>
@@ -91,14 +91,14 @@
 
     <!-- Reset Password -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0">Passwort zurücksetzen</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.user_reset_password_title', 'Reset Password') }}</h6></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.user_reset_password', user_id=target_user.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="input-group">
             <input type="password" name="new_password" class="form-control form-control-sm"
-                   placeholder="Neues Passwort (min. 8 Zeichen)">
-            <button type="submit" class="btn btn-sm btn-warning">Setzen</button>
+                   placeholder="{{ _t('admin.user_new_password_ph', 'New password (min. 8 chars)') }}">
+            <button type="submit" class="btn btn-sm btn-warning">{{ _t('admin.user_set_password_btn', 'Set') }}</button>
           </div>
         </form>
       </div>
@@ -106,14 +106,14 @@
 
     <!-- Send Notification -->
     <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0">Benachrichtigung senden</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.send_notification', 'Send Notification') }}</h6></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('admin.user_notify', user_id=target_user.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="text" name="title" class="form-control form-control-sm mb-2" placeholder="Titel" required>
-          <textarea name="message" class="form-control form-control-sm mb-2" rows="2" placeholder="Nachricht"></textarea>
+          <input type="text" name="title" class="form-control form-control-sm mb-2" placeholder="{{ _t('admin.notif_title_ph', 'Title') }}" required>
+          <textarea name="message" class="form-control form-control-sm mb-2" rows="2" placeholder="{{ _t('admin.notif_message_ph', 'Message') }}"></textarea>
           <button type="submit" class="btn btn-sm btn-primary w-100">
-            <i class="bi bi-bell"></i> Senden
+            <i class="bi bi-bell"></i> {{ _t('admin.send_notification', 'Send Notification') }}
           </button>
         </form>
       </div>
@@ -124,7 +124,7 @@
   <div class="col-lg-8">
     <!-- Period filter -->
     <div class="d-flex align-items-center gap-2 mb-3">
-      <span class="fw-semibold">Zeitraum:</span>
+      <span class="fw-semibold">{{ _t('admin.period_label', 'Period') }}:</span>
       {% for p, label in [('24h','24h'), ('7d','7 Tage'), ('30d','30 Tage'), ('90d','90 Tage'), ('1y','1 Jahr'), ('all','Gesamt')] %}
       <a href="?period={{ p }}"
          class="btn btn-sm {% if period == p %}btn-primary{% else %}btn-outline-secondary{% endif %}">
@@ -137,31 +137,31 @@
     <div class="row g-2 mb-3">
       <div class="col-4"><div class="kpi-mini">
         <div class="kpi-mini-val">{{ stats.total_submissions }}</div>
-        <div class="kpi-mini-label">Einreichungen</div>
+        <div class="kpi-mini-label">{{ _t('admin.kpi_submissions', 'Submissions') }}</div>
       </div></div>
       <div class="col-4"><div class="kpi-mini">
         <div class="kpi-mini-val">{{ stats.completed }}</div>
-        <div class="kpi-mini-label">Abgeschlossen</div>
+        <div class="kpi-mini-label">{{ _t('admin.kpi_completed', 'Completed') }}</div>
       </div></div>
       <div class="col-4"><div class="kpi-mini">
         <div class="kpi-mini-val">{{ stats.total_tokens }}</div>
-        <div class="kpi-mini-label">Token</div>
+        <div class="kpi-mini-label">{{ _t('admin.kpi_tokens', 'Token') }}</div>
       </div></div>
     </div>
 
     <!-- Timeline Chart -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0">Aktivitätsverlauf</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.user_activity_chart', 'Activity Timeline') }}</h6></div>
       <div class="card-body"><canvas id="timelineChart" height="200"></canvas></div>
     </div>
 
     <!-- Submissions Table -->
     <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0">Einreichungen</h6></div>
+      <div class="card-header"><h6 class="mb-0">{{ _t('admin.user_submissions_header', 'Submissions') }}</h6></div>
       <div class="table-responsive">
         <table class="table table-hover table-sm mb-0">
           <thead class="table-light">
-            <tr><th>Aufgabe</th><th>Gestartet</th><th>Dauer</th><th>Interaktionen</th><th>Bewertung</th><th></th></tr>
+            <tr><th>{{ _t('admin.col_task', 'Task') }}</th><th>{{ _t('admin.col_started', 'Started') }}</th><th>{{ _t('admin.col_duration', 'Duration') }}</th><th>{{ _t('admin.col_interactions', 'Interactions') }}</th><th>{{ _t('admin.col_grade', 'Grade') }}</th><th></th></tr>
           </thead>
           <tbody>
             {% for sub in stats.submissions %}
@@ -176,15 +176,15 @@
               <td>{{ sub.interactions }}</td>
               <td>
                 {% if sub.grade_value is not none %}
-                <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+                <span class="badge bg-success">{{ sub.grade_value }} {{ _t('admin.col_pts', 'pts.') }}</span>
                 {% elif sub.grade_passed is not none %}
                 <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
-                  {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+                  {% if sub.grade_passed %}{{ _t('admin.grading_passed', 'Passed') }}{% else %}{{ _t('admin.grading_failed', 'Failed') }}{% endif %}
                 </span>
                 {% elif sub.completed_at %}
-                <span class="badge bg-warning text-dark">Offen</span>
+                <span class="badge bg-warning text-dark">{{ _t('admin.status_pending', 'Open') }}</span>
                 {% else %}
-                <span class="badge bg-secondary">Läuft</span>
+                <span class="badge bg-secondary">{{ _t('admin.status_in_progress', 'Running') }}</span>
                 {% endif %}
               </td>
               <td>
@@ -195,7 +195,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-center text-muted py-3">Keine Einreichungen im gewählten Zeitraum.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-3">{{ _t('admin.user_no_submissions', 'No submissions in the selected period.') }}</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -227,7 +227,7 @@ function toggleField(field, value) {
     })
   }).then(r => r.json()).then(data => {
     if (data.ok) location.reload();
-    else alert(data.error || 'Fehler');
+    else alert(data.error || '{{ _t('common.save_error', 'Error saving') }}');
   });
 }
 
@@ -237,7 +237,7 @@ new Chart(document.getElementById('timelineChart'), {
   data: {
     labels: {{ chart.labels | tojson }},
     datasets: [{
-      label: 'Einreichungen',
+      label: '{{ _t('admin.kpi_submissions', 'Submissions') }}',
       data: {{ chart.data | tojson }},
       backgroundColor: 'rgba(79,70,229,0.6)',
     }]

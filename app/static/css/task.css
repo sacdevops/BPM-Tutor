@@ -1,4 +1,21 @@
-﻿.task-layout {
+﻿/* ── bpmn.io icon fix ──────────────────────────────────────────────────────
+   The global * { padding: 0; margin: 0; box-sizing: border-box } reset in
+   style.css breaks the bpmn-js palette icons. Undo it for all bpmn elements.
+   ────────────────────────────────────────────────────────────────────────── */
+.djs-container *,
+.djs-container *::before,
+.djs-container *::after {
+    box-sizing: content-box;
+    padding: revert;
+    margin: revert;
+}
+/* Palette entries need exact sizing from bpmn-js default styles */
+.djs-palette .entry {
+    padding: 0;
+    margin: 0;
+}
+
+.task-layout {
     display: grid;
     grid-template-columns: 20% 60% 20%;
     height: 100vh;
@@ -35,7 +52,7 @@
     padding: 0.75rem;
     border: 1px solid #d0d0d0;
     border-radius: 0.5rem;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     line-height: 1.5;
     resize: none;
     overflow-y: auto;
@@ -91,6 +108,21 @@
     text-decoration: underline;
 }
 
+.task-timer {
+    font-weight: 700;
+    font-size: 0.7rem;
+    background: #e0e0e0;
+    color: #444;
+    padding: 0.2rem 0.55rem;
+    border-radius: 5px;
+    letter-spacing: 0.04em;
+}
+
+.task-timer.timer-urgent {
+    background: #dc3545;
+    color: #fff;
+}
+
 .task-content {
     flex: 1;
     overflow-y: auto;
@@ -113,7 +145,7 @@
     background-color: var(--secondary-color);
     padding: 1rem;
     border-radius: 0.5rem;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     line-height: 1.6;
     margin-bottom: 1rem;
     color: var(--text-primary);
@@ -133,7 +165,7 @@
 .export-btn {
     flex: 1;
     padding: 0.6rem 0.5rem;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 600;
     background-color: #6c757d;
     color: white;
@@ -150,7 +182,7 @@
 .completion-btn {
     flex: 1;
     padding: 0.6rem 0.5rem;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 600;
     background-color: var(--primary-color);
     color: white;
@@ -187,6 +219,26 @@
     height: 100%;
 }
 
+/* -- AI Cursor -- */
+#aiCursor {
+    position: absolute;
+    display: none;
+    width: 20px;
+    height: 20px;
+    background: #5b8dee;
+    border: 2px solid white;
+    border-radius: 50% 50% 0 50%;
+    transform: rotate(-45deg);
+    z-index: 999;
+    pointer-events: none;
+    transition: left 0.4s ease, top 0.4s ease;
+    box-shadow: 0 2px 8px rgba(91, 141, 238, 0.6);
+}
+
+#aiCursor.active {
+    display: block;
+}
+
 /* -- Chat Sidebar -- */
 
 .chat-sidebar {
@@ -204,12 +256,20 @@
     border-bottom: 1px solid var(--border-color);
     background-color: #f8f9fa;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .chat-header-title {
     font-size: 1rem;
     font-weight: 700;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 .chat-messages {
@@ -264,7 +324,7 @@
     border-radius: 1.125rem;
     line-height: 1.5;
     word-wrap: break-word;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
 }
 
 .chat-message.user .message-content {
@@ -338,7 +398,7 @@
     padding: 0.7rem 1rem;
     border: 1px solid var(--border-color);
     border-radius: 0.375rem;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     resize: none;
     font-family: inherit;
     max-height: 100px;
@@ -364,7 +424,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     align-self: stretch;
 }
 
@@ -650,6 +710,7 @@
     border-radius: 4px;
     background: rgba(229, 57, 53, 0.1);
     box-shadow: 0 0 10px rgba(229, 57, 53, 0.3);
+    box-sizing: border-box;
 }
 
 .djs-overlay-issue-semantic .issue-overlay-box {
@@ -657,6 +718,7 @@
     border-radius: 4px;
     background: rgba(255, 179, 0, 0.1);
     box-shadow: 0 0 10px rgba(255, 179, 0, 0.3);
+    box-sizing: border-box;
 }
 
 .djs-overlay-issue-info .issue-overlay-box {
@@ -664,6 +726,7 @@
     border-radius: 4px;
     background: rgba(30, 136, 229, 0.1);
     box-shadow: 0 0 10px rgba(30, 136, 229, 0.3);
+    box-sizing: border-box;
 }
 
 .djs-overlay-issue-syntax, .djs-overlay-issue-semantic, .djs-overlay-issue-info {
@@ -979,4 +1042,136 @@
 
 [data-theme="dark"] .issue-detail-popup-header.semantic {
     color: #1e1e1e;
+}
+
+/* ── Feedback Report Button (chat header) ───────────────────────────────── */
+
+.feedback-btn-task {
+    flex-shrink: 0;
+    background: #6c757d;
+    border: 1px solid #5a6268;
+    color: #fff;
+    border-radius: 20px;
+    padding: 3px 11px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    transition: background .15s;
+}
+.feedback-btn-task:hover { background: #495057; }
+
+/* ── Spinner icon (SVG) ─────────────────────────────────────────────────── */
+
+.spin-icon { animation: spin 1s linear infinite; }
+
+/* ── Modal icon colour variants ─────────────────────────────────────────── */
+
+.modal-icon-danger  { background-color: #dc3545 !important; color: #fff !important; }
+.modal-icon-warning { background-color: #ffc107 !important; color: #333 !important; }
+
+/* ── Feedback modal ─────────────────────────────────────────────────────── */
+
+#feedbackModal {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    background: rgba(0,0,0,.5);
+    display: none;          /* shown via JS: style.display = 'flex' */
+    align-items: center;
+    justify-content: center;
+}
+
+.fb-dialog {
+    background: #fff;
+    border-radius: 12px;
+    width: min(480px, 94vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 40px rgba(0,0,0,.3);
+}
+
+.fb-header {
+    background: linear-gradient(135deg, #162700, #2d4a00);
+    color: #fff;
+    padding: 18px 22px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.fb-header-left { display: flex; align-items: center; gap: 10px; }
+
+.fb-title { font-weight: 600; font-size: 16px; }
+
+.fb-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+}
+
+.fb-body { padding: 22px; }
+
+.fb-intro { color: #555; font-size: 14px; margin-bottom: 16px; }
+
+.fb-field       { margin-bottom: 14px; }
+.fb-field-last  { margin-bottom: 18px; }
+
+.fb-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.fb-select,
+.fb-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.fb-select  { background: #fff; }
+.fb-textarea { resize: vertical; }
+
+#feedbackStatus {
+    display: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 14px;
+}
+
+.fb-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+.fb-cancel-btn {
+    padding: 9px 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+    color: #555;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.fb-submit-btn {
+    padding: 9px 22px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #84BD00, #5a8500);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
 }

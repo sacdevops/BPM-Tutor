@@ -1,28 +1,28 @@
 {% extends "cms/base.html" %}
-{% block title %}Audit-Log{% endblock %}
-{% block page_title %}Audit-Log{% endblock %}
+{% block title %}{{ _t('admin.audit_title', 'Audit Log') }}{% endblock %}
+{% block page_title %}{{ _t('admin.audit_title', 'Audit Log') }}{% endblock %}
 
 {% block content %}
 <div class="card">
   <div class="card-header d-flex gap-2 align-items-center flex-wrap">
     <form method="get" class="d-flex gap-2 flex-wrap">
-      <input type="text" name="action" class="form-control form-control-sm" placeholder="Aktion filtern" value="{{ action_filter }}">
-      <input type="text" name="user_id" class="form-control form-control-sm" placeholder="Nutzer-ID" style="width:120px" value="{{ user_filter }}">
-      <button class="btn btn-sm btn-primary">Filtern</button>
-      <a href="{{ url_for('admin.audit_log') }}" class="btn btn-sm btn-outline-secondary">Zurücksetzen</a>
+      <input type="text" name="action" class="form-control form-control-sm" placeholder="{{ _t('admin.audit_filter_action', 'Filter by action') }}" value="{{ action_filter }}">
+      <input type="text" name="user_id" class="form-control form-control-sm" placeholder="{{ _t('admin.audit_filter_user', 'User ID') }}" style="width:120px" value="{{ user_filter }}">
+      <button class="btn btn-sm btn-primary">{{ _t('common.filter', 'Filter') }}</button>
+      <a href="{{ url_for('admin.audit_log') }}" class="btn btn-sm btn-outline-secondary">{{ _t('common.reset', 'Reset') }}</a>
     </form>
   </div>
   <div class="table-responsive">
     <table class="table table-hover table-sm mb-0">
       <thead class="table-light">
         <tr>
-          <th>Zeit</th>
-          <th>Nutzer</th>
-          <th>Aktion</th>
-          <th>Entität</th>
-          <th>ID</th>
-          <th>IP</th>
-          <th>Details</th>
+          <th>{{ _t('admin.col_time', 'Time') }}</th>
+          <th>{{ _t('admin.col_user', 'User') }}</th>
+          <th>{{ _t('admin.col_action', 'Action') }}</th>
+          <th>{{ _t('admin.col_entity', 'Entity') }}</th>
+          <th>{{ _t('admin.col_id', 'ID') }}</th>
+          <th>{{ _t('admin.col_ip', 'IP') }}</th>
+          <th>{{ _t('admin.col_details', 'Details') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -43,15 +43,15 @@
           <td>
             {% if entry.details_json %}
             <button class="btn btn-xs btn-outline-secondary py-0 px-1"
-              data-bs-toggle="popover" data-bs-trigger="click" data-bs-placement="left"
-              data-bs-content="{{ entry.details_json | e }}" title="Details">
+              onclick="showAuditDetail(this)"
+              data-details="{{ entry.details_json | e }}">
               <i class="bi bi-info-circle"></i>
             </button>
             {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-4">Keine Einträge.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-4">{{ _t('admin.audit_empty', 'No entries.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -74,12 +74,35 @@
   </div>
   {% endif %}
 </div>
+
+<!-- Audit Detail Modal -->
+<div class="modal fade" id="auditDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _t('admin.col_details', 'Details') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="auditDetailContent" class="bg-light p-3 rounded small" style="white-space:pre-wrap;word-break:break-all;max-height:60vh;overflow-y:auto"></pre>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.querySelectorAll('[data-bs-toggle="popover"]').forEach(el => {
-  new bootstrap.Popover(el, { html: false });
-});
+function showAuditDetail(btn) {
+  var raw = btn.getAttribute('data-details');
+  var content = document.getElementById('auditDetailContent');
+  try {
+    content.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+  } catch(e) {
+    content.textContent = raw;
+  }
+  var modal = new bootstrap.Modal(document.getElementById('auditDetailModal'));
+  modal.show();
+}
 </script>
 {% endblock %}

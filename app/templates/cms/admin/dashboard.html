@@ -5,12 +5,12 @@
 {% block topbar_actions %}
 <div class="d-flex gap-2">
   <select id="periodSelect" class="form-select form-select-sm" onchange="loadStats(this.value)" style="width:auto">
-    <option value="24h">Letzte 24h</option>
-    <option value="7d">7 Tage</option>
-    <option value="30d" selected>30 Tage</option>
-    <option value="90d">90 Tage</option>
-    <option value="1y">1 Jahr</option>
-    <option value="all">Gesamt</option>
+    <option value="24h">{{ _t('admin.period_24h', 'Last 24h') }}</option>
+    <option value="7d">{{ _t('admin.period_7d', '7 days') }}</option>
+    <option value="30d" selected>{{ _t('admin.period_30d', '30 days') }}</option>
+    <option value="90d">{{ _t('admin.period_90d', '90 days') }}</option>
+    <option value="1y">{{ _t('admin.period_1y', '1 year') }}</option>
+    <option value="all">{{ _t('admin.period_all', 'All time') }}</option>
   </select>
 </div>
 {% endblock %}
@@ -23,7 +23,7 @@
       <div class="kpi-icon bg-primary"><i class="bi bi-people"></i></div>
       <div class="kpi-body">
         <span class="kpi-value" id="kpi-users">{{ stats.total_users }}</span>
-        <span class="kpi-label">Benutzer gesamt</span>
+        <span class="kpi-label">{{ _t('admin.kpi_users', 'Total Users') }}</span>
       </div>
     </div>
   </div>
@@ -32,7 +32,7 @@
       <div class="kpi-icon bg-success"><i class="bi bi-journal-check"></i></div>
       <div class="kpi-body">
         <span class="kpi-value" id="kpi-submissions">{{ stats.total_submissions }}</span>
-        <span class="kpi-label">Einreichungen</span>
+        <span class="kpi-label">{{ _t('admin.kpi_submissions', 'Submissions') }}</span>
       </div>
     </div>
   </div>
@@ -41,7 +41,7 @@
       <div class="kpi-icon bg-warning"><i class="bi bi-check2-circle"></i></div>
       <div class="kpi-body">
         <span class="kpi-value" id="kpi-completed">{{ stats.completed }}</span>
-        <span class="kpi-label">Abgeschlossen</span>
+        <span class="kpi-label">{{ _t('admin.kpi_completed', 'Completed') }}</span>
       </div>
     </div>
   </div>
@@ -50,7 +50,7 @@
       <div class="kpi-icon bg-info"><i class="bi bi-cpu"></i></div>
       <div class="kpi-body">
         <span class="kpi-value" id="kpi-tokens">{{ stats.total_tokens | default(0) }}</span>
-        <span class="kpi-label">Token gesamt</span>
+        <span class="kpi-label">{{ _t('admin.kpi_tokens', 'Total Tokens') }}</span>
       </div>
     </div>
   </div>
@@ -61,7 +61,7 @@
   <div class="col-lg-8">
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-graph-up"></i> Einreichungen über Zeit</h6>
+        <h6 class="mb-0"><i class="bi bi-graph-up"></i> {{ _t('admin.chart_submissions_over_time', 'Submissions over Time') }}</h6>
       </div>
       <div class="card-body">
         <canvas id="timelineChart" height="250"></canvas>
@@ -71,7 +71,7 @@
   <div class="col-lg-4">
     <div class="card shadow-sm h-100">
       <div class="card-header">
-        <h6 class="mb-0"><i class="bi bi-list-ol"></i> Aufgaben-Aktivität</h6>
+        <h6 class="mb-0"><i class="bi bi-list-ol"></i> {{ _t('admin.chart_task_activity', 'Task Activity') }}</h6>
       </div>
       <div class="card-body p-0">
         <ul class="list-group list-group-flush" id="taskActivity">
@@ -90,20 +90,20 @@
 <!-- Recent Submissions -->
 <div class="card shadow-sm mb-4">
   <div class="card-header d-flex justify-content-between">
-    <h6 class="mb-0"><i class="bi bi-clock-history"></i> Neueste Einreichungen</h6>
+    <h6 class="mb-0"><i class="bi bi-clock-history"></i> {{ _t('admin.dashboard_recent_submissions', 'Latest Submissions') }}</h6>
     <a href="{{ url_for('admin.grading_list') }}" class="btn btn-sm btn-outline-primary">
-      Alle anzeigen
+      {{ _t('common.show_all', 'Show all') }}
     </a>
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
       <thead class="table-light">
         <tr>
-          <th>Benutzer</th>
-          <th>Aufgabe</th>
-          <th>Gestartet</th>
-          <th>Abgeschlossen</th>
-          <th>Status</th>
+          <th>{{ _t('common.user', 'User') }}</th>
+          <th>{{ _t('common.task', 'Task') }}</th>
+          <th>{{ _t('admin.col_started', 'Started') }}</th>
+          <th>{{ _t('admin.col_completed', 'Completed') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -112,19 +112,21 @@
         <tr>
           <td>
             {% if sub.user %}
+            {% if current_user.has_role('admin') %}
             <a href="{{ url_for('admin.user_detail', user_id=sub.user_id) }}">{{ sub.user.username }}</a>
-            {% else %}<span class="text-muted">Anonym</span>{% endif %}
+            {% else %}{{ sub.user.username }}{% endif %}
+            {% else %}<span class="text-muted">{{ _t('common.anonymous', 'Anonymous') }}</span>{% endif %}
           </td>
           <td><code>{{ sub.task_id }}</code></td>
           <td>{{ sub.started_at.strftime('%d.%m.%y %H:%M') }}</td>
           <td>{{ sub.completed_at.strftime('%d.%m.%y %H:%M') if sub.completed_at else '—' }}</td>
           <td>
             {% if sub.grade_value is not none or sub.grade_passed is not none %}
-            <span class="badge bg-success">Bewertet</span>
+            <span class="badge bg-success">{{ _t('admin.status_graded', 'Graded') }}</span>
             {% elif sub.completed_at %}
-            <span class="badge bg-warning text-dark">Ausstehend</span>
+            <span class="badge bg-warning text-dark">{{ _t('admin.status_pending', 'Pending') }}</span>
             {% else %}
-            <span class="badge bg-secondary">In Bearbeitung</span>
+            <span class="badge bg-secondary">{{ _t('admin.status_in_progress', 'In Progress') }}</span>
             {% endif %}
           </td>
           <td>
@@ -141,9 +143,10 @@
 </div>
 
 <!-- Broadcast Notification -->
+{% if current_user.has_role('admin') %}
 <div class="card shadow-sm mb-4">
   <div class="card-header">
-    <h6 class="mb-0"><i class="bi bi-megaphone"></i> Benachrichtigung senden</h6>
+    <h6 class="mb-0"><i class="bi bi-megaphone"></i> {{ _t('admin.send_notification', 'Send Notification') }}</h6>
   </div>
   <div class="card-body">
     <form method="post" action="{{ url_for('admin.notify_all') }}">
@@ -151,27 +154,28 @@
       <div class="row g-2">
         <div class="col-md-3">
           <select name="role" class="form-select">
-            <option value="">Alle Benutzer</option>
-            <option value="student">Studierende</option>
-            <option value="instructor">Lehrende</option>
-            <option value="admin">Admins</option>
+            <option value="">{{ _t('admin.notif_all_users', 'All Users') }}</option>
+            <option value="student">{{ _t('admin.notif_students', 'Students') }}</option>
+            <option value="tutor">{{ _t('admin.notif_tutors', 'Tutors') }}</option>
+            <option value="admin">{{ _t('admin.notif_admins', 'Admins') }}</option>
           </select>
         </div>
         <div class="col-md-3">
-          <input type="text" name="title" class="form-control" placeholder="Titel" required>
+          <input type="text" name="title" class="form-control" placeholder="{{ _t('common.title', 'Title') }}" required>
         </div>
         <div class="col-md-4">
-          <input type="text" name="message" class="form-control" placeholder="Nachricht (optional)">
+          <input type="text" name="message" class="form-control" placeholder="{{ _t('admin.notif_message_ph', 'Message (optional)') }}">
         </div>
         <div class="col-md-2">
           <button type="submit" class="btn btn-primary w-100">
-            <i class="bi bi-send"></i> Senden
+            <i class="bi bi-send"></i> {{ _t('admin.notif_send_btn', 'Send') }}
           </button>
         </div>
       </div>
     </form>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -187,7 +191,7 @@ function renderChart(labels, data) {
     data: {
       labels,
       datasets: [{
-        label: 'Einreichungen',
+        label: '{{ _t('admin.kpi_submissions', 'Submissions') }}',
         data,
         borderColor: '#4f46e5',
         backgroundColor: 'rgba(79,70,229,0.08)',

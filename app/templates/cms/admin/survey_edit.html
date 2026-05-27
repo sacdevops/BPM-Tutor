@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}{% if survey %}Umfrage bearbeiten{% else %}Neue Umfrage{% endif %}{% endblock %}
-{% block page_title %}{% if survey %}Umfrage bearbeiten{% else %}Neue Umfrage{% endif %}{% endblock %}
+{% block title %}{% if survey %}{{ _t('admin.survey_edit_title', 'Edit Survey') }}{% else %}{{ _t('admin.survey_new_title', 'New Survey') }}{% endif %}{% endblock %}
+{% block page_title %}{% if survey %}{{ _t('admin.survey_edit_title', 'Edit Survey') }}{% else %}{{ _t('admin.survey_new_title', 'New Survey') }}{% endif %}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.surveys_list') }}" class="btn btn-outline-secondary btn-sm">
-  <i class="bi bi-arrow-left"></i> Zurück
+  <i class="bi bi-arrow-left"></i> {{ _t('common.back', 'Back') }}
 </a>
 {% endblock %}
 
@@ -18,33 +18,33 @@
     <!-- Left: Metadata -->
     <div class="col-lg-4">
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0">Umfragedetails</h6></div>
+        <div class="card-header"><h6 class="mb-0">{{ _t('admin.survey_details_header', 'Survey Details') }}</h6></div>
         <div class="card-body">
           <div class="mb-3">
-            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <label class="form-label">{{ _t('common.name', 'Name') }} <span class="text-danger">*</span></label>
             <input type="text" name="name" class="form-control"
                    value="{{ survey.name if survey else '' }}" required>
           </div>
           <div class="mb-3">
-            <label class="form-label">Typ</label>
+            <label class="form-label">{{ _t('common.type', 'Type') }}</label>
             <select name="survey_type" id="survey_type" class="form-select" onchange="toggleTaskSelect()">
               {% set st = survey.survey_type if survey else 'pre_all' %}
               <option value="pre_all" {% if st == 'pre_all' %}selected{% endif %}>
-                Vor allen Aufgaben (einmalig)
+                {{ _t('admin.survey_type_pre_all_long', 'Before all tasks (once)') }}
               </option>
               <option value="post_task" {% if st == 'post_task' %}selected{% endif %}>
-                Nach einer bestimmten Aufgabe
+                {{ _t('admin.survey_type_post_task_long', 'After a specific task') }}
               </option>
               <option value="post_all" {% if st == 'post_all' %}selected{% endif %}>
-                Nach allen Aufgaben
+                {{ _t('admin.survey_type_post_all_long', 'After all tasks') }}
               </option>
             </select>
           </div>
           <div id="taskSelectRow" class="mb-3"
                style="{% if st != 'post_task' %}display:none{% endif %}">
-            <label class="form-label">Aufgabe</label>
+            <label class="form-label">{{ _t('common.task', 'Task') }}</label>
             <select name="task_id" class="form-select">
-              <option value="">— Aufgabe auswählen —</option>
+              <option value="">{{ _t('admin.study_step_select_task', '— Select task —') }}</option>
               {% for t in tasks %}
               <option value="{{ t.id }}"
                       {% if survey and survey.task_id == t.id %}selected{% endif %}>
@@ -56,13 +56,13 @@
           <div class="form-check form-switch mb-2">
             <input type="checkbox" class="form-check-input" id="allow_skip" name="allow_skip"
                    {% if survey and survey.allow_skip %}checked{% endif %}>
-            <label class="form-check-label" for="allow_skip">Überspringen erlauben</label>
+            <label class="form-check-label" for="allow_skip">{{ _t('admin.survey_allow_skip', 'Allow skipping') }}</label>
           </div>
           {% if survey %}
           <div class="form-check form-switch">
             <input type="checkbox" class="form-check-input" id="is_active" name="is_active"
                    {% if survey.is_active %}checked{% endif %}>
-            <label class="form-check-label" for="is_active">Aktiv</label>
+            <label class="form-check-label" for="is_active">{{ _t('common.active', 'Active') }}</label>
           </div>
           {% endif %}
         </div>
@@ -70,19 +70,20 @@
 
       <!-- Question Types Legend -->
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0">Fragetypen</h6></div>
+        <div class="card-header"><h6 class="mb-0">{{ _t('admin.survey_question_types', 'Question Types') }}</h6></div>
         <div class="card-body p-2">
           {% for qtype, icon, label in [
-            ('text','type','Kurztext'),
-            ('textarea','textarea-t','Freitext'),
-            ('likert','sliders','Likert-Skala'),
-            ('number','123','Zahl'),
-            ('date','calendar-date','Datum'),
-            ('select','list','Dropdown'),
-            ('radio','record-circle','Radio (Auswahl)'),
-            ('checkbox','check2-square','Mehrfachauswahl'),
-            ('scale','bar-chart-line','Skala'),
-            ('info','info-circle','Info-Text'),
+            ('text','type',_t('admin.qtype_text','Short text')),
+            ('textarea','textarea-t',_t('admin.qtype_textarea','Long text')),
+            ('likert','sliders',_t('admin.qtype_likert','Likert scale')),
+            ('number','123',_t('admin.qtype_number','Number')),
+            ('date','calendar-date',_t('admin.qtype_date','Date')),
+            ('select','list',_t('admin.qtype_select','Dropdown')),
+            ('radio','record-circle',_t('admin.qtype_radio','Radio (choice)')),
+            ('checkbox','check2-square',_t('admin.qtype_checkbox','Multiple choice')),
+            ('scale','bar-chart-line',_t('admin.qtype_scale','Scale')),
+            ('info','info-circle',_t('admin.qtype_info','Info text')),
+            ('image','image',_t('admin.qtype_image','Image')),
           ] %}
           <button type="button" class="btn btn-sm btn-outline-secondary m-1"
                   onclick="addQuestion('{{ qtype }}')">
@@ -93,7 +94,7 @@
       </div>
 
       <button type="submit" class="btn btn-primary w-100" onclick="serializePages()">
-        <i class="bi bi-save"></i> Umfrage speichern
+        <i class="bi bi-save"></i> {{ _t('admin.survey_save_btn', 'Save Survey') }}
       </button>
     </div>
 
@@ -103,7 +104,7 @@
         <!-- Pages rendered by JS -->
       </div>
       <button type="button" class="btn btn-outline-primary mt-3 w-100" onclick="addPage()">
-        <i class="bi bi-plus-square"></i> Neue Seite hinzufügen
+        <i class="bi bi-plus-square"></i> {{ _t('admin.survey_add_page_btn', 'Add new page') }}
       </button>
     </div>
   </div>

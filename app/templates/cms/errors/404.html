@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}404 – Nicht gefunden{% endblock %}
+{% block title %}{{ _t('error.404_title', '404 – Not Found') }}{% endblock %}
 {% block content %}
 <div class="text-center py-5">
   <div style="font-size:5rem; color:#4f46e5;">404</div>
-  <h2 class="mt-2">Seite nicht gefunden</h2>
-  <p class="text-muted">Die angeforderte Seite existiert nicht oder wurde verschoben.</p>
-  <a href="/" class="btn btn-primary mt-2"><i class="bi bi-house"></i> Zur Startseite</a>
+  <h2 class="mt-2">{{ _t('error.404_heading', 'Page Not Found') }}</h2>
+  <p class="text-muted">{{ _t('error.404_body', 'The requested page does not exist or has been moved.') }}</p>
+  <a href="/" class="btn btn-primary mt-2"><i class="bi bi-house"></i> {{ _t('common.go_home', 'Go to Home') }}</a>
 </div>
 {% endblock %}

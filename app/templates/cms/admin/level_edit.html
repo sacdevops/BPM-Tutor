@@ -1,6 +1,6 @@
 {% extends "cms/base.html" %}
-{% block title %}Level {{ level.level_number }} bearbeiten{% endblock %}
-{% block page_title %}Level {{ level.level_number }}: {{ level.title }}{% endblock %}
+{% block title %}{{ _t('admin.level_edit_title', 'Edit Level') }} {{ level.level_number }}{% endblock %}
+{% block page_title %}{{ _t('admin.level_edit_title', 'Edit Level') }} {{ level.level_number }}: {{ level.title }}{% endblock %}
 
 {% block content %}
 <div class="row g-3">
@@ -8,9 +8,9 @@
   <div class="col-lg-8">
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="mb-0"><i class="bi bi-pencil-square me-1"></i>Level bearbeiten</h6>
+        <h6 class="mb-0"><i class="bi bi-pencil-square me-1"></i>{{ _t('admin.level_edit_title', 'Edit Level') }}</h6>
         <a href="{{ url_for('admin.levels_list') }}" class="btn btn-sm btn-outline-secondary">
-          <i class="bi bi-arrow-left me-1"></i>Zurück
+          <i class="bi bi-arrow-left me-1"></i>{{ _t('common.back', 'Back') }}
         </a>
       </div>
       <div class="card-body">
@@ -19,12 +19,12 @@
           <input type="hidden" name="action" value="save">
           <div class="row g-2">
             <div class="col-md-8">
-              <label class="form-label fw-semibold">Titel (EN) <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold">{{ _t('admin.level_title_en', 'Title (EN)') }} <span class="text-danger">*</span></label>
               <input type="text" name="title" class="form-control"
                      value="{{ level.title }}" required>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-semibold">Schwierigkeit</label>
+              <label class="form-label fw-semibold">{{ _t('admin.level_difficulty', 'Difficulty') }}</label>
               <select name="difficulty" class="form-select">
                 {% for d in ['beginner','intermediate','advanced','expert'] %}
                 <option value="{{ d }}" {% if level.difficulty == d %}selected{% endif %}>{{ d }}</option>
@@ -32,7 +32,7 @@
               </select>
             </div>
             <div class="col-md-8">
-              <label class="form-label fw-semibold">Titel (DE)</label>
+              <label class="form-label fw-semibold">{{ _t('admin.level_title_de', 'Title (DE)') }}</label>
               <input type="text" name="title_de" class="form-control"
                      value="{{ level.title_de or '' }}">
             </div>
@@ -40,25 +40,24 @@
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" name="is_active" id="isActive"
                        {% if level.is_active %}checked{% endif %}>
-                <label class="form-check-label" for="isActive">Aktiv</label>
+                <label class="form-check-label" for="isActive">{{ _t('common.active', 'Active') }}</label>
               </div>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Beschreibung (EN)</label>
+              <label class="form-label fw-semibold">{{ _t('admin.level_desc_en', 'Description (EN)') }}</label>
               <textarea name="description" class="form-control" rows="3">{{ level.description or '' }}</textarea>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Beschreibung (DE)</label>
+              <label class="form-label fw-semibold">{{ _t('admin.level_desc_de', 'Description (DE)') }}</label>
               <textarea name="description_de" class="form-control" rows="3">{{ level.description_de or '' }}</textarea>
             </div>
           </div>
 
           <!-- Task assignment -->
           <hr class="my-3">
-          <h6 class="mb-2"><i class="bi bi-list-task me-1"></i>Aufgaben in diesem Level</h6>
+          <h6 class="mb-2"><i class="bi bi-list-task me-1"></i>{{ _t('admin.level_tasks_heading', 'Tasks in this Level') }}</h6>
           <p class="text-muted small mb-2">
-            Wähle die Aufgaben aus, die Studierende in diesem Level absolvieren müssen.
-            Level ist erst abgeschlossen, wenn <strong>alle</strong> ausgewählten Aufgaben bearbeitet wurden.
+            {{ _t('admin.level_tasks_hint', 'Select the tasks that students must complete in this level. The level is only complete when all selected tasks have been done.') }}
           </p>
           <div class="row g-2" style="max-height:320px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem;">
             {% for task in tasks_all %}
@@ -76,13 +75,13 @@
               </div>
             </div>
             {% else %}
-            <p class="text-muted small m-2">Keine aktiven Aufgaben vorhanden.</p>
+            <p class="text-muted small m-2">{{ _t('admin.level_no_tasks', 'No active tasks available.') }}</p>
             {% endfor %}
           </div>
 
           <div class="d-flex gap-2 mt-3">
             <button type="submit" class="btn btn-primary">
-              <i class="bi bi-save me-1"></i>Speichern
+              <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
             </button>
           </div>
         </form>
@@ -105,19 +104,19 @@
       </div>
       <div class="list-group list-group-flush">
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Aufgaben</span>
+          <span class="text-muted small">{{ _t('admin.level_tasks_suffix', 'Tasks') }}</span>
           <strong>{{ level.task_count }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Erstellt</span>
+          <span class="text-muted small">{{ _t('users.created_at', 'Created') }}</span>
           <strong>{{ level.created_at.strftime('%d.%m.%Y') }}</strong>
         </div>
         <div class="list-group-item d-flex justify-content-between">
-          <span class="text-muted small">Status</span>
+          <span class="text-muted small">{{ _t('common.status', 'Status') }}</span>
           {% if level.is_active %}
-            <span class="badge bg-success">Aktiv</span>
+            <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
           {% else %}
-            <span class="badge bg-secondary">Inaktiv</span>
+            <span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>
           {% endif %}
         </div>
       </div>
@@ -125,7 +124,7 @@
 
     <!-- Level navigation -->
     <div class="card shadow-sm mb-3">
-      <div class="card-header fw-semibold small">Alle Level</div>
+      <div class="card-header fw-semibold small">{{ _t('admin.level_all_levels', 'All Levels') }}</div>
       <div class="list-group list-group-flush">
         {% for lv in levels %}
         <a href="{{ url_for('admin.level_edit', level_id=lv.id) }}"
@@ -138,15 +137,15 @@
 
     <!-- Delete -->
     <div class="card shadow-sm border-danger">
-      <div class="card-header text-danger fw-semibold small">Gefahrenzone</div>
+      <div class="card-header text-danger fw-semibold small">{{ _t('admin.danger_zone', 'Danger Zone') }}</div>
       <div class="card-body">
-        <p class="small text-muted mb-3">Level löschen entfernt alle Zuordnungen. Studierendenfortschritt für dieses Level wird ebenfalls gelöscht. Level-Nummern werden neu vergeben.</p>
+        <p class="small text-muted mb-3">{{ _t('admin.level_delete_warning', 'Deleting the level removes all assignments. Student progress for this level will also be deleted. Level numbers will be reassigned.') }}</p>
         <form method="post"
-              onsubmit="return confirm('Level {{ level.level_number }} \"{{ level.title }}\" wirklich löschen?');">
+              onsubmit="return confirm('{{ _t('admin.level_delete_confirm', 'Really delete level?') }}');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="delete">
           <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-            <i class="bi bi-trash me-1"></i>Level löschen
+            <i class="bi bi-trash me-1"></i>{{ _t('admin.level_delete_btn', 'Delete Level') }}
           </button>
         </form>
       </div>

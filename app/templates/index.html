@@ -2,93 +2,6 @@
 
 {% block title %}{{ site_name | default('BPM-Tutor') }}{% endblock %}
 
-{% block extra_css %}
-<style>
-    .index-body {
-        max-width: 1280px;
-        margin: 0 auto;
-        padding: 2rem;
-    }
-
-    .index-hero {
-        text-align: center;
-        margin-bottom: 2.5rem;
-        padding: 2rem 1rem;
-    }
-
-    .tasks-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-        gap: 1.5rem;
-    }
-
-    .task-card {
-        background: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 1.5rem;
-        transition: all 0.2s;
-        cursor: pointer;
-    }
-
-    .task-card:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        transform: translateY(-2px);
-    }
-
-    .task-card h3 {
-        font-size: 1.2rem;
-        margin-bottom: 0.75rem;
-        color: var(--text-primary);
-    }
-
-    .task-card p {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        line-height: 1.5;
-        display: -webkit-box;
-        -webkit-line-clamp: 4;
-        line-clamp: 4;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .task-card .start-btn {
-        display: inline-block;
-        margin-top: 1rem;
-        padding: 0.5rem 1.1rem;
-        background: var(--primary-color);
-        color: white;
-        border-radius: 6px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 0.875rem;
-        transition: background 0.2s;
-    }
-
-    .task-card .start-btn:hover { background: var(--primary-hover); }
-
-    .custom-task-card {
-        border: 2px dashed #5b8dee;
-        background: #f5f8ff;
-    }
-
-    .custom-task-card:hover {
-        border-color: #3a6edf;
-        box-shadow: 0 4px 12px rgba(91,141,238,0.2);
-    }
-
-    [data-theme="dark"] .task-card {
-        background: var(--bg-surface);
-        border-color: var(--border-color);
-    }
-    [data-theme="dark"] .custom-task-card {
-        background: #1a2233;
-        border-color: #4a7ade;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="index-body">
     <div class="index-hero">
@@ -96,48 +9,66 @@
         <p data-i18n="index.subtitle">{{ site_tagline_de | default('BPMN-Modellierungs-Lernumgebung') }}</p>
     </div>
 
-    {% if level_system_enabled and levels and current_user.is_authenticated %}
-    <!-- ── Level Progress Bar ── -->
-    <div style="margin-bottom:2rem;">
-        <h2 style="text-align:center;margin-bottom:1rem;" data-i18n="index.learning_path">Lernpfad</h2>
-        <div style="display:flex;gap:.75rem;overflow-x:auto;padding:.5rem 0;align-items:flex-start;">
-        {% for lv in levels %}
-            {% set unlocked = lv.is_unlocked_for(current_user) %}
-            {% set done, total = lv.completion_ratio_for(current_user) %}
-            {% set pct = ((done / total) * 100) | int if total > 0 else 0 %}
-            <div style="flex:0 0 auto;width:160px;background:white;border:2px solid {% if lv.is_completed_by(current_user) %}var(--primary-color,#84BD00){% elif unlocked %}#e5e7eb{% else %}#e5e7eb{% endif %};border-radius:12px;padding:1rem .75rem;text-align:center;opacity:{% if unlocked %}1{% else %}.5{% endif %};">
-                <div style="font-size:1.5rem;font-weight:900;color:{% if lv.is_completed_by(current_user) %}var(--primary-color,#84BD00){% elif unlocked %}#374151{% else %}#9ca3af{% endif %};">
-                    {% if lv.is_completed_by(current_user) %}&#10003;{% else %}{{ lv.level_number }}{% endif %}
+    {% if level_system_enabled and level_data and current_user.is_authenticated %}
+    <!-- ── Learning Path ── -->
+    <div class="learning-path">
+        <h2 data-i18n="index.learning_path">Learning Path</h2>
+        <div class="lp-track">
+        {% for ld in level_data %}
+            {% set lv = ld.level %}
+            <div class="lp-step">
+                <div class="lp-badge {% if ld.completed %}done{% elif not ld.unlocked %}locked{% endif %}">
+                    {% if ld.completed %}&#10003;{% elif not ld.unlocked %}&#128274;{% else %}{{ lv.level_number }}{% endif %}
                 </div>
-                <div style="font-size:.8rem;font-weight:600;margin:.25rem 0;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ lv.title }}">{{ lv.title }}</div>
-                <div style="font-size:.7rem;color:#6b7280;margin-bottom:.5rem;">{{ done }}/{{ total }} Aufgaben</div>
-                <div style="background:#e5e7eb;border-radius:99px;height:6px;overflow:hidden;">
-                    <div style="background:var(--primary-color,#84BD00);height:100%;width:{{ pct }}%;transition:width .3s;"></div>
+                <div class="lp-card {% if ld.completed %}done{% elif not ld.unlocked %}locked{% endif %}">
+                    <div class="lp-card-header">
+                        <span class="lp-card-title">
+                            <span class="lang-en">{{ lv.title }}</span>
+                            <span class="lang-de" style="display:none;">{{ lv.title_de or lv.title }}</span>
+                        </span>
+                        <span class="lp-diff-badge {{ lv.difficulty }}">{{ lv.difficulty | capitalize }}</span>
+                        <span class="lp-level-count">{{ ld.done }}/{{ ld.total }}</span>
+                    </div>
+                    {% if lv.description %}
+                    <div class="lp-level-desc">
+                        <span class="lang-en">{{ lv.description }}</span>
+                        <span class="lang-de" style="display:none;">{{ lv.description_de or lv.description }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="lp-progress-bar">
+                        <div class="lp-progress-fill" data-pct="{{ ld.pct }}"></div>
+                    </div>
+                    <div class="lp-tasks">
+                        {% for t in ld.tasks %}
+                            {% if ld.unlocked %}
+                            <a href="{{ url_for('main.task_page', task_id=t.id) }}"
+                               class="lp-task-chip {% if t.id in ld.submitted_ids %}done-chip{% endif %}">
+                                {% if t.id in ld.submitted_ids %}&#10003;&nbsp;{% endif %}
+                                <span class="lang-en">{{ t.title }}</span>
+                                <span class="lang-de" style="display:none;">{{ t.title_de or t.title }}</span>
+                            </a>
+                            {% else %}
+                            <span class="lp-task-chip locked-chip">
+                                &#128274;&nbsp;{{ t.title }}
+                            </span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
                 </div>
-                {% if not unlocked %}
-                <div style="font-size:.7rem;color:#9ca3af;margin-top:.4rem;">&#128274; Gesperrt</div>
-                {% endif %}
             </div>
-            {% if not loop.last %}
-            <div style="flex:0 0 auto;align-self:center;color:#9ca3af;font-size:1.2rem;">&#8250;</div>
-            {% endif %}
         {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    {% if not level_system_enabled %}
-    <h2 style="text-align: center; margin-bottom: 1.5rem;" data-i18n="index.select_task">Aufgabe auswählen</h2>
-    {% else %}
-    <h2 style="text-align: center; margin-bottom: 1.5rem;" data-i18n="index.select_task">Aufgaben</h2>
-    {% endif %}
+    <h2 class="index-tasks-heading" data-i18n="index.select_task">Select a Task</h2>
 
     <div class="tasks-grid">
         <!-- Custom Task Card -->
         <div class="task-card custom-task-card" onclick="startTask('custom')">
             <h3 data-i18n="index.custom_title">&#9997;&#65039; Custom Task</h3>
             <p data-i18n="index.custom_desc">Define your own process. Type a description or upload a document (TXT, PDF, DOCX) &mdash; then model it yourself with Mentor guidance.</p>
-            <span class="start-btn" style="background: #5b8dee;" data-i18n="index.start_custom">Start Custom &rarr;</span>
+            <span class="start-btn start-btn-custom" data-i18n="index.start_custom">Start Custom &rarr;</span>
         </div>
         {% for task in tasks %}
         <div class="task-card" onclick="startTask('{{ task.id }}')">
@@ -149,7 +80,11 @@
                 <span class="lang-en">{{ task.description[:200] }}{% if task.description|length > 200 %}...{% endif %}</span>
                 <span class="lang-de" style="display:none;">{{ (task.description_de or task.description)[:200] }}{% if (task.description_de or task.description)|length > 200 %}...{% endif %}</span>
             </p>
+            {% if task.id in (in_progress_task_ids or []) %}
+            <span class="start-btn" data-i18n="index.continue_task">Continue &rarr;</span>
+            {% else %}
             <span class="start-btn" data-i18n="index.start_task">Start Task &rarr;</span>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -157,7 +92,173 @@
 
 <script>
     function startTask(taskId) {
-        window.location.href = taskId === 'custom' ? '/task/custom' : `/task/${taskId}`;
+        window.location.href = taskId === 'custom' ? '/task/custom' : '/task/' + taskId;
     }
+    // Set progress bar widths from data-pct (avoids Jinja2 inside CSS inline styles)
+    document.querySelectorAll('.lp-progress-fill[data-pct]').forEach(function(el) {
+        el.style.width = (el.dataset.pct || 0) + '%';
+    });
 </script>
+
+<!-- ── Feedback FAB Button ── -->
+<button id="feedbackFab" onclick="openFeedbackModal()"
+  title="{{ _t('feedback.report', 'Report issue') }}"
+  style="position:fixed;bottom:1.75rem;right:1.75rem;z-index:1055;
+         width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;
+         background:linear-gradient(135deg,#84BD00,#5a8500);
+         color:#fff;font-size:22px;box-shadow:0 4px 16px rgba(0,0,0,.25);
+         display:flex;align-items:center;justify-content:center;
+         transition:transform .15s,box-shadow .15s"
+  onmouseenter="this.style.transform='scale(1.1)';this.style.boxShadow='0 6px 20px rgba(0,0,0,.35)'"
+  onmouseleave="this.style.transform='scale(1)';this.style.boxShadow='0 4px 16px rgba(0,0,0,.25)'"
+  aria-label="{{ _t('feedback.title', 'Send feedback') }}">
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15z"/>
+  </svg>
+</button>
+
+<!-- ── Feedback Modal ── -->
+<div id="feedbackModal" style="display:none;position:fixed;inset:0;z-index:1060;
+     background:rgba(0,0,0,.5);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;width:min(480px,94vw);max-height:90vh;
+              overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.3);padding:0">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#162700,#2d4a00);color:#fff;
+                padding:18px 22px;border-radius:12px 12px 0 0;
+                display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#84BD00" viewBox="0 0 16 16">
+          <path d="M8 15c4.418 0 8-3.134 8-7s-3.582-7-8-7-8 3.134-8 7c0 1.76.743 3.37 1.97 4.6-.097 1.016-.417 2.13-.771 2.966-.079.186.074.394.273.362 2.256-.37 3.597-.938 4.18-1.234A9.06 9.06 0 0 0 8 15z"/>
+        </svg>
+        <span style="font-weight:600;font-size:16px" data-i18n="feedback.title">{{ _t('feedback.title', 'Report an Issue') }}</span>
+      </div>
+      <button onclick="closeFeedbackModal()" style="background:none;border:none;color:#fff;
+              font-size:20px;cursor:pointer;line-height:1;padding:0 4px"
+              aria-label="{{ _t('feedback.close', 'Close') }}">&times;</button>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:22px">
+      <p style="color:#555;font-size:14px;margin-bottom:16px" data-i18n="feedback.intro">
+        {{ _t('feedback.intro', 'Found a bug or have a suggestion? Let us know!') }}
+      </p>
+
+      <!-- Category -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:14px;font-weight:600;color:#333;display:block;margin-bottom:6px"
+               data-i18n="feedback.category_label">{{ _t('feedback.category_label', 'Category') }}</label>
+        <select id="feedbackCategory" style="width:100%;padding:9px 12px;border:1px solid #ccc;
+                border-radius:8px;font-size:14px;background:#fff;cursor:pointer">
+          <option value="" disabled selected data-i18n="feedback.cat_placeholder">{{ _t('feedback.cat_placeholder', '-- Please select --') }}</option>
+          <option value="bug" data-i18n="feedback.cat_bug">🐛 Fehler / Bug</option>
+          <option value="technical" data-i18n="feedback.cat_technical">⚠️ Technisches Problem</option>
+          <option value="suggestion" data-i18n="feedback.cat_suggestion">💡 Verbesserungsvorschlag</option>
+          <option value="unclear" data-i18n="feedback.cat_unclear">❓ Unklarheit / Verständnisproblem</option>
+          <option value="general" data-i18n="feedback.cat_general">💬 Allgemeines Feedback</option>
+        </select>
+      </div>
+
+      <!-- Message -->
+      <div style="margin-bottom:18px">
+        <label style="font-size:14px;font-weight:600;color:#333;display:block;margin-bottom:6px"
+               data-i18n="feedback.message_label">{{ _t('feedback.message_label', 'Description') }}</label>
+        <textarea id="feedbackMessage" rows="5"
+          style="width:100%;padding:9px 12px;border:1px solid #ccc;border-radius:8px;
+                 font-size:14px;resize:vertical;box-sizing:border-box"
+          data-i18n="feedback.message_placeholder"
+          placeholder="{{ _t('feedback.message_placeholder', 'Describe the problem or your suggestion...') }}"></textarea>
+      </div>
+
+      <!-- Status message -->
+      <div id="feedbackStatus" style="display:none;padding:10px 14px;border-radius:8px;
+           font-size:14px;margin-bottom:14px"></div>
+
+      <!-- Buttons -->
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="closeFeedbackModal()" id="feedbackCancelBtn"
+          style="padding:9px 20px;border:1px solid #ccc;border-radius:8px;
+                 background:#fff;color:#555;font-size:14px;cursor:pointer"
+          data-i18n="feedback.cancel">{{ _t('feedback.cancel', 'Cancel') }}</button>
+        <button onclick="submitFeedback()" id="feedbackSubmitBtn"
+          style="padding:9px 22px;border:none;border-radius:8px;
+                 background:linear-gradient(135deg,#84BD00,#5a8500);color:#fff;
+                 font-size:14px;font-weight:600;cursor:pointer"
+          data-i18n="feedback.submit">{{ _t('feedback.submit', 'Send') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openFeedbackModal() {
+    document.getElementById('feedbackModal').style.display = 'flex';
+    document.getElementById('feedbackStatus').style.display = 'none';
+    document.getElementById('feedbackMessage').value = '';
+    document.getElementById('feedbackCategory').value = '';
+    document.getElementById('feedbackSubmitBtn').disabled = false;
+    document.getElementById('feedbackCancelBtn').textContent = t('feedback.cancel') || 'Abbrechen';
+}
+function closeFeedbackModal() {
+    document.getElementById('feedbackModal').style.display = 'none';
+}
+// Close on backdrop click
+document.getElementById('feedbackModal').addEventListener('click', function(e) {
+    if (e.target === this) closeFeedbackModal();
+});
+function submitFeedback() {
+    var category = document.getElementById('feedbackCategory').value;
+    var message = document.getElementById('feedbackMessage').value.trim();
+    var statusEl = document.getElementById('feedbackStatus');
+    var submitBtn = document.getElementById('feedbackSubmitBtn');
+    if (!category) {
+        statusEl.textContent = t('feedback.err_category') || 'Bitte wähle eine Kategorie.';
+        statusEl.style.display = 'block';
+        statusEl.style.background = '#fff3cd';
+        statusEl.style.color = '#856404';
+        return;
+    }
+    if (!message) {
+        statusEl.textContent = t('feedback.err_message') || 'Bitte beschreibe das Problem.';
+        statusEl.style.display = 'block';
+        statusEl.style.background = '#fff3cd';
+        statusEl.style.color = '#856404';
+        return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = '...';
+    fetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: category, message: message, page: 'Index / Startseite' })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            statusEl.textContent = t('feedback.success') || '✓ Danke! Dein Feedback wurde gesendet.';
+            statusEl.style.background = '#d1e7dd';
+            statusEl.style.color = '#0a3622';
+            statusEl.style.display = 'block';
+            submitBtn.style.display = 'none';
+            document.getElementById('feedbackCancelBtn').textContent = t('feedback.close') || 'Schließen';
+        } else {
+            statusEl.textContent = data.error || 'Fehler beim Senden.';
+            statusEl.style.background = '#f8d7da';
+            statusEl.style.color = '#842029';
+            statusEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = t('feedback.submit') || 'Absenden';
+        }
+    })
+    .catch(function() {
+        statusEl.textContent = t('feedback.err_network') || 'Netzwerkfehler. Bitte erneut versuchen.';
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.color = '#842029';
+        statusEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = t('feedback.submit') || 'Absenden';
+    });
+}
+</script>
+
 {% endblock %}

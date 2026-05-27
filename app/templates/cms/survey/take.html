@@ -8,9 +8,9 @@
 <!-- Progress bar -->
 <div class="mb-4">
   <div class="d-flex justify-content-between small text-muted mb-1">
-    <span>Seite {{ page_num + 1 }} von {{ total_pages }}</span>
+    <span>{{ _t('survey.page_label', 'Page') }} {{ page_num + 1 }} {{ _t('survey.of_label', 'of') }} {{ total_pages }}</span>
     {% if total_pages > 1 %}
-    <span>{{ (((page_num) / total_pages) * 100) | int }}% abgeschlossen</span>
+    <span>{{ (((page_num) / total_pages) * 100) | int }}{{ _t('survey.pct_complete_suffix', '% completed') }}</span>
     {% endif %}
   </div>
   <div class="progress" style="height:6px">
@@ -22,7 +22,7 @@
 <div class="card shadow-sm">
   <div class="card-header">
     <h6 class="mb-0">
-      {% if page.title %}{{ page.title }}{% else %}Seite {{ page_num + 1 }}{% endif %}
+      {% if page.title %}{{ page.title }}{% else %}{{ _t('survey.page_label', 'Page') }} {{ page_num + 1 }}{% endif %}
     </h6>
   </div>
   <div class="card-body">
@@ -33,7 +33,7 @@
       {% for q in page.questions | sort(attribute='sort_order') %}
       <div class="mb-4" id="question_{{ q.id }}">
 
-        {% if q.question_type != 'info' %}
+        {% if q.question_type not in ('info', 'image') %}
         <label class="form-label fw-semibold">
           {{ q.label }}
           {% if q.required %}<span class="text-danger">*</span>{% endif %}
@@ -84,8 +84,8 @@
         {# ── Likert ── #}
         {% elif q.question_type == 'likert' %}
         {% set steps = q.config.steps if q.config.steps else 5 %}
-        {% set min_lbl = q.config.likert_min_label if q.config.likert_min_label else 'Stimme gar nicht zu' %}
-        {% set max_lbl = q.config.likert_max_label if q.config.likert_max_label else 'Stimme voll zu' %}
+        {% set min_lbl = q.config.likert_min_label if q.config.likert_min_label else _t('survey.likert_min_default', 'Strongly disagree') %}
+        {% set max_lbl = q.config.likert_max_label if q.config.likert_max_label else _t('survey.likert_max_default', 'Strongly agree') %}
         <div class="d-flex gap-2 flex-wrap align-items-start mt-1">
           {% for i in range(1, steps + 1) %}
           <div class="text-center" style="min-width:60px">
@@ -121,7 +121,7 @@
         {% elif q.question_type == 'select' %}
         <select name="q_{{ q.id }}" class="form-select{% if errors.get('q_' ~ q.id) %} is-invalid{% endif %}"
                 {% if q.required %}required{% endif %}>
-          <option value="">— Bitte wählen —</option>
+          <option value="">{{ _t('survey.select_placeholder', '— Please select —') }}</option>
           {% for opt in q.options %}
           <option value="{{ opt.value }}" {% if ans == opt.value %}selected{% endif %}>
             {{ opt.label }}
@@ -153,6 +153,21 @@
         </div>
         {% endfor %}
 
+        {# ── Image ── #}
+        {% elif q.question_type == 'image' %}
+        {% set img_url = q.config.image_url if q.config and q.config.image_url else '' %}
+        {% if img_url %}
+        <div class="text-center">
+          <img src="{{ img_url }}" alt="{{ q.label }}" class="img-fluid rounded"
+               style="max-height:400px; max-width:100%;">
+          {% if q.description %}
+          <p class="text-muted small mt-2">{{ q.description }}</p>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0">{{ _t('survey.no_image', 'No image configured.') }}</div>
+        {% endif %}
+
         {% endif %}
       </div>
       {% endfor %}
@@ -161,22 +176,22 @@
       <div class="d-flex justify-content-between mt-4 pt-3 border-top">
         {% if page_num > 0 %}
         <button type="submit" name="action" value="prev" class="btn btn-outline-secondary">
-          <i class="bi bi-arrow-left me-1"></i>Zurück
+          <i class="bi bi-arrow-left me-1"></i>{{ _t('survey.prev_btn', 'Back') }}
         </button>
         {% else %}
         {% if survey.allow_skip %}
         <a href="{{ url_for('survey_bp.take', survey_id=survey.id) }}?action=skip"
-           class="btn btn-link text-muted">Überspringen</a>
+           class="btn btn-link text-muted">{{ _t('survey.skip_btn', 'Skip') }}</a>
         {% else %}<div></div>{% endif %}
         {% endif %}
 
         {% if not is_last %}
         <button type="submit" name="action" value="next" class="btn btn-primary">
-          Weiter<i class="bi bi-arrow-right ms-1"></i>
+          {{ _t('survey.next_btn', 'Next') }}<i class="bi bi-arrow-right ms-1"></i>
         </button>
         {% else %}
         <button type="submit" name="action" value="finish" class="btn btn-success">
-          <i class="bi bi-check-lg me-1"></i>Abschließen
+          <i class="bi bi-check-lg me-1"></i>{{ _t('survey.finish_btn', 'Finish') }}
         </button>
         {% endif %}
       </div>

@@ -1,17 +1,18 @@
 {% extends "cms/base.html" %}
-{% block title %}{% if task %}Aufgabe bearbeiten{% else %}Neue Aufgabe{% endif %}{% endblock %}
-{% block page_title %}{% if task %}Aufgabe bearbeiten{% else %}Neue Aufgabe{% endif %}{% endblock %}
+{% block title %}{% if task %}{{ _t('admin.task_edit_title', 'Edit Task') }}{% else %}{{ _t('admin.task_new_title', 'New Task') }}{% endif %}{% endblock %}
+{% block page_title %}{% if task %}{{ _t('admin.task_edit_title', 'Edit Task') }}{% else %}{{ _t('admin.task_new_title', 'New Task') }}{% endif %}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.tasks_list') }}" class="btn btn-outline-secondary btn-sm">
-  <i class="bi bi-arrow-left"></i> Zurück
+  <i class="bi bi-arrow-left"></i> {{ _t('common.back', 'Back') }}
 </a>
 {% endblock %}
 
 {% block content %}
 <form method="post"
       action="{{ url_for('admin.task_edit', task_id=task.id) if task else url_for('admin.task_create') }}"
-      enctype="multipart/form-data">
+      enctype="multipart/form-data"
+      onsubmit="return syncBpmnBeforeSubmit(event)">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   <div class="row g-3">
@@ -20,13 +21,13 @@
 
       <!-- Basic Info -->
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0">Grunddaten</h6></div>
+        <div class="card-header"><h6 class="mb-0">{{ _t('admin.task_basic_info', 'Basic Information') }}</h6></div>
         <div class="card-body row g-3">
           {% if not task %}
           <div class="col-md-4">
-            <label class="form-label">Aufgaben-ID <span class="text-danger">*</span>
+            <label class="form-label">{{ _t('admin.task_id_label', 'Task ID') }} <span class="text-danger">*</span>
               <i class="bi bi-info-circle" data-bs-toggle="tooltip"
-                 title="Eindeutige ID, z.B. task_04. Nicht änderbar nach Erstellung."></i>
+                 title="{{ _t('admin.task_id_hint', 'Unique ID, e.g. task_04. Cannot be changed after creation.') }}"></i>
             </label>
             <input type="text" name="id" class="form-control {% if errors.id %}is-invalid{% endif %}"
                    placeholder="task_04" value="{{ request.form.get('id','') }}" required
@@ -34,88 +35,124 @@
             {% if errors.id %}<div class="invalid-feedback">{{ errors.id }}</div>{% endif %}
           </div>
           <div class="col-md-4">
-            <label class="form-label">Reihenfolge</label>
+            <label class="form-label">{{ _t('admin.agent_sort_order', 'Sort Order') }}</label>
             <input type="number" name="sort_order" class="form-control" value="{{ request.form.get('sort_order', 0) }}" min="0">
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <div class="form-check">
               <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
                      {% if request.form.get('is_active') != 'false' %}checked{% endif %}>
-              <label for="is_active" class="form-check-label">Aktiv / sichtbar</label>
+              <label for="is_active" class="form-check-label">{{ _t('admin.task_active_visible', 'Active / visible') }}</label>
             </div>
           </div>
           {% else %}
           <div class="col-md-4">
-            <label class="form-label">Aufgaben-ID</label>
+            <label class="form-label">{{ _t('admin.task_id_label', 'Task ID') }}</label>
             <input type="text" class="form-control" value="{{ task.id }}" disabled>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Reihenfolge</label>
+            <label class="form-label">{{ _t('admin.agent_sort_order', 'Sort Order') }}</label>
             <input type="number" name="sort_order" class="form-control" value="{{ task.sort_order }}" min="0">
           </div>
           <div class="col-md-4 d-flex align-items-end">
             <div class="form-check">
               <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
                      {% if task.is_active %}checked{% endif %}>
-              <label for="is_active" class="form-check-label">Aktiv / sichtbar</label>
+              <label for="is_active" class="form-check-label">{{ _t('admin.task_active_visible', 'Active / visible') }}</label>
             </div>
           </div>
           {% endif %}
 
-          <div class="col-md-6">
-            <label class="form-label">Titel (English) <span class="text-danger">*</span></label>
-            <input type="text" name="title" class="form-control {% if errors.title %}is-invalid{% endif %}"
-                   value="{{ task.title if task else request.form.get('title','') }}" required>
-            {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Titel (Deutsch)</label>
-            <input type="text" name="title_de" class="form-control"
-                   value="{{ task.title_de or '' if task else request.form.get('title_de','') }}">
+          {% set extra_langs = cms_active_languages | selectattr('code', 'ne', 'en') | list %}
+
+          <!-- Language tab bar -->
+          <div class="col-12">
+            <ul class="nav nav-tabs" id="langTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-en" data-lang="en" type="button"
+                        onclick="switchLangTab('en')" role="tab">
+                  English <span class="text-danger">*</span>
+                </button>
+              </li>
+              {% for lang in extra_langs %}
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-{{ lang.code }}" data-lang="{{ lang.code }}" type="button"
+                        onclick="switchLangTab('{{ lang.code }}')" role="tab">
+                  {{ lang.name }}
+                </button>
+              </li>
+              {% endfor %}
+            </ul>
           </div>
 
-          <div class="col-12">
-            <label class="form-label">Beschreibung (English) <span class="text-danger">*</span></label>
-            <textarea name="description" class="form-control {% if errors.description %}is-invalid{% endif %}"
-                      rows="6" required>{{ task.description if task else request.form.get('description','') }}</textarea>
-            {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
-          </div>
-          <div class="col-12">
-            <label class="form-label">Beschreibung (Deutsch)</label>
-            <textarea name="description_de" class="form-control"
-                      rows="6">{{ task.description_de or '' if task else request.form.get('description_de','') }}</textarea>
+          <!-- English tab panel -->
+          <div class="col-12 lang-panel" id="panel-en">
+            <div class="row g-3 pt-2">
+              <div class="col-md-6">
+                <label class="form-label">{{ _t('common.title', 'Title') }} (English) <span class="text-danger">*</span></label>
+                <input type="text" name="title" id="title_en"
+                       class="form-control {% if errors.title %}is-invalid{% endif %}"
+                       value="{{ task.title if task else request.form.get('title','') }}" required>
+                {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ _t('common.description', 'Description') }} (English) <span class="text-danger">*</span></label>
+                <textarea name="description" id="description_en"
+                          class="form-control {% if errors.description %}is-invalid{% endif %}"
+                          rows="6" required>{{ task.description if task else request.form.get('description','') }}</textarea>
+                {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
+              </div>
+            </div>
           </div>
 
-          {# ── Extra language fields (all active languages beyond EN/DE) ── #}
-          {% set extra_langs = cms_active_languages | selectattr('code', 'ne', 'en') | selectattr('code', 'ne', 'de') | list %}
-          {% if extra_langs %}
-          <div class="col-12"><hr><h6 class="text-muted">{{ _t('tasks.additional_languages', 'Additional Languages') }}</h6></div>
+          <!-- Non-English tab panels -->
           {% for lang in extra_langs %}
-          {% set xt = task.extra_translations_dict.get(lang.code, {}) if task else {} %}
-          <div class="col-md-6">
-            <label class="form-label">Titel ({{ lang.name }})</label>
-            <input type="text" name="title_{{ lang.code }}" class="form-control"
-                   value="{{ xt.get('title', '') or request.form.get('title_' ~ lang.code, '') }}">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Beschreibung ({{ lang.name }})</label>
-            <textarea name="description_{{ lang.code }}" class="form-control" rows="4">{{ xt.get('description', '') or request.form.get('description_' ~ lang.code, '') }}</textarea>
+          {% if lang.code == 'de' %}
+            {% set xt_title = task.title_de or '' if task else request.form.get('title_de','') %}
+            {% set xt_desc  = task.description_de or '' if task else request.form.get('description_de','') %}
+            {% set title_field = 'title_de' %}
+            {% set desc_field  = 'description_de' %}
+          {% else %}
+            {% set xt = task.extra_translations_dict.get(lang.code, {}) if task else {} %}
+            {% set xt_title = xt.get('title', '') or request.form.get('title_' ~ lang.code, '') %}
+            {% set xt_desc  = xt.get('description', '') or request.form.get('description_' ~ lang.code, '') %}
+            {% set title_field = 'title_' ~ lang.code %}
+            {% set desc_field  = 'description_' ~ lang.code %}
+          {% endif %}
+          <div class="col-12 lang-panel" id="panel-{{ lang.code }}" style="display:none">
+            <div class="d-flex justify-content-end mb-2 pt-2">
+              <button type="button" class="btn btn-sm btn-outline-primary"
+                      onclick="translateLang('{{ lang.code }}', '{{ lang.name }}')">
+                <i class="bi bi-translate me-1"></i>{{ _t('admin.task_ai_translate', 'AI Translation from English') }}
+              </button>
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">{{ _t('common.title', 'Title') }} ({{ lang.name }})</label>
+                <input type="text" name="{{ title_field }}" id="title_{{ lang.code }}" class="form-control"
+                       value="{{ xt_title }}">
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ _t('common.description', 'Description') }} ({{ lang.name }})</label>
+                <textarea name="{{ desc_field }}" id="description_{{ lang.code }}" class="form-control"
+                          rows="6">{{ xt_desc }}</textarea>
+              </div>
+            </div>
           </div>
           {% endfor %}
-          {% endif %}
         </div>
       </div>
 
       <!-- BPMN Editor -->
       <div class="card shadow-sm mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h6 class="mb-0"><i class="bi bi-diagram-3"></i> Vormodellierter BPMN-Prozess (optional)</h6>
+          <h6 class="mb-0"><i class="bi bi-diagram-3"></i> {{ _t('admin.task_bpmn_header', 'Pre-modelled BPMN Process (optional)') }}</h6>
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearBpmn()">
-              <i class="bi bi-trash"></i> Löschen
+              <i class="bi bi-trash"></i> {{ _t('common.delete', 'Delete') }}
             </button>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleBpmnEditor()">
-              <i class="bi bi-pencil"></i> Editor öffnen
+              <i class="bi bi-pencil"></i> {{ _t('admin.task_bpmn_open_editor', 'Open Editor') }}
             </button>
           </div>
         </div>
@@ -126,7 +163,7 @@
           <textarea name="bpmn_xml" id="bpmn_xml" class="form-control font-monospace"
                     rows="4" placeholder="BPMN 2.0 XML (optional) — oder Editor verwenden"
                     style="font-size:11px">{{ task.bpmn_xml or '' if task else '' }}</textarea>
-          <div class="form-text">Wenn ausgefüllt, wird das BPMN-Diagramm neben der Aufgabenbeschreibung angezeigt.</div>
+          <div class="form-text">{{ _t('admin.task_bpmn_hint', 'If filled, the BPMN diagram is displayed next to the task description.') }}</div>
         </div>
       </div>
 
@@ -137,30 +174,30 @@
 
       <!-- Image -->
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0"><i class="bi bi-image"></i> Aufgabenbild (optional)</h6></div>
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-image"></i> {{ _t('admin.task_image_header', 'Task Image (optional)') }}</h6></div>
         <div class="card-body">
           {% if task and task.image_path %}
           <img src="{{ task.image_path }}" class="img-fluid mb-2 rounded" alt="Aufgabenbild">
           {% endif %}
           <input type="file" name="image" class="form-control" accept="image/*">
-          <div class="form-text">PNG, JPG, SVG, max. 10 MB</div>
+          <div class="form-text">{{ _t('admin.task_image_hint', 'PNG, JPG, SVG, max. 10 MB') }}</div>
         </div>
       </div>
 
       <!-- Grading -->
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> Bewertung</h6></div>
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> {{ _t('admin.grading_form_header', 'Grade') }}</h6></div>
         <div class="card-body">
-          <label class="form-label">Bewertungstyp</label>
+          <label class="form-label">{{ _t('admin.grading_type_label', 'Grading Type') }}</label>
           <select name="grading_type" id="grading_type" class="form-select mb-2"
                   onchange="toggleMaxPoints()">
             {% set gt = task.grading_type if task else 'none' %}
-            <option value="none" {% if gt == 'none' %}selected{% endif %}>Keine Bewertung</option>
-            <option value="points" {% if gt == 'points' %}selected{% endif %}>Punkte</option>
-            <option value="pass_fail" {% if gt == 'pass_fail' %}selected{% endif %}>Bestanden / Nicht bestanden</option>
+            <option value="none" {% if gt == 'none' %}selected{% endif %}>{{ _t('admin.grading_type_none', 'No grading') }}</option>
+            <option value="points" {% if gt == 'points' %}selected{% endif %}>{{ _t('admin.grading_type_points', 'Points') }}</option>
+            <option value="pass_fail" {% if gt == 'pass_fail' %}selected{% endif %}>{{ _t('admin.grading_type_pass_fail', 'Pass / Fail') }}</option>
           </select>
           <div id="maxPointsRow" style="{% if gt != 'points' %}display:none{% endif %}">
-            <label class="form-label">Maximale Punkte</label>
+            <label class="form-label">{{ _t('admin.grading_max_points', 'Maximum Points') }}</label>
             <input type="number" name="max_points" class="form-control" min="0" step="0.5"
                    value="{{ task.max_points or '' if task else '' }}">
           </div>
@@ -169,41 +206,68 @@
 
       <!-- Availability -->
       <div class="card shadow-sm mb-3">
-        <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar-range"></i> Verfügbarkeit</h6></div>
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar-range"></i> {{ _t('admin.task_availability', 'Availability') }}</h6></div>
         <div class="card-body">
-          <label class="form-label">Verfügbar ab</label>
+          <label class="form-label">{{ _t('admin.task_available_from', 'Available from') }}</label>
           <input type="datetime-local" name="available_from" class="form-control mb-2"
                  value="{{ task.available_from.strftime('%Y-%m-%dT%H:%M') if task and task.available_from else '' }}">
-          <label class="form-label">Verfügbar bis</label>
+          <label class="form-label">{{ _t('admin.task_available_until', 'Available until') }}</label>
           <input type="datetime-local" name="available_until" class="form-control"
                  value="{{ task.available_until.strftime('%Y-%m-%dT%H:%M') if task and task.available_until else '' }}">
-          <div class="form-text">Leer = unbegrenzt verfügbar</div>
+          <div class="form-text">{{ _t('admin.task_availability_empty_hint', 'Empty = available indefinitely') }}</div>
+          <hr>
+          <label class="form-label"><i class="bi bi-stopwatch"></i> {{ _t('admin.task_time_limit', 'Time Limit (minutes)') }}</label>
+          <input type="number" name="time_limit_minutes" class="form-control" min="1" step="1"
+                 value="{{ task.time_limit_minutes or '' if task else '' }}"
+                 placeholder="{{ _t('admin.task_time_limit_empty', 'Empty = no limit') }}">
+          <div class="form-text">{{ _t('admin.task_time_limit_hint', 'If a time limit is set, a countdown appears. After expiry, the submission is sent automatically.') }}</div>
+          <hr>
+          <div class="form-check">
+            <input type="checkbox" name="hide_after_completion" id="hide_after_completion" class="form-check-input"
+                   {% if task and task.hide_after_completion %}checked{% endif %}>
+            <label for="hide_after_completion" class="form-check-label">
+              {{ _t('admin.task_hide_after_completion', 'Hide task after completion') }}
+            </label>
+            <div class="form-text">{{ _t('admin.task_hide_after_completion_hint', 'If enabled, the task is no longer shown on the homepage once the student has completed it.') }}</div>
+          </div>
+          <hr>
+          <label class="form-label"><i class="bi bi-robot"></i> {{ _t('admin.task_agent', 'AI Agent') }}</label>
+          <select name="agent_id" class="form-select">
+            <option value="">{{ _t('admin.task_agent_default', '— Platform default —') }}</option>
+            {% for a in agents %}
+            <option value="{{ a.id }}" {% if task and task.agent_id == a.id %}selected{% endif %}>
+              {{ a.name }}{% if a.is_default %} (Standard){% endif %}
+              — {{ a.modeling_mode }}
+            </option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _t('admin.task_agent_hint', 'Which AI agent assists students on this task. Empty = use platform default.') }}</div>
         </div>
       </div>
 
       <!-- Prerequisites — visual builder -->
       <div class="card shadow-sm mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h6 class="mb-0"><i class="bi bi-lock"></i> Voraussetzungen</h6>
-          <small class="text-muted">Verknüpfung: <select id="prereqConnector" class="form-select form-select-sm d-inline-block w-auto">
-            <option value="AND">UND (alle müssen erfüllt sein)</option>
-            <option value="OR">ODER (mind. eine muss erfüllt sein)</option>
+          <h6 class="mb-0"><i class="bi bi-lock"></i> {{ _t('admin.task_prereqs_header', 'Prerequisites') }}</h6>
+          <small class="text-muted">{{ _t('admin.task_prereqs_connector', 'Connector') }}: <select id="prereqConnector" class="form-select form-select-sm d-inline-block w-auto">
+            <option value="AND">{{ _t('admin.task_prereqs_and', 'AND (all must be met)') }}</option>
+            <option value="OR">{{ _t('admin.task_prereqs_or', 'OR (at least one must be met)') }}</option>
           </select></small>
         </div>
         <div class="card-body">
-          <div id="prereqRules"></div>
+          <div id="prereqRules" style="overflow-x: auto; max-width: 100%;"></div>
           <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addPrereqRule()">
-            <i class="bi bi-plus-lg me-1"></i>Regel hinzufügen
+            <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.task_prereqs_add_rule', 'Add Rule') }}
           </button>
           <!-- Hidden field serialised on submit -->
           <input type="hidden" name="prerequisites_json" id="prereqJson"
             value="{{ task.prerequisites or '[]' if task else '[]' }}">
-          <div class="form-text mt-1">Regeln werden automatisch als JSON gespeichert.</div>
+          <div class="form-text mt-1">{{ _t('admin.task_prereqs_hint', 'Rules are saved automatically as JSON.') }}</div>
         </div>
       </div>
 
       <button type="submit" class="btn btn-primary w-100 btn-lg">
-        <i class="bi bi-save"></i> Speichern
+        <i class="bi bi-save"></i> {{ _t('common.save', 'Save') }}
       </button>
     </div>
   </div>
@@ -213,6 +277,53 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='cms/js/task_editor.js') }}"></script>
 <script>
+// ── Language tab switching ────────────────────────────────────────────────────
+function switchLangTab(lang) {
+  document.querySelectorAll('.lang-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('#langTabs .nav-link').forEach(btn => btn.classList.remove('active'));
+  const panel = document.getElementById('panel-' + lang);
+  if (panel) panel.style.display = '';
+  const tab = document.getElementById('tab-' + lang);
+  if (tab) tab.classList.add('active');
+}
+
+// ── AI translation ────────────────────────────────────────────────────────────
+const TRANSLATE_URL = '{{ url_for("admin.task_translate") }}';
+const TRANSLATE_CSRF = '{{ csrf_token() }}';
+
+async function translateLang(langCode, langName) {
+  const titleEn = (document.getElementById('title_en') || {}).value || '';
+  const descEn  = (document.getElementById('description_en') || {}).value || '';
+  if (!titleEn && !descEn) {
+    alert('{{ _t('admin.task_translate_fill_first', 'Please fill in English title and description first.') }}');
+    return;
+  }
+  const btn = event.currentTarget;
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _t('admin.task_translating', 'Translating…') }}';
+  try {
+    const resp = await fetch(TRANSLATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': TRANSLATE_CSRF },
+      body: JSON.stringify({ title_en: titleEn, desc_en: descEn, target_lang: langCode, target_lang_name: langName }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      const tf = document.getElementById('title_' + langCode);
+      const df = document.getElementById('description_' + langCode);
+      if (tf && data.title) tf.value = data.title;
+      if (df && data.description) df.value = data.description;
+    } else {
+      alert('{{ _t('admin.task_translate_error', 'Translation error') }}: ' + (data.error || '{{ _t('common.unknown_error', 'Unknown error') }}'));
+    }
+  } catch(e) {
+    alert('{{ _t('common.network_error', 'Network error') }}: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
 function toggleMaxPoints() {
   const gt = document.getElementById('grading_type').value;
   document.getElementById('maxPointsRow').style.display = gt === 'points' ? '' : 'none';
@@ -230,26 +341,37 @@ function toggleBpmnEditor() {
   }
 }
 
+async function syncBpmnBeforeSubmit(event) {
+  // If the BPMN editor is open, sync XML to textarea before submit
+  const c = document.getElementById('bpmn-editor-container');
+  if (c && c.style.display !== 'none') {
+    event.preventDefault();
+    await saveBpmnToTextarea('bpmn_xml');
+    event.target.submit();
+  }
+  return true;
+}
+
 // Tooltip init
 document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
   new bootstrap.Tooltip(el));
 
 // ── Prerequisites visual builder ──────────────────────────────────────────────
 const PREREQ_FIELDS = [
-  { value: 'task_completed', label: 'Aufgabe abgeschlossen' },
-  { value: 'task_submitted', label: 'Aufgabe eingereicht' },
-  { value: 'cohort_member',  label: 'Mitglied in Gruppe' },
-  { value: 'role',           label: 'Rolle' },
+  { value: 'task_completed', label: '{{ _t('admin.task_prereq_task_completed', 'Task completed') }}' },
+  { value: 'task_submitted', label: '{{ _t('admin.task_prereq_task_submitted', 'Task submitted') }}' },
+  { value: 'cohort_member',  label: '{{ _t('admin.task_prereq_cohort_member', 'Member of group') }}' },
+  { value: 'role',           label: '{{ _t('admin.task_prereq_role', 'Role') }}' },
 ];
 const PREREQ_OPS = [
-  { value: 'eq',  label: 'ist' },
-  { value: 'neq', label: 'ist nicht' },
-  { value: 'contains', label: 'enthält' },
-  { value: 'not_contains', label: 'enthält nicht' },
+  { value: 'eq',  label: '{{ _t('admin.task_prereq_op_eq', 'is') }}' },
+  { value: 'neq', label: '{{ _t('admin.task_prereq_op_neq', 'is not') }}' },
+  { value: 'contains', label: '{{ _t('admin.task_prereq_op_contains', 'contains') }}' },
+  { value: 'not_contains', label: '{{ _t('admin.task_prereq_op_not_contains', 'does not contain') }}' },
 ];
 const ALL_TASKS = {{ all_tasks | tojson if all_tasks is defined else '[]' }};
 const ALL_COHORTS = {{ all_cohorts | tojson if all_cohorts is defined else '[]' }};
-const ROLES = ['student','instructor','admin'];
+const ROLES = ['student','tutor','admin'];
 
 let prereqRules = [];
 try {
@@ -269,7 +391,7 @@ function renderPrereqRules() {
   const rules = Array.isArray(prereqRules) ? prereqRules : (prereqRules.rules || []);
   container.innerHTML = '';
   if (!rules.length) {
-    container.innerHTML = '<p class="text-muted small">Keine Bedingungen. Aufgabe ist immer zugänglich.</p>';
+    container.innerHTML = '<p class="text-muted small">{{ _t('admin.task_prereqs_empty', 'No conditions. Task is always accessible.') }}</p>';
     return;
   }
   rules.forEach((rule, idx) => {
@@ -324,7 +446,7 @@ function buildValuePicker(wrap, rule, idx) {
   if (type === 'task_completed' || type === 'task_submitted') {
     const sel = document.createElement('select');
     sel.className = 'form-select form-select-sm';
-    sel.appendChild(new Option('Aufgabe wählen…', ''));
+    sel.appendChild(new Option('{{ _t('admin.task_prereq_select_task', 'Select task…') }}', ''));
     ALL_TASKS.forEach(t => {
       sel.appendChild(new Option(t.title || t.id, t.id, false, rule.value === t.id));
     });
@@ -333,7 +455,7 @@ function buildValuePicker(wrap, rule, idx) {
   } else if (type === 'cohort_member') {
     const sel = document.createElement('select');
     sel.className = 'form-select form-select-sm';
-    sel.appendChild(new Option('Gruppe wählen…', ''));
+    sel.appendChild(new Option('{{ _t('admin.task_prereq_select_group', 'Select group…') }}', ''));
     ALL_COHORTS.forEach(c => {
       sel.appendChild(new Option(c.name, String(c.id), false, String(rule.value) === String(c.id)));
     });
