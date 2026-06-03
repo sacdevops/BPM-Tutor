@@ -189,6 +189,9 @@ def _init_extensions(app: Flask) -> None:
 
 
 def _create_tables_and_seed(app: Flask) -> None:
+    # Import ALL models before db.create_all() so every table is registered
+    # in db.metadata — otherwise tables added in newer code would be missed.
+    import app.models  # noqa: F401 — side-effect import registers all ORM classes
     from app.extensions import db
     db.create_all()
     _run_column_migrations(db)
@@ -338,80 +341,85 @@ def _persist_env_mail_settings(server: str, cfg) -> None:
 
 
 def _run_column_migrations(db) -> None:
-    """Add new columns to existing tables without dropping data."""
-    migrations = [
-        ("tasks", "extra_translations", "TEXT"),
-        ("tasks", "time_limit_minutes", "INTEGER"),
-        ("tasks", "hide_after_completion", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("task_submissions", "bpmn_draft", "TEXT"),
-        ("task_submissions", "study_id", "INTEGER"),
-        # AI agent mode flags
-        ("ai_agents", "use_standard", "BOOLEAN NOT NULL DEFAULT 1"),
-        ("ai_agents", "use_leveling", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("ai_agents", "use_research", "BOOLEAN NOT NULL DEFAULT 0"),
-        # AI agent: system-agent lock and modeling mode
-        ("ai_agents", "is_system", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("ai_agents", "modeling_mode", "VARCHAR(20) NOT NULL DEFAULT 'none'"),
-        # Task: optional per-task agent override
-        ("tasks", "agent_id", "VARCHAR(36)"),
-        # Study question image path
-        ("survey_questions", "image_path", "TEXT"),
-        # Study: new columns
-        ("studies", "is_archived", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("studies", "archived_at", "DATETIME"),
-        ("studies", "is_template", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("studies", "cloned_from_id", "INTEGER"),
-        ("studies", "require_consent", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("studies", "consent_text", "TEXT"),
-        ("studies", "anonymize_export", "BOOLEAN NOT NULL DEFAULT 1"),
-        ("studies", "study_design", "VARCHAR(20) NOT NULL DEFAULT 'within'"),
-        ("studies", "enrollment_survey_id", "INTEGER"),
-        # StudyStep: new columns
-        ("study_steps", "wave_number", "INTEGER NOT NULL DEFAULT 0"),
-        ("study_steps", "available_from", "DATETIME"),
-        ("study_steps", "available_until", "DATETIME"),
-        ("study_steps", "allow_late_submission", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("study_steps", "late_penalty_note", "VARCHAR(500)"),
-        ("study_steps", "condition_id", "INTEGER"),
-        # StudyCondition: AI agent per condition (between-subjects)
-        ("study_conditions", "agent_id", "VARCHAR(36)"),
-        # StudyStep: multi-condition assignment (JSON list)
-        ("study_steps", "condition_ids", "TEXT"),
-        # StudyParticipant: new columns
-        ("study_participants", "consent_given_at", "DATETIME"),
-        ("study_participants", "condition_id", "INTEGER"),
-        ("study_participants", "dropped_out_at", "DATETIME"),
-        ("study_participants", "dropout_reason", "VARCHAR(500)"),
-        # Study: leaderboard + tracking
-        ("studies", "leaderboard_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("studies", "tracking_config", "TEXT"),
-        # User: leaderboard anonymization + notification email
-        ("users", "leaderboard_anonymous", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("users", "email_notifications", "BOOLEAN NOT NULL DEFAULT 1"),
-        # Task: mode
-        ("tasks", "task_mode", "VARCHAR(20) NOT NULL DEFAULT 'standard'"),
-        # Study: agent display name override
-        ("studies", "agent_display_name", "VARCHAR(200)"),
-    ]
+    """Auto-detect and add any model column missing from the live DB schema.
+
+    Compares every column in db.metadata (= all imported SQLAlchemy models)
+    against the live SQLite schema.  Any column present in the model but absent
+    from the database is added automatically via ALTER TABLE.
+
+    This means you NEVER need to maintain a manual migration list — just add
+    a column to a model and it will be created on the next startup.
+
+    Notes:
+    - New *tables* are handled by db.create_all(), not here.
+    - Primary-key columns are never altered.
+    - Columns with a callable default (e.g. lambda: datetime.now()) are added
+      as nullable; SQLite cannot express a Python lambda as a SQL DEFAULT.
+    - All errors are swallowed per-column so one bad column never blocks others.
+    """
+    import logging
+    from sqlalchemy import text, inspect as sa_inspect
+
+    _log = logging.getLogger('bpmtutor.migrations')
+    inspector = sa_inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+
     with db.engine.connect() as conn:
-        from sqlalchemy import text, inspect
-        inspector = inspect(db.engine)
-        for table, column, col_type in migrations:
-            try:
-                if table not in inspector.get_table_names():
+        for table in db.metadata.sorted_tables:
+            tname = table.name
+            if tname not in existing_tables:
+                continue  # new tables: handled by db.create_all()
+
+            existing_cols = {c['name'] for c in inspector.get_columns(tname)}
+
+            for col in table.columns:
+                if col.name in existing_cols or col.primary_key:
                     continue
-                cols = [c['name'] for c in inspector.get_columns(table)]
-                if column not in cols:
-                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {col_type}'))
-                    conn.commit()
-            except Exception:
+
+                # Compile the SQLite type string from the SQLAlchemy column type
                 try:
-                    conn.rollback()
+                    type_str = col.type.compile(dialect=db.engine.dialect)
                 except Exception:
-                    pass
+                    type_str = str(col.type)
+
+                # Build NOT NULL + DEFAULT suffix from the column's static default
+                suffix = ''
+                has_static_default = (
+                    col.default is not None
+                    and hasattr(col.default, 'is_scalar')
+                    and col.default.is_scalar
+                )
+                if has_static_default:
+                    val = col.default.arg
+                    if isinstance(val, bool):
+                        suffix += f' DEFAULT {1 if val else 0}'
+                    elif isinstance(val, (int, float)):
+                        suffix += f' DEFAULT {val}'
+                    elif isinstance(val, str):
+                        escaped = val.replace("'", "''")
+                        suffix += f" DEFAULT '{escaped}'"
+                    if not col.nullable:
+                        suffix = ' NOT NULL' + suffix
+                # Columns without a static default are added nullable;
+                # a NOT NULL without DEFAULT is rejected by SQLite on ALTER TABLE.
+
+                ddl = f'ALTER TABLE "{tname}" ADD COLUMN "{col.name}" {type_str}{suffix}'
+                try:
+                    conn.execute(text(ddl))
+                    conn.commit()
+                    _log.info('[Migration] Added %s.%s (%s%s)', tname, col.name, type_str, suffix)
+                except Exception as exc:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    _log.debug('[Migration] Skip %s.%s: %s', tname, col.name, exc)
+
+        # ── Data fixups (schema-change independent, kept here for convenience) ──
+
         # Rename legacy 'instructor' role to 'tutor'
         try:
-            if 'users' in inspector.get_table_names():
+            if 'users' in existing_tables:
                 conn.execute(text("UPDATE users SET role='tutor' WHERE role='instructor'"))
                 conn.commit()
         except Exception:
@@ -419,9 +427,10 @@ def _run_column_migrations(db) -> None:
                 conn.rollback()
             except Exception:
                 pass
+
         # Fix Supervisor agent control_mode: was accidentally seeded as 'shared'
         try:
-            if 'ai_agents' in inspector.get_table_names():
+            if 'ai_agents' in existing_tables:
                 conn.execute(text(
                     "UPDATE ai_agents SET control_mode='agent' "
                     "WHERE agent_type='supervisor' AND control_mode='shared'"
@@ -432,6 +441,7 @@ def _run_column_migrations(db) -> None:
                 conn.rollback()
             except Exception:
                 pass
+
     # Idempotent indexes — run on every startup, safe on existing DBs
     _index_ddl = [
         "CREATE INDEX IF NOT EXISTS ix_task_sub_user_task       ON task_submissions     (user_id, task_id)",

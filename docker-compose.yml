@@ -15,7 +15,7 @@ services:
 
   # ── nginx reverse proxy — serves /static/ directly, proxies rest to app ─────────
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.30-alpine
     restart: unless-stopped
     depends_on:
       - app
@@ -60,6 +60,13 @@ services:
     volumes:
       # Persist SQLite database, uploads and task stats across container restarts
       - app_data:/app/data
+      # Bind-mount source code so that a `git pull` + `docker compose up -d`
+      # (without --build) picks up code changes immediately.
+      # Only requirements.txt changes still require a rebuild.
+      - ./app:/app/app:ro
+      - ./deploy:/app/deploy:ro
+      - ./lib:/app/lib:ro
+      - ./config.py:/app/config.py:ro
 
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
@@ -82,6 +89,10 @@ services:
         condition: service_healthy
     volumes:
       - app_data:/app/data
+      - ./app:/app/app:ro
+      - ./deploy:/app/deploy:ro
+      - ./lib:/app/lib:ro
+      - ./config.py:/app/config.py:ro
 
   # ── Celery Beat scheduler — fires periodic tasks (backups, notifications) ─────
   beat:
@@ -98,6 +109,10 @@ services:
     volumes:
       # beat stores its schedule state file here so it survives restarts
       - app_data:/app/data
+      - ./app:/app/app:ro
+      - ./deploy:/app/deploy:ro
+      - ./lib:/app/lib:ro
+      - ./config.py:/app/config.py:ro
 
 volumes:
   redis_data:
