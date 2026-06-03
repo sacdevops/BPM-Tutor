@@ -27,7 +27,7 @@ fi
 # Default: web role
 echo "[entrypoint] Starting Gunicorn..."
 exec gunicorn \
-    --worker-class gevent \
+    --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker \
     --workers 1 \
     --worker-connections 1000 \
     --bind "0.0.0.0:${PORT:-5001}" \

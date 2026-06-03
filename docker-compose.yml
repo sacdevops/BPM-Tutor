@@ -18,7 +18,8 @@ services:
     image: nginx:1.30-alpine
     restart: unless-stopped
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     ports:
       - "5001:80"
     volumes:
@@ -46,7 +47,7 @@ services:
       HOME: /tmp
 
       # Secrets — set via .env file or server environment variables
-      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
 
       # SQLite database path inside the container (shared volume)
       DATABASE_URL: sqlite:////app/data/bpmtutor.db
@@ -81,7 +82,7 @@ services:
     restart: unless-stopped
     environment:
       ROLE: worker
-      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       DATABASE_URL: sqlite:////app/data/bpmtutor.db
       REDIS_URL: redis://redis:6379/0
     depends_on:
@@ -100,7 +101,7 @@ services:
     restart: unless-stopped
     environment:
       ROLE: beat
-      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       DATABASE_URL: sqlite:////app/data/bpmtutor.db
       REDIS_URL: redis://redis:6379/0
     depends_on:

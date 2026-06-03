@@ -3,54 +3,54 @@
 {% block page_title %}{{ _t('nav.profile', 'My Profile') }}{% endblock %}
 
 {% block content %}
-<div class="row g-3">
-  <!-- Profile Card -->
-  <div class="col-lg-4">
-    <div class="card shadow-sm mb-3">
-      <div class="card-body text-center py-4">
-        <div class="mb-3" style="font-size:4rem; color: var(--cms-primary);"><i class="bi bi-person-circle"></i></div>
-        <h5 class="mb-1">{{ current_user.display_name }}</h5>
-        <p class="text-muted mb-2">{{ current_user.email }}</p>
-        <span class="role-badge role-{{ current_user.role }}">{{ current_user.role }}</span>
-      </div>
-      <div class="list-group list-group-flush">
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">{{ _t('profile.username_label', 'Username') }}</span>
-          <strong>{{ current_user.username }}</strong>
+<form method="post" action="{{ url_for('user_bp.profile_edit') }}" id="profileForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <!-- Profile Card -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body text-center py-4">
+          <div class="mb-3" style="font-size:4rem; color: var(--cms-primary);"><i class="bi bi-person-circle"></i></div>
+          <h5 class="mb-1">{{ current_user.display_name }}</h5>
+          <p class="text-muted mb-2">{{ current_user.email }}</p>
+          <span class="role-badge role-{{ current_user.role }}">{{ current_user.role }}</span>
         </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">{{ _t('profile.member_since', 'Member since') }}</span>
-          <strong>{{ current_user.created_at.strftime('%d.%m.%Y') }}</strong>
-        </div>
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">{{ _t('profile.email_verified', 'Email verified') }}</span>
-          {% if current_user.is_verified %}
-            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
-          {% else %}
-            <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>{{ _t('common.no', 'No') }}</span>
+        <div class="list-group list-group-flush">
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="text-muted small">{{ _t('profile.username_label', 'Username') }}</span>
+            <strong>{{ current_user.username }}</strong>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="text-muted small">{{ _t('profile.member_since', 'Member since') }}</span>
+            <strong>{{ current_user.created_at.strftime('%d.%m.%Y') }}</strong>
+          </div>
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="text-muted small">{{ _t('profile.email_verified', 'Email verified') }}</span>
+            {% if current_user.is_verified %}
+              <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
+            {% else %}
+              <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>{{ _t('common.no', 'No') }}</span>
+            {% endif %}
+          </div>
+          {% if current_user.personal_api_key %}
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <span class="text-muted small">{{ _t('profile.api_key_stored', 'API key stored') }}</span>
+            <span class="badge bg-success"><i class="bi bi-key-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
+          </div>
           {% endif %}
+          <a href="{{ url_for('user_bp.my_stats') }}" class="list-group-item list-group-item-action text-center">
+            <i class="bi bi-bar-chart me-2"></i>{{ _t('profile.my_stats_link', 'My Statistics') }}
+          </a>
+          <a href="{{ url_for('user_bp.my_submissions') }}" class="list-group-item list-group-item-action text-center">
+            <i class="bi bi-journal-text me-2"></i>{{ _t('profile.my_submissions_link', 'My Submissions') }}
+          </a>
         </div>
-        {% if current_user.personal_api_key %}
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <span class="text-muted small">{{ _t('profile.api_key_stored', 'API key stored') }}</span>
-          <span class="badge bg-success"><i class="bi bi-key-fill me-1"></i>{{ _t('common.yes', 'Yes') }}</span>
-        </div>
-        {% endif %}
-        <a href="{{ url_for('user_bp.my_stats') }}" class="list-group-item list-group-item-action text-center">
-          <i class="bi bi-bar-chart me-2"></i>{{ _t('profile.my_stats_link', 'My Statistics') }}
-        </a>
-        <a href="{{ url_for('user_bp.my_submissions') }}" class="list-group-item list-group-item-action text-center">
-          <i class="bi bi-journal-text me-2"></i>{{ _t('profile.my_submissions_link', 'My Submissions') }}
-        </a>
       </div>
-    </div>
 
-    <!-- Notifications & Privacy Card (left column) -->
-    <div class="card shadow-sm">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>{{ _t('profile.privacy_settings_title', 'Privacy & Notifications') }}</h6></div>
-      <div class="card-body">
-        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <!-- Notifications & Privacy Card — fields are part of the outer form -->
+      <div class="card shadow-sm">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>{{ _t('profile.privacy_settings_title', 'Privacy & Notifications') }}</h6></div>
+        <div class="card-body">
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" name="leaderboard_anonymous" id="leaderboard_anonymous"
                    {% if current_user.leaderboard_anonymous %}checked{% endif %}>
@@ -68,22 +68,16 @@
               <div class="text-muted small">{{ _t('profile.email_notifications_hint', 'Receive an email when you get a new notification.') }}</div>
             </label>
           </div>
-          <button type="submit" class="btn btn-primary mt-3 w-100">
-            <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
-          </button>
-        </form>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Forms -->
-  <div class="col-lg-8">
-    <!-- Personal Data -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-person me-2"></i>{{ _t('profile.personal_data', 'Personal Data') }}</h6></div>
-      <div class="card-body">
-        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <!-- Right column -->
+    <div class="col-lg-8">
+      <!-- Personal Data -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-person me-2"></i>{{ _t('profile.personal_data', 'Personal Data') }}</h6></div>
+        <div class="card-body">
           <div class="row g-2">
             <div class="col-md-6">
               <label class="form-label">{{ _t('auth.first_name_label', 'First name') }}</label>
@@ -113,22 +107,16 @@
             </div>
             {% endif %}
           </div>
-          <button type="submit" class="btn btn-primary mt-3">
-            <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
-          </button>
-        </form>
+        </div>
       </div>
-    </div>
 
-    <!-- API Key + Model -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu me-2"></i>{{ _t('profile.ai_settings', 'AI Settings (API Key & Model)') }}</h6></div>
-      <div class="card-body">
-        <p class="text-muted small mb-3">
-          {{ _t('profile.api_key_hint', 'Enter your OpenAI-compatible API key here. It will be stored encrypted and used for your AI-supported BPMN mentoring.') }}
-        </p>
-        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <!-- API Key + Model -->
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><h6 class="mb-0"><i class="bi bi-cpu me-2"></i>{{ _t('profile.ai_settings', 'AI Settings (API Key & Model)') }}</h6></div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            {{ _t('profile.api_key_hint', 'Enter your OpenAI-compatible API key here. It will be stored encrypted and used for your AI-supported BPMN mentoring.') }}
+          </p>
           <div class="mb-3">
             <label class="form-label fw-semibold">{{ _t('profile.api_key_label', 'API Key') }}</label>
             <div class="input-group">
@@ -145,6 +133,7 @@
             <div class="mt-1 d-flex align-items-center gap-2">
               <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>{{ _t('profile.api_key_stored', 'API key stored') }}</span>
               <button type="submit" name="clear_api_key" value="1"
+                      onclick="document.getElementById('apiKeyInput').value=''"
                       class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-trash me-1"></i>{{ _t('profile.api_key_remove', 'Remove') }}
               </button>
@@ -163,14 +152,20 @@
             </div>
             <div id="modelStatus" class="form-text mt-1"></div>
           </div>
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-save me-1"></i>{{ _t('profile.save_api_settings', 'Save API Settings') }}
-          </button>
-        </form>
+        </div>
       </div>
-    </div>
 
-    <!-- Change Password -->
+      <!-- Single Save Button for all profile settings -->
+      <button type="submit" class="btn btn-primary mb-4">
+        <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
+      </button>
+    </div>
+  </div>
+</form>
+
+<!-- Change Password — separate form with its own endpoint -->
+<div class="row">
+  <div class="col-lg-8 offset-lg-4">
     <div class="card shadow-sm mb-3">
       <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>{{ _t('profile.change_pw_title', 'Change Password') }}</h6></div>
       <div class="card-body">
@@ -196,7 +191,6 @@
         </form>
       </div>
     </div>
-
   </div>
 </div>
 {% endblock %}
@@ -245,7 +239,6 @@ function loadModels(silent) {
         if (m.id === savedModel) { opt.selected = true; found = true; }
         select.appendChild(opt);
       });
-      // If saved model not found, keep first item selected (browser default)
       select.disabled = false;
       document.getElementById('modelSection').style.display = '';
       status.textContent = `${data.models.length} Modelle verfügbar.${found ? '' : ' (Gespeichertes Modell nicht gefunden — bitte neu wählen.)'}`;
@@ -256,12 +249,29 @@ function loadModels(silent) {
   .catch(() => { btn.disabled = false; status.textContent = 'Verbindungsfehler.'; });
 }
 
-// Auto-load models on page load if an API key is already saved
 document.addEventListener('DOMContentLoaded', () => {
   {% if current_user.personal_api_key %}
   document.getElementById('modelSection').style.display = '';
   loadModels(true);
   {% endif %}
+
+  // Auto-load models when the user leaves the API key field or presses Enter
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  apiKeyInput.addEventListener('blur', () => {
+    if (apiKeyInput.value.trim()) {
+      document.getElementById('modelSection').style.display = '';
+      loadModels(true);
+    }
+  });
+  apiKeyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (apiKeyInput.value.trim()) {
+        document.getElementById('modelSection').style.display = '';
+        loadModels(true);
+      }
+    }
+  });
 });
 </script>
 {% endblock %}
