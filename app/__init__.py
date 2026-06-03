@@ -202,6 +202,14 @@ def _create_tables_and_seed(app: Flask) -> None:
     except Exception as exc:
         app.logger.warning('[App] i18n seed failed: %s', exc)
 
+    try:
+        from deploy.seed import step_tasks, step_admin, step_system_agents
+        step_tasks()
+        step_admin()
+        step_system_agents()
+    except Exception as exc:
+        app.logger.warning('[App] Deployment seed failed: %s', exc)
+
 
 def _configure_rate_limiting(app: Flask) -> None:
     from app.extensions import limiter
