@@ -25,10 +25,6 @@ def tutor_or_admin_required(f):
     return roles_required('admin', 'tutor')(f)
 
 
-def tutor_or_above_required(f):
-    return roles_required('admin', 'tutor')(f)
-
-
 def active_required(f):
     """Deny access if the user account is locked."""
     @wraps(f)

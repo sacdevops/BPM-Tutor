@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}{{ site_name | default('BPM-Tutor') }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block extra_css %}{% endblock %}
@@ -28,13 +29,13 @@
     <header class="site-header">
       <div class="site-header-inner">
         <div class="header-brand">
-          {% if brand_logo_src and brand_logo_src | trim %}
-          <a href="{{ brand_logo_link | default('/') }}" class="header-logo-link" aria-label="{{ _t('nav.home', 'Home') }}">
+          <a href="{{ brand_logo_link | default('/') }}" class="header-brand-link">
+            {% if brand_logo_src and brand_logo_src | trim %}
             <img src="{{ brand_logo_src }}" class="header-logo-img" alt=""
                  onerror="this.style.display='none'">
+            {% endif %}
+            <span class="header-site-name">{{ site_name | default('BPM-Tutor') }}</span>
           </a>
-          {% endif %}
-          <a href="/" class="header-site-name">{{ site_name | default('BPM-Tutor') }}</a>
         </div>
 
         <nav class="header-nav" aria-label="Hauptnavigation">

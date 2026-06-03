@@ -2,15 +2,16 @@
 from flask import request
 from flask_login import current_user
 import os
-from app.services.ai_service import AIService, AIServiceError
-from app.services.session_store import store
-from app.services import task_tracker
-import config
 import logging
-import traceback
 import uuid
 import json
 from datetime import datetime, timezone
+
+from app.services.ai_service import AIService, AIServiceError
+from app.services.session_store import store
+from app.services import task_tracker
+from app.utils.agent_utils import resolve_agent
+from app.sockets._submission_manager import persist_chat_log, persist_mentor_state
 
 logger = logging.getLogger('bpmtutor.chat')
 
@@ -26,45 +27,14 @@ _INITIAL_GREETING_SIGNAL = '[INITIAL_GREETING]'
 _COMPLETION_REVIEW_SIGNAL = '[COMPLETION_REVIEW]'
 
 
-def _resolve_agent(agent_id: str, task_id: str) -> tuple:
-    """Return (agent_id, agent_name, modeling_mode, control_mode) for the session.
-    Falls back to the task's assigned agent, then the platform default."""
-    try:
-        from app.models.agent import AIAgent
-        # 1. Explicit agent_id from client (study condition or UI picker)
-        if agent_id:
-            a = AIAgent.query.get(agent_id)
-            if a:
-                return a.id, a.name, a.modeling_mode, a.control_mode
-        # 2. Task-assigned agent
-        if task_id and task_id != 'custom':
-            from app.models.task import Task
-            t = Task.query.get(task_id)
-            if t and t.agent_id:
-                a = AIAgent.query.get(t.agent_id)
-                if a:
-                    return a.id, a.name, a.modeling_mode, a.control_mode
-        # 3. Platform default
-        a = AIAgent.get_default()
-        if a:
-            return a.id, a.name, a.modeling_mode, a.control_mode
-    except Exception as _e:
-        logger.warning('[chat_handler] agent resolve error: %s', _e)
-    return '', 'Mentor', 'none', 'human'
-
-
-def _celery_available() -> bool:
-    """Return True if a Redis broker is configured and Celery tasks can be dispatched."""
-    return bool(os.getenv('REDIS_URL', ''))
-
-
 def _get_task_description(task_id: str, session: dict, lang: str) -> str:
     """Resolve the task description for the given task_id, session, and language."""
     if task_id == 'custom':
         return session.get('custom_task_desc', '')
     try:
         from app.models.task import Task as TaskModel
-        task_obj = TaskModel.query.get(task_id)
+        from app.extensions import db as _db_ch
+        task_obj = _db_ch.session.get(TaskModel, task_id)
         if task_obj:
             return task_obj.description_de if lang == 'de' and task_obj.description_de else task_obj.description or ''
     except Exception:
@@ -111,7 +81,7 @@ def register_handlers(socketio):
 
         # --- Resolve which agent to use for this session ---
         requested_agent_id = data.get('agent_id', '')
-        agent_id, agent_name, modeling_mode, control_mode = _resolve_agent(requested_agent_id, task_id)
+        agent_id, agent_name, modeling_mode, control_mode, agent_type = resolve_agent(requested_agent_id, task_id)
 
         # --- Resolve API key from DB settings if available ---
         api_key = data.get('api_key', '')
@@ -149,6 +119,7 @@ def register_handlers(socketio):
             settings['model'] = current_user.preferred_model
 
         store.create(sid, task_id, session_uuid, settings, agent_id=agent_id)
+        store.get(sid)['agent_type'] = agent_type
         task_tracker.start_task(sid, task_id, session_uuid)
 
         # --- Resume or create TaskSubmission in DB ---
@@ -157,7 +128,7 @@ def register_handlers(socketio):
         try:
             from app.extensions import db
             from app.models.task import TaskSubmission, Task
-            task_obj = Task.query.get(task_id)
+            task_obj = db.session.get(Task, task_id)
             if task_obj:
                 user_id = current_user.id if current_user.is_authenticated else None
                 # Look for an existing in-progress submission first
@@ -172,6 +143,9 @@ def register_handlers(socketio):
                     sub = existing
                     # Update session_id so autosave queries can find this submission
                     sub.session_id = request.sid
+                    # Update agent info in case participant switched agents
+                    sub.agent_id = agent_id if agent_id else None
+                    sub.agent_name = agent_name
                     db.session.commit()
                     bpmn_draft = existing.bpmn_draft or None
                     # Calculate elapsed time so client can set remaining time
@@ -196,6 +170,8 @@ def register_handlers(socketio):
                         interactions=0,
                         tokens_in=0,
                         tokens_out=0,
+                        agent_id=agent_id if agent_id else None,
+                        agent_name=agent_name,
                     )
                     db.session.add(sub)
                     db.session.commit()
@@ -282,6 +258,14 @@ def register_handlers(socketio):
         lang = data.get('lang') or settings.get('lang', 'en')
         base_url = data.get('base_url') or settings.get('base_url', '')
 
+        # For custom tasks: the client piggybacks the confirmed description on the
+        # send_message payload to guarantee it arrives atomically with the greeting
+        # request (eliminates the set_custom_task / send_message ordering race).
+        if task_id == 'custom':
+            incoming_desc = (data.get('custom_task_desc') or '').strip()
+            if incoming_desc:
+                session['custom_task_desc'] = incoming_desc
+
         task_description = _get_task_description(task_id, session, lang)
 
         chat_history = session['chat_history']
@@ -290,59 +274,47 @@ def register_handlers(socketio):
         mentor = AIService(task_id, session_id=session['session_uuid'],
                            api_key=api_key, model=model, lang=lang,
                            tracker_key=sid, base_url=base_url,
-                           agent_id=session.get('agent_id', ''))
+                           agent_id=session.get('agent_id', ''),
+                           sub_id=session.get('submission_id'))
 
         is_initial_greeting = message == _INITIAL_GREETING_SIGNAL
 
         # -- Initial greeting --
+        # Always generated synchronously in the socket handler.
+        # Rationale: ar.get() inside a gevent greenlet blocks the event loop,
+        # preventing the Flask-SocketIO Redis listener from forwarding the
+        # Celery worker's ai_response back to the client → dots run forever.
+        # generate_greeting() uses requests which is gevent-patched (yields on
+        # network I/O), so the synchronous path is non-blocking in practice.
         if is_initial_greeting:
             if chat_history and chat_history[-1]['message'] == _INITIAL_GREETING_SIGNAL:
                 chat_history.pop()
 
             _fallback = _FALLBACK_GREETING_DE if lang == 'de' else _FALLBACK_GREETING
 
-            if _celery_available():
-                from app.tasks.llm_tasks import process_mentor_greeting
-                try:
-                    ar = process_mentor_greeting.delay(
-                        sid=sid,
-                        task_id=task_id,
-                        session_uuid=session['session_uuid'],
-                        task_description=task_description,
-                        api_key=api_key,
-                        model=model,
-                        lang=lang,
-                        tracker_key=sid,
-                        fallback_greeting=_fallback,
-                        agent_id=session.get('agent_id', ''),
-                    )
-                    greeting = ar.get(timeout=300)
-                except Exception as _ce:
-                    logger.error('[Mentor] Celery greeting error: %s', _ce)
-                    greeting = _fallback
-            else:
-                try:
-                    result = mentor.generate_greeting(task_description)
-                    greeting = result.get('message', _fallback)
-                except AIServiceError as e:
-                    logger.error('[Mentor] Greeting API error (%s): %s', e.error_type, e)
-                    emit('ai_typing', {'typing': False})
-                    emit('error', {'message': str(e), 'error_type': e.error_type})
-                    return
-                except Exception as e:
-                    logger.error('[Mentor] Greeting error: %s', e)
-                    greeting = _fallback
-
-                emit('ai_response', {
-                    'sender': 'ai',
-                    'message': greeting,
-                    'complete': False,
-                    'phase': 'GREETING',
-                    'issues': [],
-                })
+            try:
+                result = mentor.generate_greeting(task_description)
+                greeting = result.get('message') or _fallback
+            except AIServiceError as e:
+                logger.error('[Mentor] Greeting API error (%s): %s', e.error_type, e)
                 emit('ai_typing', {'typing': False})
+                emit('error', {'message': str(e), 'error_type': e.error_type})
+                return
+            except Exception as e:
+                logger.error('[Mentor] Greeting error: %s', e)
+                greeting = _fallback
 
-            chat_history.append({'sender': 'ai', 'message': greeting})
+            emit('ai_response', {
+                'sender': 'ai',
+                'message': greeting,
+                'complete': False,
+                'phase': 'GREETING',
+                'issues': [],
+            })
+            emit('ai_typing', {'typing': False})
+            from datetime import datetime, timezone as _tz
+            _ts = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            chat_history.append({'sender': 'ai', 'message': greeting, 'ts': _ts})
             state['memory'].append({'role': 'assistant', 'content': greeting})
             return
 
@@ -350,120 +322,10 @@ def register_handlers(socketio):
         # -- Regular user message --
         is_completion_review = message == _COMPLETION_REVIEW_SIGNAL
         if not is_completion_review:
-            chat_history.append({'sender': 'user', 'message': message})
+            from datetime import datetime, timezone as _tz
+            _ts_user = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            chat_history.append({'sender': 'user', 'message': message, 'ts': _ts_user})
             state['memory'].append({'role': 'user', 'content': message})
-
-        # Resolve agent type for instruction routing
-        _agent_type = 'mentor'
-        _agent_id = session.get('agent_id', '')
-        if _agent_id:
-            try:
-                from app.models.agent import AIAgent
-                _agent = AIAgent.query.get(_agent_id)
-                if _agent:
-                    _agent_type = _agent.agent_type or 'mentor'
-            except Exception:
-                pass
-
-        if is_completion_review:
-            # Special completion review instruction — override normal instruction
-            if _agent_type == 'colleague':
-                if lang == 'de':
-                    instruction = (
-                        'Der Studierende möchte die Aufgabe abschließen. Überprüfe das aktuelle Modell gemeinsam. '
-                        'Wenn es vollständig und korrekt ist: setze complete: true in deiner Antwort. '
-                        'Wenn noch Probleme vorhanden sind: erkläre sie klar und setze complete: false. '
-                        'Verwende ANALYSIS-Phase. Antworte auf Deutsch.'
-                    )
-                else:
-                    instruction = (
-                        'The student wants to complete the task. Review the current model together. '
-                        'If it is complete and correct: set complete: true in your response. '
-                        'If there are still issues: explain them clearly and set complete: false. '
-                        'Use ANALYSIS phase.'
-                    )
-            else:  # supervisor
-                if lang == 'de':
-                    instruction = (
-                        'Der Studierende beantragt den Abschluss der Aufgabe. Überprüfe das Modell autoritativ und gründlich (ANALYSIS-Phase). '
-                        'Genehmige (complete: true) nur, wenn das Modell alle Anforderungen erfüllt und keine syntax- oder semantic-Fehler hat. '
-                        'Andernfalls: erkläre genau, was noch fehlt oder falsch ist (complete: false). '
-                        'Antworte auf Deutsch.'
-                    )
-                else:
-                    instruction = (
-                        'The student is requesting task completion. Review the model authoritatively and thoroughly (ANALYSIS phase). '
-                        'Approve (complete: true) only if the model meets all requirements with no syntax or semantic errors. '
-                        'Otherwise: explain exactly what is missing or wrong (complete: false).'
-                    )
-        elif _agent_type == 'colleague':
-            if lang == 'de':
-                instruction = (
-                    'Der Studierende hat eine Nachricht gesendet. Reagiere als gleichberechtigter Kollege. '
-                    'Wenn der Studierende der Aufgabenteilung zustimmt oder ihr bereits modelliert: '
-                    'Generiere SOFORT bpmn_ops für alle deine Elemente in deinem Pool. '
-                    'Wenn er eine Frage stellt: beantworte sie direkt und sachlich (ANSWER-Phase). '
-                    'Wenn er das Modell überprüfen lassen möchte: verwende ANALYSIS-Phase mit gemeinsamer Perspektive. '
-                    'Antworte auf Deutsch.'
-                )
-            else:
-                instruction = (
-                    'The student has sent a message. React as an equal Colleague. '
-                    'If the student agrees to the task split or you are already modeling: '
-                    'Generate bpmn_ops IMMEDIATELY for all your elements in your pool. '
-                    'If they ask a question: answer directly (ANSWER phase). '
-                    'If they request a model review: use ANALYSIS phase with collaborative perspective.'
-                )
-        elif _agent_type == 'supervisor':
-            if lang == 'de':
-                instruction = (
-                    'Der Studierende hat eine Nachricht gesendet. Reagiere als Supervisor. '
-                    'Wenn er Feedback oder eine Überprüfung wünscht: gib direktes, autoritatives Feedback (ANALYSIS-Phase). '
-                    'Wenn er eine Frage stellt: beantworte sie direkt (ANSWER-Phase). '
-                    'Wenn er allgemeine Nachrichten sendet: reagiere kurz (FEEDBACK-Phase). '
-                    'Genehmige den Abschluss nur, wenn alle syntax- und semantic-Probleme behoben sind. '
-                    'Antworte auf Deutsch.'
-                )
-            else:
-                instruction = (
-                    'The student has sent a message. React as a Supervisor. '
-                    'If they request feedback or a review: give direct, authoritative evaluation (ANALYSIS phase). '
-                    'If they ask a question: answer directly (ANSWER phase). '
-                    'For general messages: respond briefly (FEEDBACK phase). '
-                    'Only approve completion when all syntax and semantic issues are resolved.'
-                )
-        elif _agent_type == 'assistant':
-            if lang == 'de':
-                instruction = (
-                    'Der Studierende hat eine Nachricht gesendet. Reagiere als hilfreicher Assistent. '
-                    'Wenn er eine Frage stellt: beantworte sie direkt und sachlich (ANSWER-Phase). '
-                    'Wenn er das Modell überprüfen lassen möchte: führe ANALYSIS-Phase durch. '
-                    'Wenn er allgemeine Kommentare macht: reagiere ermutigend (FEEDBACK-Phase). '
-                    'Antworte auf Deutsch.'
-                )
-            else:
-                instruction = (
-                    'The student has sent a message. React as a helpful Assistant. '
-                    'If they ask a question: answer directly and factually (ANSWER phase). '
-                    'If they request model review: use ANALYSIS phase. '
-                    'For general comments: respond encouragingly (FEEDBACK phase).'
-                )
-        else:  # mentor, delegant, or custom
-            if lang == 'de':
-                instruction = (
-                    'Der Studierende hat eine Nachricht gesendet. Reagiere darauf: '
-                    'Wenn er dich bittet, sein Modell zu überprüfen, verwende die ANALYSIS-Phase. '
-                    'Wenn er eine Frage zu BPMN stellt, verwende die ANSWER-Phase mit sokratischen Fragen. '
-                    'Wenn er einen allgemeinen Kommentar macht, verwende die FEEDBACK-Phase mit Ermutigung. '
-                    'Antworte auf Deutsch.'
-                )
-            else:
-                instruction = (
-                    'The student has sent a message. React to it: '
-                    'If they are asking you to check, review, or analyze their model, use ANALYSIS phase. '
-                    'If they are asking a question about BPMN, the task, or modeling techniques, use ANSWER phase with Socratic questioning. '
-                    'If they are making a general comment or showing progress, use FEEDBACK phase with encouragement.'
-                )
 
         # Use a natural-language equivalent when the signal is a special internal signal
         _effective_message = message
@@ -472,59 +334,28 @@ def register_handlers(socketio):
                                   if lang == 'de' else
                                   'Please review the model and decide if the task can be completed.')
 
-        if _celery_available():
-            from app.tasks.llm_tasks import process_mentor_message
-            ar = process_mentor_message.delay(
-                sid=sid,
-                task_id=task_id,
-                session_uuid=session['session_uuid'],
-                task_description=task_description,
-                instruction=instruction,
-                memory=list(state['memory']),
-                current_bpmn=current_bpmn,
-                user_message=_effective_message,
-                previous_issues=state.get('last_issues', []),
-                api_key=api_key,
-                model=model,
-                lang=lang,
-                tracker_key=sid,
-                submission_id=session.get('submission_id'),
-            )
-            try:
-                response = ar.get(timeout=300)
-            except Exception as _ce:
-                logger.error('[Mentor] Celery message error: %s', _ce)
-                return  # Celery task already emitted error to the client
-            # Update in-memory state (Celery task handled DB persist and SocketIO emit)
-            resp_message = response.get('message', '')
-            if resp_message:
-                state['memory'].append({'role': 'assistant', 'content': resp_message})
-                chat_history.append({'sender': 'ai', 'message': resp_message})
-            issues = response.get('issues', [])
-            if issues:
-                state['last_issues'] = issues
-            resp_phase = response.get('phase', 'FEEDBACK')
-            phase_counts = state.setdefault('phase_counts', {})
-            phase_counts[resp_phase] = phase_counts.get(resp_phase, 0) + 1
-            # Persist chat_log to DB so it survives page reloads
-            try:
-                from app.extensions import db as _db
-                from app.models.task import TaskSubmission as _Sub
-                import json as _j
-                _sub_id = session.get('submission_id')
-                if _sub_id:
-                    _sub = _Sub.query.get(_sub_id)
-                    if _sub:
-                        _sub.chat_log = _j.dumps(chat_history, ensure_ascii=False)
-                        _db.session.commit()
-            except Exception as _cpe:
-                logger.warning('[chat_handler] chat_log persist error (celery): %s', _cpe)
-        else:
-            try:
+        # Always run AI calls synchronously inside the gevent greenlet.
+        # Rationale: dispatching to Celery and then calling ar.get() blocks
+        # the gevent event loop, which prevents the Flask-SocketIO Redis
+        # listener from forwarding the Celery worker's ai_response to the
+        # client — the user sees the typing indicator forever.
+        # The requests library is gevent-patched and yields on network I/O,
+        # so running LLM calls inline is non-blocking in practice.
+        # (The Celery worker service is kept for study/background tasks.)
+        try:
+            _loop_memory = list(state['memory'])
+            _loop_issues = state.get('last_issues', [])
+            _loop_user_msg = _effective_message
+            _is_delegant = session.get('agent_type') == 'delegant'
+
+            while True:
+                if session.get('stopped', False):
+                    break
+
                 response = mentor.get_mentor_response(
-                    task_description, instruction, state['memory'],
-                    current_bpmn, user_message=_effective_message,
-                    previous_issues=state.get('last_issues', []),
+                    task_description, _loop_memory,
+                    current_bpmn, user_message=_loop_user_msg,
+                    previous_issues=_loop_issues,
                 )
                 resp_phase = response.get('phase', 'FEEDBACK')
                 resp_message = response.get('message', '')
@@ -532,29 +363,30 @@ def register_handlers(socketio):
                 is_complete = response.get('complete', False)
 
                 if resp_message:
+                    from datetime import datetime, timezone as _tz
+                    _ts_ai = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                     state['memory'].append({'role': 'assistant', 'content': resp_message})
-                    chat_history.append({'sender': 'ai', 'message': resp_message})
+                    chat_history.append({'sender': 'ai', 'message': resp_message, 'ts': _ts_ai})
+                    _loop_memory = list(state['memory'])
 
                 if issues:
                     state['last_issues'] = issues
+                    _loop_issues = issues
 
                 phase_counts = state.setdefault('phase_counts', {})
                 phase_counts[resp_phase] = phase_counts.get(resp_phase, 0) + 1
 
-                try:
-                    from app.extensions import db as _db
-                    from app.models.task import TaskSubmission as _Sub
-                    _sub_id = session.get('submission_id')
-                    if _sub_id:
-                        _sub = _Sub.query.get(_sub_id)
-                        if _sub:
-                            import json as _j
-                            _sub.mentor_memory = _j.dumps(state['memory'])
-                            _sub.phase_counts = _j.dumps(phase_counts)
-                            _sub.chat_log = _j.dumps(chat_history, ensure_ascii=False)
-                            _db.session.commit()
-                except Exception as _pe:
-                    logger.warning('[chat_handler] memory persist error: %s', _pe)
+                persist_mentor_state(session.get('submission_id'), state, chat_history)
+
+                _ops = response.get('bpmn_ops')
+                _ops_non_empty = _ops is not None and _ops != [] and _ops != {}
+
+                # Determine whether we will loop again so the client can keep
+                # the input locked during intermediate Delegant iterations.
+                _will_loop = (_is_delegant
+                              and not is_complete
+                              and not session.get('stopped', False)
+                              and not _ops_non_empty)
 
                 emit('ai_response', {
                     'sender': 'ai',
@@ -563,27 +395,37 @@ def register_handlers(socketio):
                     'phase': resp_phase,
                     'issues': [],
                     'bpmn_ops': response.get('bpmn_ops', []),
+                    'looping': _will_loop,
                 })
 
                 if issues:
                     emit('mentor_issues', {'issues': issues})
 
-                if response.get('bpmn_ops'):
-                    emit('bpmn_ops', {'ops': response['bpmn_ops']})
+                if _ops_non_empty:
+                    emit('bpmn_ops', {'ops': _ops})
 
-                emit('ai_typing', {'typing': False})
+                # Only loop autonomously for Delegant agents; all others respond once per turn.
+                # Also stop if bpmn_ops were emitted: modeling happened client-side, so the
+                # server no longer has an up-to-date BPMN canvas for the next LLM call.
+                # The client must send a new message with the updated XML to continue.
+                if not _is_delegant or is_complete or session.get('stopped', False) or _ops_non_empty:
+                    break
 
-            except AIServiceError as e:
-                logger.error('[Mentor] API error (%s): %s', e.error_type, e)
-                emit('ai_typing', {'typing': False})
-                emit('error', {
-                    'message': str(e),
-                    'error_type': e.error_type,
-                })
-            except Exception as e:
-                logger.error('[Mentor] send_message error: %s', e, exc_info=True)
-                emit('ai_typing', {'typing': False})
-                emit('error', {'message': 'An unexpected error occurred. Please try again.'})
+                # Delegant not done yet — show typing indicator and loop for next LLM call
+                _loop_user_msg = ''
+                emit('ai_typing', {'typing': True})
+
+        except AIServiceError as e:
+            logger.error('[Mentor] API error (%s): %s', e.error_type, e)
+            emit('error', {
+                'message': str(e),
+                'error_type': e.error_type,
+            })
+        except Exception as e:
+            logger.error('[Mentor] send_message error: %s', e, exc_info=True)
+            emit('error', {'message': 'An unexpected error occurred. Please try again.'})
+        finally:
+            emit('ai_typing', {'typing': False})
 
     @socketio.on('request_analysis')
     def handle_request_analysis(data):
@@ -618,23 +460,13 @@ def register_handlers(socketio):
                            agent_id=session.get('agent_id', ''))
 
         if lang == 'de':
-            instruction = (
-                'Der Studierende hat eine vollständige Überprüfung seines BPMN-Modells angefordert. '
-                'Analysiere das Modell gründlich anhand der Aufgabenbeschreibung und BPMN-Standards. '
-                'Verwende die ANALYSIS-Phase. Melde alle Probleme mit sokratischen Hinweisen. Antworte auf Deutsch.'
-            )
             user_msg = 'Bitte überprüfe mein Modell.'
         else:
-            instruction = (
-                'The student has requested a full review of their BPMN model. '
-                'Analyze the model thoroughly against the task description and BPMN standards. '
-                'Use ANALYSIS phase. Report all issues with Socratic hints.'
-            )
             user_msg = 'Please review my model.'
 
         try:
             response = mentor.get_mentor_response(
-                task_description, instruction, state['memory'],
+                task_description, state['memory'],
                 current_bpmn, user_message=user_msg,
                 phase_hint='ANALYSIS',
                 previous_issues=state.get('last_issues', []),
@@ -746,7 +578,7 @@ def _persist_submission(sid: str, session: dict, bpmn_xml: str) -> int | None:
     try:
         from app.extensions import db
         from app.models.task import TaskSubmission
-        sub = TaskSubmission.query.get(sub_id)
+        sub = db.session.get(TaskSubmission, sub_id)
         if not sub:
             return None
         chat_history = session.get('chat_history', [])

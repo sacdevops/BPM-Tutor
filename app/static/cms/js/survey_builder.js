@@ -91,13 +91,30 @@ const SurveyBuilder = (() => {
           </div>` : ''}
         </div>`;
       container.appendChild(pageDiv);
+
+      // Init drag-drop reorder via SortableJS if available
+      if (window.Sortable) {
+        const qContainer = document.getElementById(`questions_${pi}`);
+        if (qContainer) {
+          Sortable.create(qContainer, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd(evt) {
+              const item = pages[pi].questions.splice(evt.oldIndex, 1)[0];
+              pages[pi].questions.splice(evt.newIndex, 0, item);
+              renderPages(); // re-render to keep indices consistent
+            }
+          });
+        }
+      }
     });
   }
 
   function renderQuestion(pi, qi, q) {
     const needsOptions = ['select', 'radio', 'checkbox'].includes(q.type);
-    const isScale = q.type === 'scale' || q.type === 'likert';
+    const isScale = q.type === 'likert';
     const isImage = q.type === 'image';
+    const isVideo = q.type === 'video';
     return `
       <div class="border rounded p-3 mb-2 bg-white question-item" id="question_${pi}_${qi}">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -113,11 +130,7 @@ const SurveyBuilder = (() => {
             <label class="form-check-label small" for="req_${pi}_${qi}">Pflicht</label>
           </div>` : ''}
           <div class="d-flex gap-1">
-            ${qi > 0 ? `<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1"
-                onclick="SurveyBuilder._moveQ(${pi},${qi},-1)">↑</button>` : ''}
-            ${qi < (pages[pi]?.questions.length - 1) ? `<button type="button"
-                class="btn btn-xs btn-outline-secondary py-0 px-1"
-                onclick="SurveyBuilder._moveQ(${pi},${qi},1)">↓</button>` : ''}
+            <span class="drag-handle text-secondary" title="Verschieben" style="cursor:grab;user-select:none;padding:0 4px;font-size:14px">⠿</span>
             <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1"
                     onclick="SurveyBuilder._removeQ(${pi},${qi})">×</button>
           </div>
@@ -134,6 +147,18 @@ const SurveyBuilder = (() => {
                    oninput="SurveyBuilder._setCfg(${pi},${qi},'image_url',this.value)">
           </div>
           ${q.config?.image_url ? `<img src="${escHtml(q.config.image_url)}" style="max-height:120px;border-radius:6px;margin-top:4px;" onerror="this.style.display='none'" id="imgPreview_${pi}_${qi}">` : `<img id="imgPreview_${pi}_${qi}" style="max-height:120px;border-radius:6px;display:none;">`}
+        ` : isVideo ? `
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="file" class="form-control form-control-sm" accept="video/*"
+                   id="vidUpload_${pi}_${qi}"
+                   onchange="SurveyBuilder._uploadQuestionVideo(${pi},${qi},this)">
+            <span class="text-muted small">oder</span>
+            <input type="url" class="form-control form-control-sm"
+                   placeholder="Video-URL (https://...)"
+                   value="${escHtml(q.config?.video_url || '')}"
+                   oninput="SurveyBuilder._setCfg(${pi},${qi},'video_url',this.value)">
+          </div>
+          ${q.config?.video_url ? `<video src="${escHtml(q.config.video_url)}" controls style="max-height:160px;border-radius:6px;" id="vidPreview_${pi}_${qi}"></video>` : `<video id="vidPreview_${pi}_${qi}" style="max-height:160px;display:none;"></video>`}
         ` : `
           <input type="text" class="form-control form-control-sm mb-2"
                  placeholder="Beschreibung / Hilfetext (optional)"
@@ -235,10 +260,30 @@ const SurveyBuilder = (() => {
       .catch(() => alert('Bild-Upload fehlgeschlagen.'));
   }
 
+  function _uploadQuestionVideo(pi, qi, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/survey/upload-video', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.url) {
+          _setCfg(pi, qi, 'video_url', data.url);
+          const preview = document.getElementById(`vidPreview_${pi}_${qi}`);
+          if (preview) { preview.src = data.url; preview.style.display = ''; }
+        } else {
+          alert('Video-Upload fehlgeschlagen: ' + (data.error || 'Unbekannter Fehler'));
+        }
+      })
+      .catch(() => alert('Video-Upload fehlgeschlagen.'));
+  }
+
   return {
     init, addPage, addQuestion, getPages,
     _setActive, _setPageTitle, _movePage, _removePage,
-    _setQField, _setQOptions, _setCfg, _moveQ, _removeQ, _uploadQuestionImage
+    _setQField, _setQOptions, _setCfg, _moveQ, _removeQ, _uploadQuestionImage,
+    _uploadQuestionVideo
   };
 })();
 

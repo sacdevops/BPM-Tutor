@@ -44,6 +44,36 @@
         </a>
       </div>
     </div>
+
+    <!-- Notifications & Privacy Card (left column) -->
+    <div class="card shadow-sm">
+      <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>{{ _t('profile.privacy_settings_title', 'Privacy & Notifications') }}</h6></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('user_bp.profile_edit') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="leaderboard_anonymous" id="leaderboard_anonymous"
+                   {% if current_user.leaderboard_anonymous %}checked{% endif %}>
+            <label class="form-check-label" for="leaderboard_anonymous">
+              <strong>{{ _t('profile.leaderboard_anonymous', 'Hide name on leaderboards') }}</strong>
+              <div class="text-muted small">{{ _t('profile.leaderboard_anonymous_hint', 'Your scores appear as "Anonymous".') }}</div>
+            </label>
+          </div>
+          <hr class="my-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="email_notifications" id="email_notifications"
+                   {% if current_user.email_notifications %}checked{% endif %}>
+            <label class="form-check-label" for="email_notifications">
+              <strong>{{ _t('profile.email_notifications', 'Email Notifications') }}</strong>
+              <div class="text-muted small">{{ _t('profile.email_notifications_hint', 'Receive an email when you get a new notification.') }}</div>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary mt-3 w-100">
+            <i class="bi bi-save me-1"></i>{{ _t('common.save', 'Save') }}
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Forms -->
@@ -141,7 +171,7 @@
     </div>
 
     <!-- Change Password -->
-    <div class="card shadow-sm">
+    <div class="card shadow-sm mb-3">
       <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-lock me-2"></i>{{ _t('profile.change_pw_title', 'Change Password') }}</h6></div>
       <div class="card-body">
         <form method="post" action="{{ url_for('user_bp.change_password') }}">
@@ -166,6 +196,7 @@
         </form>
       </div>
     </div>
+
   </div>
 </div>
 {% endblock %}

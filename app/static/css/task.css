@@ -15,6 +15,16 @@
     margin: 0;
 }
 
+/* ── Read-only canvas (AI-only modeling mode) ─────────────────────────────
+   Applied via JS when MODELING_MODE === 'ai_only'.
+   Hides all editing UI; pan and zoom still work normally.
+   ────────────────────────────────────────────────────────────────────────── */
+#bpmn-canvas.bpmn-readonly .djs-palette        { display: none !important; }
+#bpmn-canvas.bpmn-readonly .djs-context-pad    { display: none !important; }
+#bpmn-canvas.bpmn-readonly .djs-resize-handle  { display: none !important; }
+#bpmn-canvas.bpmn-readonly .djs-bendpoint      { display: none !important; }
+#bpmn-canvas.bpmn-readonly .djs-segmentmove-hit { display: none !important; }
+
 .task-layout {
     display: grid;
     grid-template-columns: 20% 60% 20%;
@@ -160,6 +170,14 @@
     padding-top: 0.5rem;
     flex-shrink: 0;
     flex-wrap: wrap;
+}
+
+.task-ai-disclaimer {
+    font-size: 11px;
+    color: #aaa;
+    margin: 4px 0 0 0;
+    padding: 0;
+    line-height: 1.4;
 }
 
 .export-btn {

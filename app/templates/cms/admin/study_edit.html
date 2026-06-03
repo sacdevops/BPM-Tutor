@@ -134,14 +134,6 @@
                   <div class="text-muted small">{{ _t('admin.study_one_time_hint', 'Each person can participate only once') }}</div>
                 </label>
               </div>
-              <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" name="is_template" id="is_template"
-                       {% if study and study.is_template %}checked{% endif %}>
-                <label class="form-check-label" for="is_template">
-                  <strong>{{ _t('admin.study_template_label', 'Template') }}</strong>
-                  <div class="text-muted small">{{ _t('admin.study_template_hint', 'Show in template list (cloning)') }}</div>
-                </label>
-              </div>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" name="anonymize_export" id="anonymize_export"
                        {% if not study or study.anonymize_export %}checked{% endif %}>
@@ -150,30 +142,97 @@
                   <div class="text-muted small">{{ _t('admin.study_anon_export_hint', 'Export uses P0001 instead of real names') }}</div>
                 </label>
               </div>
+              <div class="form-check form-switch mt-3">
+                <input class="form-check-input" type="checkbox" name="leaderboard_enabled" id="leaderboard_enabled"
+                       {% if study and study.leaderboard_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="leaderboard_enabled">
+                  <strong>{{ _t('admin.study_leaderboard', 'Enable Leaderboard') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.study_leaderboard_hint', 'Show participants a ranked list of average scores. Users can opt out in their profile.') }}</div>
+                </label>
+              </div>
+              <div class="mt-3">
+                <label for="agent_display_name" class="form-label small fw-semibold mb-1">
+                  {{ _t('admin.study_agent_display_name', 'AI-Anzeigename (optional)') }}
+                </label>
+                <input type="text" name="agent_display_name" id="agent_display_name"
+                       class="form-control form-control-sm"
+                       placeholder="{{ _t('admin.study_agent_display_name_placeholder', 'z. B. „Study Assistant"') }}"
+                       value="{{ study.agent_display_name or '' if study else '' }}">
+                <div class="form-text">{{ _t('admin.study_agent_display_name_hint', 'Wenn gesetzt, wird dieser Name für alle KI-Assistenten in der Studie angezeigt (statt des konfigurierten Agenten-Namens).') }}</div>
+              </div>
             </div>
           </div>
           {% if study %}
+          <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h6 class="mb-0"><i class="bi bi-camera-video"></i> {{ _t('admin.tracking_header', 'Interaction Tracking') }}</h6>
+            </div>
+            <div class="card-body">
+              {% set tc = tracking_cfg %}
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" name="tracking_enabled" id="tracking_enabled"
+                       {% if tc.get('enabled') %}checked{% endif %}>
+                <label class="form-check-label" for="tracking_enabled">
+                  <strong>{{ _t('admin.tracking_enabled', 'Enable tracking') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.tracking_enabled_hint', 'Record selected interaction events during task sessions for replay.') }}</div>
+                </label>
+              </div>
+              {% set ev = tc.get('events') or [] %}
+              {% set has_cursor = 'mousemove' in ev or 'click' in ev or 'chat_focus' in ev %}
+              {% set has_bpmn   = 'bpmn_add' in ev or 'bpmn_remove' in ev or 'bpmn_move' in ev %}
+              {% set has_chat   = 'chat_message' in ev or 'ai_action' in ev or 'llm_prompt' in ev %}
+              <div class="row g-3 mt-1">
+                <div class="col-md-4">
+                  <div class="form-check border rounded p-3 h-100">
+                    <input class="form-check-input" type="checkbox" name="tracking_cursor" id="tracking_cursor"
+                           {% if has_cursor %}checked{% endif %}>
+                    <label class="form-check-label" for="tracking_cursor">
+                      <strong><i class="bi bi-cursor me-1"></i>Cursor Tracking</strong>
+                      <div class="text-muted small mt-1">Mouse movement, clicks &amp; chat field focus/blur</div>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check border rounded p-3 h-100">
+                    <input class="form-check-input" type="checkbox" name="tracking_bpmn" id="tracking_bpmn"
+                           {% if has_bpmn %}checked{% endif %}>
+                    <label class="form-check-label" for="tracking_bpmn">
+                      <strong><i class="bi bi-diagram-3 me-1"></i>BPMN Tracking</strong>
+                      <div class="text-muted small mt-1">Element added, removed &amp; moved events</div>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check border rounded p-3 h-100">
+                    <input class="form-check-input" type="checkbox" name="tracking_chat" id="tracking_chat"
+                           {% if has_chat %}checked{% endif %}>
+                    <label class="form-check-label" for="tracking_chat">
+                      <strong><i class="bi bi-chat-square-text me-1"></i>Chat Tracking</strong>
+                      <div class="text-muted small mt-1">Chat messages, AI actions &amp; full LLM prompts (system, user, response) for all phases</div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="card shadow-sm border-danger-subtle">
             <div class="card-header"><h6 class="mb-0 text-danger"><i class="bi bi-exclamation-triangle"></i> {{ _t('admin.danger_zone', 'Danger Zone') }}</h6></div>
-            <div class="card-body d-flex flex-wrap gap-2">
+            <div class="card-body d-flex flex-wrap gap-2 align-items-center">
               {% if not study.is_archived %}
-              <form method="post" action="{{ url_for('admin.study_archive', study_id=study.id) }}"
-                    onsubmit="return confirm('{{ _t('admin.study_freeze_confirm', 'Freeze study?') }}')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-warning btn-sm"><i class="bi bi-archive me-1"></i>{{ _t('admin.study_freeze_btn', 'Freeze') }}</button>
-              </form>
+              <button type="button" class="btn btn-warning btn-sm"
+                      onclick="if(confirm('{{ _t('admin.study_freeze_confirm', 'Freeze study?') }}')) _submitAction('{{ url_for('admin.study_archive', study_id=study.id) }}')">
+                <i class="bi bi-archive me-1"></i>{{ _t('admin.study_freeze_btn', 'Freeze') }}
+              </button>
               {% else %}
-              <form method="post" action="{{ url_for('admin.study_unarchive', study_id=study.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-success btn-sm"><i class="bi bi-archive me-1"></i>{{ _t('admin.study_reactivate_btn', 'Reactivate') }}</button>
-              </form>
+              <button type="button" class="btn btn-success btn-sm"
+                      onclick="_submitAction('{{ url_for('admin.study_unarchive', study_id=study.id) }}')">
+                <i class="bi bi-archive me-1"></i>{{ _t('admin.study_reactivate_btn', 'Reactivate') }}
+              </button>
               {% endif %}
-              <form method="post" action="{{ url_for('admin.study_delete', study_id=study.id) }}"
-                    onsubmit="return confirm('{{ _t('admin.study_delete_confirm', 'Delete study and ALL data permanently?') }}')">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="force" value="1">
-                <button class="btn btn-danger btn-sm"><i class="bi bi-trash me-1"></i>{{ _t('admin.study_delete_btn', 'Delete permanently') }}</button>
-              </form>
+              <button type="button" class="btn btn-danger btn-sm"
+                      onclick="if(confirm('{{ _t('admin.study_delete_confirm', 'Delete study and ALL data permanently?') }}')) _submitAction('{{ url_for('admin.study_delete', study_id=study.id) }}', {force:'1'})">
+                <i class="bi bi-trash me-1"></i>{{ _t('admin.study_delete_btn', 'Delete permanently') }}
+              </button>
             </div>
           </div>
           {% endif %}
@@ -217,7 +276,7 @@
                       </label>
                     </div>
                     <p class="text-muted small mb-0">
-                      {{ _t('admin.study_between_desc', 'Participants are permanently assigned to a condition and remain in it until the end of the study. Each condition has a permanently assigned AI agent.') }}
+                      {{ _t('admin.study_between_desc', 'Participants are permanently assigned to a condition and remain in it until the end of the study. Each condition can have an AI agent or none (control group).') }}
                     </p>
                   </div>
                 </div>
@@ -261,14 +320,57 @@
                         <span class="badge bg-light text-muted border ms-1">{{ _t('admin.cond_no_agent', 'No Agent') }}</span>
                         {% endif %}
                       </div>
-                      <form method="post"
-                            action="{{ url_for('admin.study_condition_delete', study_id=study.id, cond_id=cond.id) }}"
-                            class="d-inline"
-                            onsubmit="return confirm('{{ _t('admin.cond_delete_confirm', 'Delete condition?') }}')">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="next" value="{{ url_for('admin.study_edit', study_id=study.id) }}">
-                        <button class="btn btn-sm btn-outline-danger py-0 px-2"><i class="bi bi-trash"></i></button>
-                      </form>
+                      <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                              title="{{ _t('common.edit', 'Edit') }}"
+                              onclick="document.getElementById('editCondForm{{ cond.id }}').style.display = document.getElementById('editCondForm{{ cond.id }}').style.display==='none'?'':'none'">
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2"
+                              onclick="if(confirm('{{ _t('admin.cond_delete_confirm', 'Delete condition?') }}')) _submitAction('{{ url_for('admin.study_condition_delete', study_id=study.id, cond_id=cond.id) }}', {next:'{{ url_for('admin.study_edit', study_id=study.id) }}'})">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                    <!-- Inline edit form -->
+                    <div id="editCondForm{{ cond.id }}" style="display:none" class="border rounded p-3 bg-light mt-2">
+                      <div class="row g-2">
+                        <div class="col-md-6">
+                          <label class="form-label small fw-semibold">{{ _t('common.name', 'Name') }} <span class="text-danger">*</span></label>
+                          <input type="text" id="editCondName{{ cond.id }}" class="form-control form-control-sm"
+                                 value="{{ cond.name | e }}">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label small fw-semibold">{{ _t('common.description', 'Description') }}</label>
+                          <input type="text" id="editCondDescription{{ cond.id }}" class="form-control form-control-sm"
+                                 value="{{ (cond.description or '') | e }}">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small fw-semibold">{{ _t('admin.cond_target_size', 'Target size') }}</label>
+                          <input type="number" id="editCondTargetSize{{ cond.id }}" class="form-control form-control-sm"
+                                 value="{{ cond.target_size or '' }}" min="1"
+                                 placeholder="{{ _t('admin.study_unlimited_ph', 'empty = unlimited') }}">
+                        </div>
+                        <div class="col-md-8">
+                          <label class="form-label small fw-semibold">
+                            <i class="bi bi-robot me-1"></i>{{ _t('admin.cond_agent_label', 'AI Agent (Between-Subjects)') }}
+                          </label>
+                          <select id="editCondAgentId{{ cond.id }}" class="form-select form-select-sm">
+                            <option value="" {% if not cond.agent %}selected{% endif %}>&#128683; {{ _t('admin.cond_no_agent_option', 'Kein KI-Agent (Kontrollgruppe)') }}</option>
+                            {% for a in agents %}
+                            <option value="{{ a.id }}" {% if cond.agent and cond.agent.id == a.id %}selected{% endif %}>&#129302; {{ a.name }}{% if a.agent_type != 'custom' %} ({{ a.agent_type }}){% endif %}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div class="col-12 d-flex gap-2 justify-content-end">
+                          <button type="button" class="btn btn-secondary btn-sm"
+                                  onclick="document.getElementById('editCondForm{{ cond.id }}').style.display='none'">
+                            {{ _t('common.cancel', 'Cancel') }}
+                          </button>
+                          <button type="button" class="btn btn-primary btn-sm"
+                                  onclick="_submitConditionUpdate({{ cond.id }}, '{{ url_for('admin.study_condition_update', study_id=study.id, cond_id=cond.id) }}')">
+                            <i class="bi bi-check-lg me-1"></i>{{ _t('common.save', 'Save') }}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -276,43 +378,37 @@
                 <p class="text-muted small">{{ _t('admin.cond_empty', 'No conditions yet. Create at least 2.') }}</p>
                 {% endfor %}
 
-                <form method="post"
-                      action="{{ url_for('admin.study_conditions', study_id=study.id) if study else '#' }}"
-                      id="addCondForm" style="display:none"
-                      class="border rounded p-3 bg-light mt-2">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  {% if study %}
-                  <input type="hidden" name="next" value="{{ url_for('admin.study_edit', study_id=study.id) }}">
-                  {% endif %}
+                <div id="addCondForm" style="display:none"
+                     class="border rounded p-3 bg-light mt-2">
                   <div class="row g-2">
                     <div class="col-md-6">
                       <label class="form-label small fw-semibold">{{ _t('common.name', 'Name') }} <span class="text-danger">*</span></label>
-                      <input type="text" name="name" class="form-control form-control-sm"
-                             placeholder="{{ _t('admin.cond_name_ph', 'e.g. Control group') }}" required>
+                      <input type="text" id="addCondName" class="form-control form-control-sm"
+                             placeholder="{{ _t('admin.cond_name_ph', 'e.g. Control group') }}">
                     </div>
                     <div class="col-md-6">
                       <label class="form-label small fw-semibold">{{ _t('common.description', 'Description') }}</label>
-                      <input type="text" name="description" class="form-control form-control-sm" placeholder="{{ _t('common.optional', 'Optional') }}">
+                      <input type="text" id="addCondDescription" class="form-control form-control-sm" placeholder="{{ _t('common.optional', 'Optional') }}">
                     </div>
                     <div class="col-md-4">
                       <label class="form-label small fw-semibold">{{ _t('admin.cond_target_size', 'Target size') }}</label>
-                      <input type="number" name="target_size" class="form-control form-control-sm"
+                      <input type="number" id="addCondTargetSize" class="form-control form-control-sm"
                              placeholder="{{ _t('admin.study_unlimited_ph', 'empty = unlimited') }}" min="1">
                     </div>
                     <div class="col-md-8">
                       <label class="form-label small fw-semibold">
                         <i class="bi bi-robot me-1"></i>{{ _t('admin.cond_agent_label', 'AI Agent (Between-Subjects)') }}
                       </label>
-                      <select name="agent_id" class="form-select form-select-sm">
-                        <option value="">{{ _t('admin.cond_no_agent_option', '— No specific agent —') }}</option>
+                      <select id="addCondAgentId" class="form-select form-select-sm">
+                        <option value="">&#128683; {{ _t('admin.cond_no_agent_option', 'Kein KI-Agent (Kontrollgruppe)') }}</option>
                         {% for a in agents %}
-                        <option value="{{ a.id }}">{{ a.name }}{% if a.agent_type != 'custom' %} ({{ a.agent_type }}){% endif %}</option>
+                        <option value="{{ a.id }}">&#129302; {{ a.name }}{% if a.agent_type != 'custom' %} ({{ a.agent_type }}){% endif %}</option>
                         {% endfor %}
                       </select>
                     </div>
                     <div class="col-12 text-end">
                       {% if study %}
-                      <button type="submit" class="btn btn-primary btn-sm">
+                      <button type="button" class="btn btn-primary btn-sm" onclick="_submitNewCondition()">
                         <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.cond_create_btn', 'Create condition') }}
                       </button>
                       {% else %}
@@ -320,7 +416,7 @@
                       {% endif %}
                     </div>
                   </div>
-                </form>
+                </div>
 
                 <div class="alert alert-info py-2 small mt-3 mb-0">
                   <i class="bi bi-info-circle me-1"></i>
@@ -358,6 +454,7 @@
                     onchange="onAddTypeChange()">
               <option value="survey">{{ _t('admin.study_step_survey', 'Survey') }}</option>
               <option value="task">{{ _t('admin.study_step_task', 'Task') }}</option>
+              <option value="agent_choice">&#129302; Agenten-Auswahl</option>
             </select>
             <select class="form-select form-select-sm" id="addStepSurvey" style="max-width:260px">
               <option value="">{{ _t('admin.study_step_select_survey', '— Select survey —') }}</option>
@@ -371,6 +468,16 @@
               <option value="{{ t.id }}" data-label="{{ t.title }}">{{ t.title }}</option>
               {% endfor %}
             </select>
+            <div id="addStepAgents" style="display:none" class="border rounded p-2">
+              <small class="d-block mb-1 text-muted fw-semibold">Wählbare Agenten:</small>
+              {% for a in agents %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="addAgent_{{ a.id }}" value="{{ a.id }}">
+                <label class="form-check-label small" for="addAgent_{{ a.id }}">{{ a.name }}</label>
+              </div>
+              {% endfor %}
+              {% if not agents %}<span class="text-muted small">Keine Agenten verfügbar</span>{% endif %}
+            </div>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addStep()">
               <i class="bi bi-plus-lg"></i> {{ _t('common.add', 'Add') }}
             </button>
@@ -466,6 +573,10 @@
                          value="{{ study.task_end.strftime('%Y-%m-%dT%H:%M') if study and study.task_end else '' }}">
                 </div>
               </div>
+              <div class="form-text mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                {{ _t('admin.study_window_hint', 'If no dates are set, the study is available indefinitely. If only "Available until" is set, the study runs from now until that date. If only "Available from" is set, the study starts on that date and remains open until ended manually.') }}
+              </div>
             </div>
           </div>
         </div>
@@ -486,6 +597,53 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script>
+// Helper: submit an action via a dynamically created form (avoids nested-form issues)
+function _submitAction(url, extraFields) {
+  const f = document.createElement('form');
+  f.method = 'POST';
+  f.action = url;
+  f.style.display = 'none';
+  const addField = (name, value) => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = name; inp.value = value || '';
+    f.appendChild(inp);
+  };
+  const csrf = document.querySelector('#studyForm input[name="csrf_token"]');
+  addField('csrf_token', csrf ? csrf.value : '');
+  if (extraFields) Object.entries(extraFields).forEach(([k, v]) => addField(k, v));
+  document.body.appendChild(f);
+  f.submit();
+}
+
+// Helper: submit the "Add Condition" panel as its own POST request
+function _submitNewCondition() {
+  const name = (document.getElementById('addCondName').value || '').trim();
+  if (!name) { document.getElementById('addCondName').focus(); return; }
+  _submitAction(
+    {{ url_for('admin.study_conditions', study_id=study.id) | tojson if study else '"#"' }},
+    {
+      name: name,
+      description: document.getElementById('addCondDescription').value || '',
+      target_size: document.getElementById('addCondTargetSize').value || '',
+      agent_id: document.getElementById('addCondAgentId').value || '',
+      next: {{ url_for('admin.study_edit', study_id=study.id) | tojson if study else '"#"' }}
+    }
+  );
+}
+
+// Helper: submit the inline edit form for an existing condition
+function _submitConditionUpdate(condId, url) {
+  const name = (document.getElementById('editCondName' + condId).value || '').trim();
+  if (!name) { document.getElementById('editCondName' + condId).focus(); return; }
+  _submitAction(url, {
+    name: name,
+    description: document.getElementById('editCondDescription' + condId).value || '',
+    target_size: document.getElementById('editCondTargetSize' + condId).value || '',
+    agent_id: document.getElementById('editCondAgentId' + condId).value || '',
+    next: {{ url_for('admin.study_edit', study_id=study.id) | tojson if study else '"#"' }}
+  });
+}
+
 const CONDS = [];
 {% for c in conditions %}
 CONDS.push({
@@ -495,6 +653,11 @@ CONDS.push({
   target_size: {{ c.target_size or 'null' }},
   agent_name: {{ (c.agent.name if c.agent else '') | tojson }}
 });
+{% endfor %}
+
+const AGENTS_ALL = [];
+{% for a in agents %}
+AGENTS_ALL.push({ id: {{ a.id | tojson }}, name: {{ a.name | tojson }} });
 {% endfor %}
 
 const COND_COLORS = ['#0d6efd','#198754','#fd7e14','#dc3545','#6f42c1','#20c997','#ffc107'];
@@ -511,16 +674,15 @@ let steps = [];
 {% if study %}{% for step in study.steps %}
 steps.push({
   type: {{ step.step_type | tojson }},
-  survey_id: {{ (step.survey_id | string) if step.survey_id else '""' }},
-  task_id: {{ (step.task_id | tojson) if step.task_id else '""' }},
+  survey_id: {{ (step.survey_id | string if step.survey_id else '') | tojson }},
+  task_id: {{ (step.task_id or '') | tojson }},
   label: {{ (step.label or step.display_label) | tojson }},
-  wave_number: {{ step.wave_number or 0 }},
-  available_from: {{ step.available_from.strftime('%Y-%m-%dT%H:%M') | tojson if step.available_from else '""' }},
-  available_until: {{ step.available_until.strftime('%Y-%m-%dT%H:%M') | tojson if step.available_until else '""' }},
-  allow_late_submission: {{ 'true' if step.allow_late_submission else 'false' }},
-  late_penalty_note: {{ (step.late_penalty_note or '') | tojson }},
-  condition_id: {{ step.condition_id or '""' }},
+  available_from: {{ (step.available_from.strftime('%Y-%m-%dT%H:%M') if step.available_from else '') | tojson }},
+  available_until: {{ (step.available_until.strftime('%Y-%m-%dT%H:%M') if step.available_until else '') | tojson }},
+  condition_id: {{ (step.condition_id | string if step.condition_id else '') | tojson }},
   condition_ids: {{ step.condition_ids | tojson if step.condition_ids else '[]' }},
+  available_agents: {{ step.available_agents | tojson if step.available_agents else '"[]"' }},
+  agent_choice_intro: {{ (step.agent_choice_intro or '') | tojson }},
 });
 {% endfor %}{% endif %}
 
@@ -545,6 +707,35 @@ function getCondIds(step) {
   if (Array.isArray(ids) && ids.length) return ids.map(Number);
   if (step.condition_id && String(step.condition_id) !== '') return [parseInt(step.condition_id)];
   return [];
+}
+
+function agentChoiceHtml(stepIdx) {
+  const s = steps[stepIdx];
+  let agentIds = [];
+  try { agentIds = JSON.parse(s.available_agents || '[]'); } catch(e) {}
+  let html = '<div class="mt-2 pt-2 border-top">';
+  html += '<small class="text-muted d-block mb-1 fw-semibold">&#129302; Agenten-Auswahl — w&#228;hlbare Agenten</small>';
+  AGENTS_ALL.forEach(a => {
+    const checked = agentIds.includes(a.id) || agentIds.includes(String(a.id));
+    html += `<div class="form-check form-check-inline">
+      <input class="form-check-input" type="checkbox" id="sachoice_${stepIdx}_${a.id}"
+        value="${escHtml(a.id)}" ${checked ? 'checked' : ''}
+        onchange="onAgentChoiceChange(${stepIdx})">
+      <label class="form-check-label small" for="sachoice_${stepIdx}_${a.id}">${escHtml(a.name)}</label>
+    </div>`;
+  });
+  html += `<div class="mt-2">
+    <label class="form-label small mb-0">Einleitungstext (optional)</label>
+    <textarea class="form-control form-control-sm" rows="2"
+      onchange="steps[${stepIdx}].agent_choice_intro=this.value">${escHtml(s.agent_choice_intro || '')}</textarea>
+  </div></div>`;
+  return html;
+}
+
+function onAgentChoiceChange(stepIdx) {
+  const checks = document.querySelectorAll(`[id^="sachoice_${stepIdx}_"]:checked`);
+  steps[stepIdx].available_agents = JSON.stringify(Array.from(checks).map(c => c.value));
+  // no full re-render needed — just update local state
 }
 
 function condChecksHtml(stepIdx) {
@@ -580,6 +771,9 @@ function onCondAllChange(stepIdx, checked) {
   if (checked) {
     steps[stepIdx].condition_ids = [];
     steps[stepIdx].condition_id = '';
+  } else {
+    // Pre-select all individual conditions so user can selectively uncheck
+    steps[stepIdx].condition_ids = CONDS.map(c => c.id);
   }
   renderSteps(); renderPreview();
 }
@@ -625,11 +819,12 @@ function renderSteps() {
 
     li.innerHTML = `
       <div class="d-flex align-items-center w-100 gap-2 flex-wrap">
-        <span class="step-badge ${s.type}">${s.type==='survey'?'&#128203; {{ _t('admin.study_step_survey', 'Survey') }}':'&#128196; {{ _t('admin.study_step_task', 'Task') }}'}</span>
+        <span class="step-badge ${s.type}">${s.type==='survey'?'&#128203; {{ _t('admin.study_step_survey', 'Survey') }}':s.type==='agent_choice'?'&#129302; Agenten-Auswahl':'&#128196; {{ _t('admin.study_step_task', 'Task') }}'}</span>
         <span class="flex-grow-1 small">${escHtml(s.label)}</span>
         <div class="d-flex gap-1 align-items-center">${condPills}</div>
         <button class="btn btn-sm btn-link text-secondary p-0" type="button"
-                onclick="toggleDetails(${i})" title="{{ _t('common.settings', 'Settings') }}">&#9881;</button>
+                id="togBtn${i}" onclick="toggleDetails(${i})" title="{{ _t('common.settings', 'Settings') }}"
+                style="transition:transform 0.2s">&#8964;</button>
         <button class="btn btn-sm btn-link text-danger p-0" type="button"
                 onclick="removeStep(${i})">&#215;</button>
       </div>
@@ -645,24 +840,8 @@ function renderSteps() {
             <input type="datetime-local" class="form-control form-control-sm" value="${s.available_until||''}"
               onchange="steps[${i}].available_until=this.value">
           </div>
-          <div class="col-sm-3">
-            <label class="form-label small mb-0">Wave #</label>
-            <input type="number" class="form-control form-control-sm" min="0" value="${s.wave_number||0}"
-              onchange="steps[${i}].wave_number=parseInt(this.value)||0">
-          </div>
-          <div class="col-sm-5 d-flex align-items-end">
-            <div class="form-check mt-1">
-              <input class="form-check-input" type="checkbox" id="late${i}" ${s.allow_late_submission?'checked':''}
-                onchange="steps[${i}].allow_late_submission=this.checked">
-              <label class="form-check-label small" for="late${i}">{{ _t('admin.study_late_ok', 'Late submission OK') }}</label>
-            </div>
-          </div>
-          <div class="col-sm-4">
-            <label class="form-label small mb-0">{{ _t('admin.study_late_note', 'Late submission note') }}</label>
-            <input type="text" class="form-control form-control-sm" value="${escHtml(s.late_penalty_note||'')}"
-              onchange="steps[${i}].late_penalty_note=this.value">
-          </div>
           ${between && CONDS.length ? condChecksHtml(i) : ''}
+          ${s.type === 'agent_choice' ? agentChoiceHtml(i) : ''}
         </div>
       </div>`;
     ul.appendChild(li);
@@ -678,11 +857,26 @@ function renderSteps() {
       renderSteps(); renderPreview();
     }
   });
+
+  // Restore any detail panels that were open before re-render
+  _openDets.forEach(i => {
+    const el = document.getElementById('det' + i);
+    const btn = document.getElementById('togBtn' + i);
+    if (el) { el.style.display = ''; }
+    if (btn) { btn.style.transform = 'rotate(180deg)'; }
+  });
 }
+
+// Track which step detail panels are currently expanded
+let _openDets = new Set();
 
 function toggleDetails(i) {
   const el = document.getElementById('det' + i);
-  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+  const btn = document.getElementById('togBtn' + i);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+  if (el.style.display !== 'none') { _openDets.add(i); } else { _openDets.delete(i); }
+  if (btn) btn.style.transform = el.style.display !== 'none' ? 'rotate(180deg)' : 'rotate(0deg)';
 }
 
 function removeStep(i) {
@@ -691,18 +885,23 @@ function removeStep(i) {
 
 function addStep() {
   const type = document.getElementById('addStepType').value;
-  let id = '', label = '';
+  let id = '', label = '', available_agents = '[]';
   if (type === 'survey') {
     const sel = document.getElementById('addStepSurvey');
     id = sel.value; label = sel.options[sel.selectedIndex]?.dataset?.label || '';
-  } else {
+  } else if (type === 'task') {
     const sel = document.getElementById('addStepTask');
     id = sel.value; label = sel.options[sel.selectedIndex]?.dataset?.label || '';
+  } else if (type === 'agent_choice') {
+    const checks = document.querySelectorAll('#addStepAgents input[type=checkbox]:checked');
+    available_agents = JSON.stringify(Array.from(checks).map(c => c.value));
+    label = 'Agenten-Auswahl';
+    id = 'ok'; // agent_choice doesn't need a survey/task id
   }
   if (!id) { alert('{{ _t('common.please_select', 'Please make a selection.') }}'); return; }
   steps.push({ type, survey_id: type==='survey'?id:'', task_id: type==='task'?id:'',
-               label, wave_number:0, available_from:'', available_until:'',
-               allow_late_submission:false, late_penalty_note:'',
+               available_agents, agent_choice_intro: '',
+               label, available_from:'', available_until:'',
                condition_id:'', condition_ids:[] });
   renderSteps(); renderPreview();
 }
@@ -711,6 +910,7 @@ function onAddTypeChange() {
   const type = document.getElementById('addStepType').value;
   document.getElementById('addStepSurvey').style.display = type==='survey'?'':'none';
   document.getElementById('addStepTask').style.display = type==='task'?'':'none';
+  document.getElementById('addStepAgents').style.display = type==='agent_choice'?'':'none';
 }
 
 function renderPreview() {

@@ -51,3 +51,14 @@ def send_notification(
         socketio.emit('notification', payload, room=f'user_{user_id}')
     except Exception as exc:
         logger.debug('[notifications] Socket.IO emit failed for user %s: %s', user_id, exc)
+
+    # Send email notification if user has opted in
+    try:
+        from app.models.user import User
+        from app.extensions import db as _db
+        user = _db.session.get(User, user_id)
+        if user and getattr(user, 'email_notifications', True) and user.email:
+            from app.utils.email import send_notification_email
+            send_notification_email(user, title, message, link or '')
+    except Exception as exc:
+        logger.debug('[notifications] Email send failed for user %s: %s', user_id, exc)

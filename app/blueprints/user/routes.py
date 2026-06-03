@@ -64,8 +64,12 @@ def profile_edit():
     new_lang = request.form.get('language', '').strip()
     if new_lang:
         from app.models.i18n import Language
-        if Language.query.get(new_lang):
+        if db.session.get(Language, new_lang):
             current_user.language = new_lang
+
+    # Leaderboard anonymization + email notifications
+    current_user.leaderboard_anonymous = bool(request.form.get('leaderboard_anonymous'))
+    current_user.email_notifications = bool(request.form.get('email_notifications'))
 
     db.session.commit()
     flash('Profil gespeichert.', 'success')
@@ -141,7 +145,7 @@ def my_submissions():
 def submission_detail(sub_id: int):
     submission = TaskSubmission.query.filter_by(
         id=sub_id, user_id=current_user.id).first_or_404()
-    task = Task.query.get(submission.task_id)
+    task = db.session.get(Task, submission.task_id)
     return render_template('cms/user/submission_detail.html',
                            submission=submission, task=task)
 

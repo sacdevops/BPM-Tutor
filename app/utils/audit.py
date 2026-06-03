@@ -1,7 +1,9 @@
 ﻿"""Audit logging helper — record admin/user actions to AuditLog."""
 from __future__ import annotations
 
-import json
+import logging
+
+_audit_logger = logging.getLogger('bpmtutor.audit')
 
 
 def log_action(
@@ -11,27 +13,32 @@ def log_action(
     details: dict | None = None,
     user_id: int | None = None,
 ) -> None:
-    """Write one AuditLog row.  Silently swallows DB errors so it never
-    interrupts the main request flow.
-    """
-    try:
-        from flask import request as flask_request
-        from flask_login import current_user
-        from app.extensions import db
-        from app.models.audit import AuditLog
+    """Write one AuditLog row.
 
-        actor_id = user_id
+    On DB failure the event is still recorded at ERROR level in the
+    application log so that compliance-relevant actions are never lost
+    silently.  The DB rollback is executed to leave the session clean.
+    """
+    actor_id = user_id
+    ip: str | None = None
+    try:
+        from flask_login import current_user
         if actor_id is None:
             try:
                 actor_id = current_user.id if current_user.is_authenticated else None
             except Exception:
-                actor_id = None
-
-        ip = None
+                pass
+        from flask import request as flask_request
         try:
             ip = flask_request.remote_addr
         except Exception:
             pass
+    except Exception:
+        pass
+
+    try:
+        from app.extensions import db
+        from app.models.audit import AuditLog
 
         entry = AuditLog(
             user_id=actor_id,
@@ -44,9 +51,19 @@ def log_action(
             entry.details = details
         db.session.add(entry)
         db.session.commit()
-    except Exception as exc:  # noqa: BLE001
+        _audit_logger.debug('[AuditLog] %s | entity=%s/%s | user=%s | ip=%s',
+                            action, entity_type, entity_id, actor_id, ip)
+    except Exception as exc:
+        # Roll back so the caller's session is not poisoned
         try:
-            from flask import current_app
-            current_app.logger.warning('[AuditLog] Failed to write entry: %s', exc)
+            from app.extensions import db
+            db.session.rollback()
         except Exception:
             pass
+        # Log at ERROR so the event is visible in log aggregators / SIEM
+        _audit_logger.error(
+            '[AuditLog] FAILED to persist — action=%s entity=%s/%s user=%s ip=%s err=%s',
+            action, entity_type, entity_id, actor_id, ip, exc,
+            exc_info=True,
+        )
+

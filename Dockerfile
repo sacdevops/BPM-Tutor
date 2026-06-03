@@ -29,6 +29,6 @@ COPY --chmod=755 entrypoint.sh /entrypoint.sh
 RUN useradd -r -u 1001 bpmtutor && chown -R bpmtutor:bpmtutor /app
 USER bpmtutor
 
-EXPOSE 8080
+EXPOSE 5001
 
 ENTRYPOINT ["/entrypoint.sh"]

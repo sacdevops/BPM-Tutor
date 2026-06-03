@@ -45,6 +45,13 @@ class Study(db.Model):
     # Anonymization
     anonymize_export = db.Column(db.Boolean, default=True, nullable=False)
 
+    # Leaderboard
+    leaderboard_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    agent_display_name = db.Column(db.String(200), nullable=True)
+
+    # Tracking config — JSON: {"enabled": bool, "events": ["mousemove", "click", ...]}
+    tracking_config = db.Column(db.Text, nullable=True)
+
     # Experimental design: "within" or "between"
     study_design = db.Column(db.String(20), default="within", nullable=False)
 
@@ -76,7 +83,7 @@ class Study(db.Model):
 
     @property
     def enrollment_open(self) -> bool:
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         if not self.allow_self_enrollment:
             return False
         if self.enrollment_start and now < self.enrollment_start:
@@ -122,10 +129,19 @@ class Study(db.Model):
     def assign_condition(self, participant) -> None:
         if self.study_design != "between" or not self.conditions:
             return
+        from sqlalchemy import func
         from app.models.study import StudyParticipant as SP
-        counts = {}
-        for cond in self.conditions:
-            counts[cond.id] = SP.query.filter_by(study_id=self.id, condition_id=cond.id).count()
+        # Single GROUP BY query instead of one COUNT per condition (O(1) vs O(k))
+        rows = (
+            db.session.query(SP.condition_id, func.count(SP.id))
+            .filter(SP.study_id == self.id)
+            .group_by(SP.condition_id)
+            .all()
+        )
+        counts = {cond.id: 0 for cond in self.conditions}
+        for cond_id, cnt in rows:
+            if cond_id in counts:
+                counts[cond_id] = cnt
         chosen_id = min(counts, key=lambda cid: counts[cid])
         participant.condition_id = chosen_id
 
@@ -186,6 +202,10 @@ class StudyStep(db.Model):
     # Multi-condition assignment: JSON list of condition IDs, empty/null = all conditions
     condition_ids = db.Column(db.Text, nullable=True)
 
+    # Agent-choice step configuration
+    available_agents = db.Column(db.Text, nullable=True)   # JSON [agent_id, ...]
+    agent_choice_intro = db.Column(db.Text, nullable=True)
+
     study = db.relationship("Study", back_populates="steps", foreign_keys=[study_id])
     survey = db.relationship("Survey", foreign_keys=[survey_id])
     task = db.relationship("Task", foreign_keys=[task_id])
@@ -203,6 +223,8 @@ class StudyStep(db.Model):
             return self.survey.name
         if self.step_type == "task" and self.task:
             return self.task.title
+        if self.step_type == 'agent_choice':
+            return 'Agenten-Auswahl'
         return f"Schritt {self.step_order + 1}"
 
     def get_availability(self, study):
@@ -212,7 +234,7 @@ class StudyStep(db.Model):
 
     def is_available_now(self, study) -> bool:
         eff_from, eff_until = self.get_availability(study)
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         if eff_from and now < eff_from:
             return False
         if eff_until and now > eff_until:
@@ -223,7 +245,7 @@ class StudyStep(db.Model):
         _, eff_until = self.get_availability(study)
         if not eff_until:
             return False
-        return datetime.now(timezone.utc) > eff_until
+        return datetime.utcnow() > eff_until
 
     def __repr__(self):
         return f"<StudyStep study={self.study_id} order={self.step_order} type={self.step_type}>"
@@ -251,6 +273,10 @@ class StudyParticipant(db.Model):
     condition_id = db.Column(db.Integer, db.ForeignKey("study_conditions.id", ondelete="SET NULL"),
                              nullable=True)
     notes = db.Column(db.Text, nullable=True)
+
+    # Currently active agent chosen by participant via an agent_choice step
+    active_agent_id = db.Column(db.String(36), db.ForeignKey("ai_agents.id", ondelete="SET NULL"), nullable=True)
+    active_agent = db.relationship("AIAgent", foreign_keys=[active_agent_id])
 
     study = db.relationship("Study", back_populates="participants", foreign_keys=[study_id])
     user = db.relationship("User", foreign_keys=[user_id])
@@ -337,3 +363,30 @@ class StudyStepCompletion(db.Model):
 
     def __repr__(self):
         return f"<StudyStepCompletion participant={self.participant_id} step={self.step_id}>"
+
+
+# ─── AgentSwitchHistory ───────────────────────────────────────────────────────
+
+class AgentSwitchHistory(db.Model):
+    """Records every agent choice made by a participant during a study."""
+    __tablename__ = "agent_switch_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    participant_id = db.Column(
+        db.Integer, db.ForeignKey("study_participants.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    agent_id = db.Column(db.String(36), db.ForeignKey("ai_agents.id", ondelete="SET NULL"), nullable=True)
+    previous_agent_id = db.Column(db.String(36), db.ForeignKey("ai_agents.id", ondelete="SET NULL"), nullable=True)
+    step_id = db.Column(db.Integer, db.ForeignKey("study_steps.id", ondelete="SET NULL"), nullable=True)
+    wave_number = db.Column(db.Integer, default=0, nullable=False)
+    chosen_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    participant = db.relationship("StudyParticipant", foreign_keys=[participant_id],
+                                  backref="agent_switches")
+    agent = db.relationship("AIAgent", foreign_keys=[agent_id])
+    previous_agent = db.relationship("AIAgent", foreign_keys=[previous_agent_id])
+    step = db.relationship("StudyStep", foreign_keys=[step_id])
+
+    def __repr__(self):
+        return f"<AgentSwitchHistory participant={self.participant_id} agent={self.agent_id}>"

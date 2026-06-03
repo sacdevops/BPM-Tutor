@@ -1,6 +1,6 @@
 #!/bin/sh
 # BPM-Tutor container entrypoint
-# Runs Flask-Migrate, then starts Gunicorn (web) or Celery (worker).
+# Starts Gunicorn (web) or Celery (worker). Schema is managed by db.create_all() + _run_column_migrations() at startup.
 set -e
 
 # ROLE defaults to 'web'; docker-compose overrides with 'worker' for Celery
@@ -25,21 +25,12 @@ if [ "$ROLE" = "beat" ]; then
 fi
 
 # Default: web role
-echo "[entrypoint] Running database migrations..."
-# 'flask db upgrade' applies pending migrations; it's a no-op if the DB is
-# already up-to-date. Falls back gracefully if migrations/ does not exist yet.
-if [ -d "migrations" ]; then
-    flask db upgrade || echo "[entrypoint] Migration skipped or already up-to-date."
-else
-    echo "[entrypoint] No migrations/ folder found — skipping flask db upgrade."
-fi
-
 echo "[entrypoint] Starting Gunicorn..."
 exec gunicorn \
     --worker-class gevent \
     --workers 1 \
     --worker-connections 1000 \
-    --bind "0.0.0.0:${PORT:-8080}" \
+    --bind "0.0.0.0:${PORT:-5001}" \
     --timeout 300 \
     --keep-alive 5 \
     --access-logfile - \

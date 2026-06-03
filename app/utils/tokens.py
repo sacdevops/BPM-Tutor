@@ -1,5 +1,4 @@
 """Authentication helpers — token generation for email verification & password reset."""
-import os
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 

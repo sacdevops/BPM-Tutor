@@ -8,7 +8,6 @@ gevent-websocket>=0.10.1
 
 # Database & ORM
 flask-sqlalchemy>=3.1.0
-flask-migrate>=4.0.0
 
 # Authentication & Forms
 flask-login>=0.6.3
@@ -46,6 +45,9 @@ redis>=5.0.0
 
 # Rate limiting
 Flask-Limiter[redis]>=3.5.0
+
+# Email address validation
+email-validator>=2.0.0
 
 # Security headers
 flask-talisman>=1.1.0

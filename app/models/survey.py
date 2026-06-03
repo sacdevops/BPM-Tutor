@@ -150,12 +150,17 @@ class SurveyResponse(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     survey_id = db.Column(db.Integer, db.ForeignKey('surveys.id'), nullable=False, index=True)
     submission_id = db.Column(db.Integer, db.ForeignKey('task_submissions.id'), nullable=True)
+    step_id = db.Column(db.Integer, db.ForeignKey('study_steps.id', ondelete='SET NULL'), nullable=True, index=True)
 
     started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     completed_at = db.Column(db.DateTime, nullable=True)
 
     # JSON dict: {question_id (str): answer_value}
     answers_data = db.Column(db.Text, nullable=True)
+
+    # Snapshot of question structure at submission time (guards against later template edits)
+    # Format: {str(q_id): {label, type, options, page}}
+    questions_snapshot = db.Column(db.Text, nullable=True)
 
     @property
     def answers(self) -> dict:
@@ -169,6 +174,16 @@ class SurveyResponse(db.Model):
     @answers.setter
     def answers(self, data: dict) -> None:
         self.answers_data = json.dumps(data, ensure_ascii=False)
+
+    @property
+    def questions_snapshot_dict(self) -> dict:
+        """Question structure frozen at submission time."""
+        if self.questions_snapshot:
+            try:
+                return json.loads(self.questions_snapshot)
+            except (ValueError, TypeError):
+                return {}
+        return {}
 
     def __repr__(self) -> str:
         return f'<SurveyResponse {self.id} survey={self.survey_id} user={self.user_id}>'

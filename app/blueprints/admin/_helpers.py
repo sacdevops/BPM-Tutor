@@ -4,7 +4,7 @@ import os
 import uuid
 from datetime import datetime
 
-from flask import current_app, request
+from flask import current_app
 from werkzeug.utils import secure_filename
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
@@ -75,6 +75,7 @@ def _apply_task_form(task, form) -> dict:
     task.is_active = bool(form.get('is_active'))
     task.hide_after_completion = bool(form.get('hide_after_completion'))
     task.agent_id = form.get('agent_id', '').strip() or None
+    task.task_mode = form.get('task_mode', 'standard') or 'standard'
 
     mp = form.get('max_points', '').strip()
     task.max_points = float(mp) if mp else None

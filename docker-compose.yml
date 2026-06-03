@@ -22,7 +22,7 @@ services:
     depends_on:
       - app
     ports:
-      - "5000:80"
+      - "5001:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./app/static:/app/static:ro
@@ -56,24 +56,15 @@ services:
       # Redis connection string
       REDIS_URL: redis://redis:6379/0
 
-      # Mail (leave empty to disable)
-      MAIL_SERVER: ${MAIL_SERVER:-}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-starttls}
-      MAIL_USERNAME: ${MAIL_USERNAME:-}
-      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      MAIL_DEFAULT_SENDER: ${MAIL_DEFAULT_SENDER:-}
-
-      # CampusKI / OpenAI-compatible API
-      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://chat.kiconnect.nrw/api}
-      GLOBAL_API_KEY: ${GLOBAL_API_KEY:-}
+      # Mail, API endpoint and API keys are managed in the Admin CMS (Settings)
+      # and stored in the database — do NOT set them here.
 
     volumes:
       # Persist SQLite database, uploads and task stats across container restarts
       - app_data:/app/data
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -88,8 +79,6 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
       DATABASE_URL: sqlite:////app/data/bpmtutor.db
       REDIS_URL: redis://redis:6379/0
-      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://chat.kiconnect.nrw/api}
-      GLOBAL_API_KEY: ${GLOBAL_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy

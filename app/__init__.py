@@ -2,10 +2,40 @@
 from __future__ import annotations
 
 import os
-from datetime import timedelta
+import time
 
 import config as _cfg
 from flask import Flask
+
+# ── Language-list in-process cache ───────────────────────────────────────────
+# The active language list is read on every request (context processor) but
+# changes very rarely.  A 60-second TTL avoids the repeated DB round-trip while
+# keeping the cache fresh after admin edits.
+_lang_cache_data: list = []
+_lang_cache_ts: float = 0.0
+_LANG_CACHE_TTL: float = 60.0  # seconds
+
+
+def _get_active_languages() -> list:
+    """Return the active Language rows, served from a 60-second process cache."""
+    global _lang_cache_data, _lang_cache_ts
+    now = time.monotonic()
+    if _lang_cache_data and (now - _lang_cache_ts) < _LANG_CACHE_TTL:
+        return _lang_cache_data
+    try:
+        from app.models.i18n import Language
+        rows = Language.query.filter_by(is_active=True).order_by(Language.sort_order).all()
+        _lang_cache_data = rows
+        _lang_cache_ts = now
+        return rows
+    except Exception:
+        return _lang_cache_data  # stale is better than empty
+
+
+def invalidate_language_cache() -> None:
+    """Force the next request to re-query the language list from DB."""
+    global _lang_cache_ts
+    _lang_cache_ts = 0.0
 
 
 def create_app() -> Flask:
@@ -125,11 +155,14 @@ def _configure_database(app: Flask) -> None:
     app.config.setdefault('MAIL_USERNAME', os.getenv('MAIL_USERNAME', ''))
     app.config.setdefault('MAIL_PASSWORD', os.getenv('MAIL_PASSWORD', ''))
     app.config.setdefault('MAIL_DEFAULT_SENDER', os.getenv('MAIL_DEFAULT_SENDER', 'noreply@bpmtutor.local'))
+    # SMTP connection timeout — prevents daemon threads from hanging indefinitely
+    app.config.setdefault('MAIL_TIMEOUT', int(os.getenv('MAIL_TIMEOUT', 30)))
     app.config.setdefault('WTF_CSRF_TIME_LIMIT', 3600)
     app.config.setdefault('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
 
 
 def _configure_session_security(app: Flask) -> None:
+    from datetime import timedelta
     app.config.setdefault('PERMANENT_SESSION_LIFETIME', timedelta(hours=12))
     app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
     app.config.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
@@ -139,18 +172,17 @@ def _configure_session_security(app: Flask) -> None:
 
 
 def _init_extensions(app: Flask) -> None:
-    from app.extensions import db, login_manager, mail, migrate, csrf
+    from app.extensions import db, login_manager, mail, csrf
     db.init_app(app)
     login_manager.init_app(app)
     mail.init_app(app)
-    migrate.init_app(app, db)
     csrf.init_app(app)
 
     from app.models.user import User
 
     @login_manager.user_loader
     def load_user(user_id: str):
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     with app.app_context():
         _create_tables_and_seed(app)
@@ -163,26 +195,12 @@ def _create_tables_and_seed(app: Flask) -> None:
     from app.models.settings import Settings
     Settings.ensure_defaults()
     _apply_mail_settings(app)
-    from app.utils.seeder import seed_tasks_from_config, create_default_admin
-    n = seed_tasks_from_config()
-    if n:
-        app.logger.info('[App] Seeded %d tasks from seed data', n)
-    created = create_default_admin()
-    if created:
-        app.logger.warning('[App] Default admin created — change the password!')
     try:
         from app.utils.i18n_helper import seed_languages, warm_cache
         seed_languages()
         warm_cache()
     except Exception as exc:
         app.logger.warning('[App] i18n seed failed: %s', exc)
-
-    try:
-        from app.utils.seeder import seed_default_agents
-        if seed_default_agents():
-            app.logger.info('[App] Default system agents seeded.')
-    except Exception as exc:
-        app.logger.warning('[App] agent seed failed: %s', exc)
 
 
 def _configure_rate_limiting(app: Flask) -> None:
@@ -356,6 +374,16 @@ def _run_column_migrations(db) -> None:
         ("study_participants", "condition_id", "INTEGER"),
         ("study_participants", "dropped_out_at", "DATETIME"),
         ("study_participants", "dropout_reason", "VARCHAR(500)"),
+        # Study: leaderboard + tracking
+        ("studies", "leaderboard_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("studies", "tracking_config", "TEXT"),
+        # User: leaderboard anonymization + notification email
+        ("users", "leaderboard_anonymous", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("users", "email_notifications", "BOOLEAN NOT NULL DEFAULT 1"),
+        # Task: mode
+        ("tasks", "task_mode", "VARCHAR(20) NOT NULL DEFAULT 'standard'"),
+        # Study: agent display name override
+        ("studies", "agent_display_name", "VARCHAR(200)"),
     ]
     with db.engine.connect() as conn:
         from sqlalchemy import text, inspect
@@ -396,15 +424,6 @@ def _run_column_migrations(db) -> None:
                 conn.rollback()
             except Exception:
                 pass
-    # Enable WAL mode for SQLite (better concurrent reads)
-    if 'sqlite' in str(db.engine.url):
-        try:
-            with db.engine.connect() as conn:
-                conn.execute(text('PRAGMA journal_mode=WAL'))
-                conn.execute(text('PRAGMA synchronous=NORMAL'))
-                conn.commit()
-        except Exception:
-            pass
     # Idempotent indexes — run on every startup, safe on existing DBs
     _index_ddl = [
         "CREATE INDEX IF NOT EXISTS ix_task_sub_user_task       ON task_submissions     (user_id, task_id)",
@@ -444,10 +463,10 @@ def _register_i18n_middleware(app: Flask) -> None:
     @app.before_request
     def maintenance_gate():
         from flask import request as req
-        # Allow static files, the maintenance page itself, and admins
+        # Allow static files, the maintenance page itself, auth routes, and admins
         if req.path.startswith('/static'):
             return
-        if req.endpoint in ('main.maintenance', None):
+        if req.endpoint in ('main.maintenance', 'auth.login', 'auth.logout', None):
             return
         try:
             from app.models.settings import Settings
@@ -503,8 +522,8 @@ def _register_cli(app: Flask) -> None:
 
     @app.cli.command('seed-tasks')
     def seed_tasks():
-        from app.utils.seeder import seed_tasks_from_config
-        click.echo(f'{seed_tasks_from_config()} tasks seeded.')
+        from deploy.seed import step_tasks
+        step_tasks()
 
     @app.cli.command('encrypt-api-keys')
     def encrypt_api_keys():
@@ -636,12 +655,18 @@ def _register_context_processors(app: Flask) -> None:
 
         unread_count = 0
         if current_user.is_authenticated:
-            unread_count = current_user.unread_notifications_count
+            from app.extensions import db
+            from app.models.notification import Notification
+            from sqlalchemy import func
+            unread_count = (
+                db.session.query(func.count(Notification.id))
+                .filter(Notification.user_id == current_user.id, Notification.is_read == False)  # noqa: E712
+                .scalar()
+            ) or 0
 
         active_languages = []
         try:
-            from app.models.i18n import Language
-            active_languages = Language.query.filter_by(is_active=True).order_by(Language.sort_order).all()
+            active_languages = _get_active_languages()
         except Exception:
             pass
 
@@ -653,7 +678,6 @@ def _register_context_processors(app: Flask) -> None:
 
         brand_logo_data = (Settings.get(Settings.BRAND_LOGO_DATA, '') or '').strip()
         brand_logo_url = (Settings.get(Settings.BRAND_LOGO_URL, '') or '').strip()
-        brand_logo_mime = Settings.get(Settings.BRAND_LOGO_MIME, 'image/png') or 'image/png'
         if brand_logo_data:
             brand_logo_src = '/brand/logo'
         elif brand_logo_url:
@@ -667,6 +691,7 @@ def _register_context_processors(app: Flask) -> None:
         allow_reg = Settings.get(Settings.ALLOW_REGISTRATION, True)
         level_system_enabled = Settings.get(Settings.LEVEL_SYSTEM_ENABLED, False)
         research_mode_enabled = Settings.get(Settings.RESEARCH_MODE_ENABLED, False)
+        cohorts_enabled = Settings.get(Settings.COHORTS_ENABLED, True)
 
         return {
             'cms_auth_required': auth_required, 'cms_site_name': site_name,
@@ -679,6 +704,7 @@ def _register_context_processors(app: Flask) -> None:
             'allow_registration': allow_reg,
             'level_system_enabled': level_system_enabled,
             'research_mode_enabled': research_mode_enabled,
+            'cohorts_enabled': cohorts_enabled,
         }
 
 

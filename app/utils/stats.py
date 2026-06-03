@@ -2,17 +2,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func, and_
+from sqlalchemy import func
 
 from app.extensions import db
 from app.models.task import TaskSubmission
 from app.models.user import User
-
-
-def _date_filter(since: Optional[datetime]):
-    if since is None:
-        return True
-    return TaskSubmission.started_at >= since
 
 
 def since_from_period(period: str) -> Optional[datetime]:
@@ -91,7 +85,6 @@ def global_stats(since: Optional[datetime] = None) -> dict:
         'verified_users': verified_users,
         'active_users': active_users,
         'total_submissions': len(submissions),
-        'completed': len(completed),
         'completed_submissions': len(completed),
         'avg_interactions': avg_interactions,
         'total_tokens': total_tokens,

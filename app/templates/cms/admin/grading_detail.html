@@ -198,11 +198,27 @@
         <span class="badge bg-secondary">{{ submission.chat_history|length }} Nachrichten</span>
       </div>
       <div class="card-body p-0">
-        <div class="chat-log-viewer" style="max-height:400px;overflow-y:auto;padding:1rem">
+        <div class="chat-log-viewer" style="max-height:480px;overflow-y:auto;padding:1rem">
           {% for msg in submission.chat_history %}
-          <div class="chat-msg chat-msg-{{ msg.role }}">
-            <span class="chat-role">{{ msg.role }}</span>
-            <div class="chat-text">{{ msg.content }}</div>
+          {% set sender = msg.get('sender', msg.get('role', '?')) %}
+          <div class="d-flex gap-2 mb-3 {% if sender == 'user' %}flex-row-reverse{% endif %}">
+            <div class="flex-shrink-0">
+              <span class="badge {% if sender == 'ai' or sender == 'assistant' %}bg-success{% else %}bg-primary{% endif %}"
+                    style="font-size:.7rem;min-width:42px;text-align:center">
+                {% if sender == 'ai' or sender == 'assistant' %}AI{% else %}User{% endif %}
+              </span>
+            </div>
+            <div style="max-width:82%">
+              <div class="p-2 rounded-3 {% if sender == 'ai' or sender == 'assistant' %}bg-light border{% else %}text-white{% endif %}"
+                   style="{% if sender != 'ai' and sender != 'assistant' %}background:var(--brand-primary,#84BD00){% endif %};white-space:pre-wrap;font-size:.85rem;line-height:1.5">
+                {{ msg.get('message', msg.get('content', '')) }}
+              </div>
+              {% if msg.get('ts') %}
+              <div class="text-muted mt-1" style="font-size:.72rem;{% if sender == 'user' %}text-align:right{% endif %}">
+                <i class="bi bi-clock me-1"></i>{{ msg.ts }}
+              </div>
+              {% endif %}
+            </div>
           </div>
           {% else %}
           <p class="text-muted">{{ _t('admin.grading_no_chat', 'No chat history available.') }}</p>
@@ -210,6 +226,57 @@
         </div>
       </div>
     </div>
+
+    {% if submission.llm_prompt_log %}
+    {% set llm_calls = submission.llm_prompt_log | tojson | tojson %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-code-square"></i> {{ _t('admin.grading_llm_log', 'Full LLM Prompt Log') }}</h6>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#llmLogCollapse">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+      <div class="collapse" id="llmLogCollapse">
+        <div class="card-body p-0">
+          <div id="llmLogContainer" style="max-height:600px;overflow-y:auto;padding:.75rem 1rem;font-size:.8rem"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var calls = {{ submission.llm_prompt_log | tojson }};
+      if (!Array.isArray(calls)) return;
+      var container = document.getElementById('llmLogContainer');
+      calls.forEach(function(call, i) {
+        var div = document.createElement('div');
+        div.className = 'border rounded mb-3 overflow-hidden';
+        var hdr = '<div class="d-flex justify-content-between align-items-center p-2 bg-light border-bottom">'
+          + '<strong class="text-monospace">#' + (i+1) + ' – ' + (call.label || '') + '</strong>'
+          + '<span class="text-muted small"><i class="bi bi-clock me-1"></i>' + (call.ts || '') + '</span>'
+          + '</div>';
+        var body = '';
+        (call.messages || []).forEach(function(m) {
+          var role = (m.role || '').toUpperCase();
+          var color = role === 'SYSTEM' ? '#fff3cd' : (role === 'USER' ? '#d1ecf1' : '#d4edda');
+          body += '<div style="background:' + color + ';border-bottom:1px solid rgba(0,0,0,.06);padding:.5rem .75rem">'
+            + '<span class="badge bg-secondary mb-1" style="font-size:.7rem">' + role + '</span>'
+            + '<pre style="white-space:pre-wrap;margin:0;font-size:.78rem;max-height:300px;overflow-y:auto">' + escHtml(m.content || '') + '</pre>'
+            + '</div>';
+        });
+        body += '<div style="background:#f8f9fa;border-top:1px solid rgba(0,0,0,.08);padding:.5rem .75rem">'
+          + '<span class="badge bg-dark mb-1" style="font-size:.7rem">ASSISTANT RESPONSE</span>'
+          + '<pre style="white-space:pre-wrap;margin:0;font-size:.78rem;max-height:300px;overflow-y:auto">' + escHtml(call.response || '') + '</pre>'
+          + '</div>';
+        div.innerHTML = hdr + body;
+        container.appendChild(div);
+      });
+      function escHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+    })();
+    </script>
+    {% endif %}
   </div>
 </div>
 

@@ -32,8 +32,7 @@
   <div class="sidebar-brand">
     <a href="{{ brand_logo_link | default('/') }}" class="brand-link">
       {% if brand_logo_src and brand_logo_src | trim %}
-        <img src="{{ brand_logo_src }}" style="max-height:32px;width:auto;border-radius:4px;" alt=""
-             onerror="this.style.display='none'">
+        <img src="{{ brand_logo_src }}" alt="" onerror="this.style.display='none'">
       {% endif %}
       <span>{{ cms_site_name }}</span>
     </a>
@@ -65,8 +64,10 @@
           {% endif %}
           <li><a href="{{ url_for('admin.grading_list') }}" {% if request.endpoint == 'admin.grading_list' %}class="active"{% endif %}>
             <i class="bi bi-pencil-square"></i> {{ _t('nav.grading', 'Grading') }}</a></li>
+          {% if cohorts_enabled %}
           <li><a href="{{ url_for('admin.cohorts_list') }}" {% if request.endpoint in ('admin.cohorts_list','admin.cohort_new','admin.cohort_detail') %}class="active"{% endif %}>
             <i class="bi bi-people-fill"></i> {{ _t('nav.cohorts', 'Groups') }}</a></li>
+          {% endif %}
           <li><a href="{{ url_for('admin.analytics') }}" {% if request.endpoint == 'admin.analytics' %}class="active"{% endif %}>
             <i class="bi bi-bar-chart-line"></i> {{ _t('nav.analytics', 'Analytics') }}</a></li>
           {% if current_user.has_role('admin') and research_mode_enabled %}
@@ -92,8 +93,10 @@
             <i class="bi bi-shield-check"></i> {{ _t('nav.audit_log', 'Audit Log') }}</a></li>
           <li><a href="{{ url_for('admin.languages_list') }}" {% if request.endpoint in ('admin.languages_list','admin.language_strings','admin.language_new') %}class="active"{% endif %}>
             <i class="bi bi-translate"></i> {{ _t('nav.languages', 'Languages') }}</a></li>
+          {% if level_system_enabled %}
           <li><a href="{{ url_for('admin.levels_list') }}" {% if request.endpoint in ('admin.levels_list','admin.level_edit') %}class="active"{% endif %}>
             <i class="bi bi-layers"></i> {{ _t('nav.level_system', 'Level System') }}</a></li>
+          {% endif %}
           {% if research_mode_enabled %}
           <li><a href="{{ url_for('admin.studies_list') }}" {% if request.endpoint in ('admin.studies_list','admin.study_create','admin.study_edit','admin.study_participants') %}class="active"{% endif %}>
             <i class="bi bi-journals"></i> {{ _t('nav.research_mode', 'Research Mode') }}</a></li>

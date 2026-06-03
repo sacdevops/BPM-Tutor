@@ -43,6 +43,9 @@ class Task(db.Model):
     # Timed challenge mode (null = no limit)
     time_limit_minutes = db.Column(db.Integer, nullable=True)
 
+    # Task mode: 'standard' (index), 'leveling' (level system only), 'research' (research studies only)
+    task_mode = db.Column(db.String(20), default='standard', nullable=False)
+
     # Hide the task from the index once the student has a completed submission
     hide_after_completion = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -147,6 +150,10 @@ class TaskSubmission(db.Model):
     # Research study this submission belongs to (null = normal mode)
     study_id = db.Column(db.Integer, db.ForeignKey('studies.id', ondelete='SET NULL'), nullable=True, index=True)
 
+    # Which AI agent was used for this submission (denormalized for export stability)
+    agent_id = db.Column(db.String(36), db.ForeignKey('ai_agents.id', ondelete='SET NULL'), nullable=True)
+    agent_name = db.Column(db.String(100), nullable=True)
+
     interactions = db.Column(db.Integer, default=0, nullable=False)
     tokens_in = db.Column(db.Integer, default=0, nullable=False)
     tokens_out = db.Column(db.Integer, default=0, nullable=False)
@@ -173,6 +180,9 @@ class TaskSubmission(db.Model):
     phase_counts = db.Column(db.Text, nullable=True)          # JSON {GREETING:1, ANALYSIS:3, ...}
     validation_error_keys = db.Column(db.Text, nullable=True)  # JSON ["missing_label", ...]
 
+    # Full LLM prompt log: JSON list of {ts, label, messages:[{role,content}], response}
+    llm_prompt_log = db.Column(db.Text, nullable=True)
+
     # Composite indexes for the hottest query patterns:
     #   (user_id, task_id) — finding open submissions for a specific user+task
     #   (task_id, started_at) — admin analytics sorted by time per task
@@ -182,6 +192,7 @@ class TaskSubmission(db.Model):
     )
 
     grader = db.relationship('User', foreign_keys=[graded_by_id], overlaps='graded_submissions')
+    agent = db.relationship('AIAgent', foreign_keys=[agent_id])
 
     @property
     def chat_history(self) -> list:

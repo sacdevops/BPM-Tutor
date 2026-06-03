@@ -90,6 +90,9 @@ class Settings:
     # Level system
     LEVEL_SYSTEM_ENABLED = 'level_system_enabled'
 
+    # Cohorts
+    COHORTS_ENABLED = 'cohorts_enabled'
+
     # Research mode
     RESEARCH_MODE_ENABLED = 'research_mode_enabled'
 
@@ -99,9 +102,12 @@ class Settings:
     # Feedback / bug reports
     FEEDBACK_EMAIL = 'feedback_email'
 
-    # BPMN rules — editable global prompts injected into all agent system prompts
+    # AI prompt rules — editable global content injected into all agent system prompts
     BPMN_SYNTAX_RULES = 'bpmn_syntax_rules'       # replaces {bpmn_standards}
     BPMN_ELEMENTS = 'bpmn_elements'                # replaces {bpmn_elements}
+    GENERAL_RULES = 'general_rules'                # replaces {general_rules} (en)
+    GENERAL_RULES_DE = 'general_rules_de'          # replaces {general_rules} (de)
+    LION_FORMAT_RULES = 'lion_format_rules'        # replaces {lion_rules}
 
     # Mail configuration (outgoing SMTP)
     MAIL_SERVER = 'mail_server'
@@ -126,6 +132,18 @@ class Settings:
     MAIL_VERIFY_BODY = 'mail_verify_body'
     MAIL_RESET_SUBJECT = 'mail_reset_subject'
     MAIL_RESET_BODY = 'mail_reset_body'
+
+    # Automatic backups
+    AUTO_BACKUP_ENABLED = 'auto_backup_enabled'
+    AUTO_BACKUP_INTERVAL_HOURS = 'auto_backup_interval_hours'
+    AUTO_BACKUP_STORAGE = 'auto_backup_storage'     # 'local' or 'sciebo'
+    AUTO_BACKUP_LOCAL_PATH = 'auto_backup_local_path'
+    AUTO_BACKUP_MAX_KEEP = 'auto_backup_max_keep'
+    AUTO_BACKUP_LAST_RUN = 'auto_backup_last_run'   # ISO timestamp, managed by task
+    SCIEBO_URL = 'sciebo_url'
+    SCIEBO_USERNAME = 'sciebo_username'
+    SCIEBO_PASSWORD = 'sciebo_password'             # stored encrypted
+    SCIEBO_REMOTE_PATH = 'sciebo_remote_path'
 
     _DEFAULTS: dict = {
         AUTH_REQUIRED: (False, 'bool'),
@@ -167,10 +185,25 @@ class Settings:
         SITE_TAGLINE_DE: ('BPMN-Modellierungs-Lernumgebung', 'string'),
         LEVEL_SYSTEM_ENABLED: (False, 'bool'),
         RESEARCH_MODE_ENABLED: (False, 'bool'),
+        COHORTS_ENABLED: (True, 'bool'),
         MAINTENANCE_MODE: (False, 'bool'),
         FEEDBACK_EMAIL: ('', 'string'),
         BPMN_SYNTAX_RULES: ('', 'string'),   # empty = use built-in Python fallback
         BPMN_ELEMENTS: ('', 'string'),        # empty = use built-in Python fallback
+        GENERAL_RULES: ('', 'string'),        # empty = use built-in Python fallback
+        GENERAL_RULES_DE: ('', 'string'),     # empty = use built-in Python fallback
+        LION_FORMAT_RULES: ('', 'string'),    # empty = use built-in Python fallback
+        # Auto-backup
+        AUTO_BACKUP_ENABLED: (False, 'bool'),
+        AUTO_BACKUP_INTERVAL_HOURS: (24, 'int'),
+        AUTO_BACKUP_STORAGE: ('local', 'string'),
+        AUTO_BACKUP_LOCAL_PATH: ('', 'string'),
+        AUTO_BACKUP_MAX_KEEP: (14, 'int'),
+        AUTO_BACKUP_LAST_RUN: ('', 'string'),
+        SCIEBO_URL: ('', 'string'),
+        SCIEBO_USERNAME: ('', 'string'),
+        SCIEBO_PASSWORD: ('', 'string'),
+        SCIEBO_REMOTE_PATH: ('', 'string'),
     }
 
     @classmethod
@@ -192,7 +225,7 @@ class Settings:
                 pass
 
         # 2. DB lookup
-        row: SystemSetting | None = SystemSetting.query.get(key)
+        row: SystemSetting | None = db.session.get(SystemSetting, key)
         if row is None:
             if key in cls._DEFAULTS:
                 val = cls._DEFAULTS[key][0]
@@ -218,7 +251,7 @@ class Settings:
     def set(cls, key: str, value) -> None:
         """Persist a setting value and invalidate its cache entry."""
         vtype = cls._DEFAULTS.get(key, (None, 'string'))[1]
-        row: SystemSetting | None = SystemSetting.query.get(key)
+        row: SystemSetting | None = db.session.get(SystemSetting, key)
         if row is None:
             row = SystemSetting(key=key, value_type=vtype)
             db.session.add(row)
@@ -238,7 +271,7 @@ class Settings:
         """Persist multiple settings at once and invalidate their cache entries."""
         for key, value in mapping.items():
             vtype = cls._DEFAULTS.get(key, (None, 'string'))[1]
-            row: SystemSetting | None = SystemSetting.query.get(key)
+            row: SystemSetting | None = db.session.get(SystemSetting, key)
             if row is None:
                 row = SystemSetting(key=key, value_type=vtype)
                 db.session.add(row)
@@ -283,7 +316,7 @@ class Settings:
     def ensure_defaults(cls) -> None:
         """Insert default rows for any missing settings."""
         for key, (default_val, vtype) in cls._DEFAULTS.items():
-            if SystemSetting.query.get(key) is None:
+            if db.session.get(SystemSetting, key) is None:
                 db.session.add(SystemSetting(
                     key=key,
                     value=str(default_val),

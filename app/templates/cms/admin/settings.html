@@ -4,12 +4,6 @@
 
 {% block page_title %}{{ _t('admin.settings_page_title', 'System Settings') }}{% endblock %}
 
-{% block topbar_actions %}
-<button type="submit" form="settings-form" class="btn btn-primary btn-sm">
-  <i class="bi bi-save"></i> {{ _t('admin.settings_save_btn', 'Save Settings') }}
-</button>
-{% endblock %}
-
 
 
 {% block content %}
@@ -26,17 +20,16 @@
 
 </form>
 
+{# ── External form for DB-Reset (sits OUTSIDE main form to avoid nesting) ── #}
 
-
-{# ── Main settings form ─────────────────────────────────────────────────── #}
-
-<form id="settings-form" method="post" action="{{ url_for('admin.settings') }}"
-
-      enctype="multipart/form-data">
-
+<form id="db-reset-form" method="post" action="{{ url_for('admin.db_reset') }}"
+      onsubmit="return document.getElementById('resetConfirmInput').value==='RESET'">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="confirm" value="RESET">
+</form>
 
-
+<form id="settings-form" method="post" action="{{ url_for('admin.settings') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
   {# ── Tabs navigation ── #}
 
@@ -213,6 +206,26 @@
                   <strong>{{ _t('admin.settings_level_system_label', 'Enable Level System') }}</strong>
 
                   <div class="text-muted small">Stufenweiser Lernpfad. Konfigurierbar unter <a href="{{ url_for('admin.levels_list') }}">Level-System</a>.</div>
+
+                </label>
+
+              </div>
+
+              <hr class="my-3">
+
+              <div class="form-check form-switch">
+
+                <input type="checkbox" class="form-check-input" id="cohorts_enabled"
+
+                       name="cohorts_enabled"
+
+                       {% if s.get('cohorts_enabled', True) %}checked{% endif %}>
+
+                <label class="form-check-label" for="cohorts_enabled">
+
+                  <strong>{{ _t('admin.settings_cohorts_label', 'Enable Cohorts') }}</strong>
+
+                  <div class="text-muted small">{{ _t('admin.settings_cohorts_hint', 'Enables group/cohort management. When disabled, cohorts are hidden from the navigation.') }}</div>
 
                 </label>
 
@@ -954,6 +967,148 @@
 
       </div>
 
+      {# ── Auto-Backup Card ── #}
+      <div class="card shadow-sm mt-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>{{ _t('admin.settings_auto_backup_header', 'Automatic Backups') }}</h6>
+          <div class="d-flex align-items-center gap-3">
+            <button type="button" id="backupNowBtn" class="btn btn-sm btn-outline-secondary"
+                    onclick="triggerBackupNow()">
+              <i class="bi bi-cloud-arrow-up me-1"></i>{{ _t('admin.settings_backup_now', 'Backup Now') }}
+            </button>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="autoBackupEnabled"
+                     name="auto_backup_enabled" form="settings-form"
+                     onchange="document.getElementById('autoBackupBody').style.display=this.checked?'':'none'"
+                     {% if s.get('auto_backup_enabled') %}checked{% endif %}>
+              <label class="form-check-label small" for="autoBackupEnabled">{{ _t('common.enabled', 'Enabled') }}</label>
+            </div>
+          </div>
+        </div>
+        <div id="autoBackupBody" class="card-body" {% if not s.get('auto_backup_enabled') %}style="display:none"{% endif %}>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">{{ _t('admin.settings_backup_interval', 'Interval (hours)') }}</label>
+              <input type="number" name="auto_backup_interval_hours" form="settings-form"
+                     class="form-control form-control-sm" min="1" max="8760"
+                     value="{{ s.get('auto_backup_interval_hours', 24) }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">{{ _t('admin.settings_backup_keep', 'Keep last N backups') }}</label>
+              <input type="number" name="auto_backup_max_keep" form="settings-form"
+                     class="form-control form-control-sm" min="1" max="365"
+                     value="{{ s.get('auto_backup_max_keep', 14) }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">{{ _t('admin.settings_backup_storage', 'Storage') }}</label>
+              <select name="auto_backup_storage" id="autoBackupStorage" form="settings-form"
+                      class="form-select form-select-sm"
+                      onchange="document.getElementById('localPathRow').style.display=this.value==='local'?'':'none'; document.getElementById('scieboRow').style.display=this.value==='sciebo'?'':'none'">
+                <option value="local" {% if s.get('auto_backup_storage','local')=='local' %}selected{% endif %}>{{ _t('admin.settings_backup_local', 'Local (server)') }}</option>
+                <option value="sciebo" {% if s.get('auto_backup_storage')=='sciebo' %}selected{% endif %}>{{ _t('admin.settings_backup_sciebo', 'Sciebo (WebDAV / ownCloud)') }}</option>
+              </select>
+            </div>
+            <div class="col-12" id="localPathRow"
+                 {% if s.get('auto_backup_storage')=='sciebo' %}style="display:none"{% endif %}>
+              <label class="form-label small fw-semibold">{{ _t('admin.settings_backup_local_path', 'Local backup directory') }}</label>
+              <input type="text" name="auto_backup_local_path" form="settings-form"
+                     class="form-control form-control-sm font-monospace"
+                     placeholder="{{ _t('admin.settings_backup_local_path_ph', 'Leave empty for default: data/backups/') }}"
+                     value="{{ s.get('auto_backup_local_path', '') }}">
+              <div class="form-text">{{ _t('admin.settings_backup_local_path_hint', 'Absolute or relative path on the server. Leave empty to use the default directory next to the database file.') }}</div>
+            </div>
+            <div class="col-12" id="scieboRow"
+                 {% if s.get('auto_backup_storage')!='sciebo' %}style="display:none"{% endif %}>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">{{ _t('admin.settings_sciebo_url', 'Sciebo / ownCloud URL') }}</label>
+                  <input type="url" name="sciebo_url" form="settings-form"
+                         class="form-control form-control-sm"
+                         placeholder="https://uni-duesseldorf.sciebo.de"
+                         value="{{ s.get('sciebo_url', '') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">{{ _t('admin.settings_sciebo_remote_path', 'Remote path') }}</label>
+                  <input type="text" name="sciebo_remote_path" form="settings-form"
+                         class="form-control form-control-sm font-monospace"
+                         placeholder="{{ _t('admin.settings_sciebo_remote_path_ph', 'e.g. backups/bpmtutor') }}"
+                         value="{{ s.get('sciebo_remote_path', '') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">{{ _t('admin.settings_sciebo_username', 'Username') }}</label>
+                  <input type="text" name="sciebo_username" form="settings-form"
+                         class="form-control form-control-sm" autocomplete="off"
+                         value="{{ s.get('sciebo_username', '') }}">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold">{{ _t('admin.settings_sciebo_password', 'Password / App-Password') }}</label>
+                  <input type="password" name="sciebo_password" form="settings-form"
+                         class="form-control form-control-sm" autocomplete="new-password"
+                         placeholder="{{ _t('admin.settings_pw_unchanged_ph', 'Leave empty to keep current') }}"
+                         value="{{ s.get('sciebo_password', '') }}">
+                </div>
+              </div>
+                <div class="col-12 d-flex align-items-center gap-2 mt-1">
+                  <button type="button" class="btn btn-sm btn-outline-info" onclick="testScieboConnection()">
+                    <i class="bi bi-plug me-1"></i>{{ _t('admin.settings_sciebo_test_btn', 'Test Connection') }}
+                  </button>
+                  <div id="sciebo-test-result" style="display:none">
+                    <div id="sciebo-test-alert" class="alert mb-0 py-1 px-2 small"></div>
+                  </div>
+                </div>
+              <div class="form-text mt-1">{{ _t('admin.settings_sciebo_hint', 'Files are uploaded via WebDAV PUT. For Sciebo (HHU) use: https://uni-duesseldorf.sciebo.de. An app password is recommended.') }}</div>
+            </div>
+            {# ── Backup status ── #}
+            <div class="col-12" id="backupStatusRow">
+              {% set _last = s.get('auto_backup_last_run', '') %}
+              <div class="d-flex flex-wrap gap-3 mt-1">
+                <small id="lastBackupLabel" class="text-muted">
+                  {% if _last %}
+                    <i class="bi bi-check-circle text-success me-1"></i>
+                    {{ _t('admin.settings_backup_last_run', 'Last backup:') }}
+                    <span id="lastBackupTime">{{ _last[:19] | replace('T', ' ') }} UTC</span>
+                  {% else %}
+                    <i class="bi bi-dash-circle text-muted me-1"></i>
+                    {{ _t('admin.settings_backup_never', 'No backup yet') }}
+                  {% endif %}
+                </small>
+                {% if _last and s.get('auto_backup_enabled') %}
+                <small id="nextBackupLabel" class="text-muted">
+                  <i class="bi bi-arrow-clockwise me-1"></i>
+                  {{ _t('admin.settings_backup_next', 'Next backup:') }}
+                  <span id="nextBackupTime">{{ backup_next_run }} UTC</span>
+                </small>
+                {% endif %}
+                <small id="scieboUploadResult" class="text-muted" style="display:none"></small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── Factory Reset Card ── #}
+      <div class="card shadow-sm mt-3 border-danger">
+        <div class="card-header bg-danger-subtle">
+          <h6 class="mb-0 text-danger"><i class="bi bi-trash3 me-2"></i>{{ _t('admin.settings_db_reset_header', 'Factory Reset') }}</h6>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            {{ _t('admin.settings_db_reset_desc', 'Deletes all data and recreates the database from scratch — as if the app were deployed for the first time. All users, studies, tasks, and settings will be permanently lost.') }}
+            <strong class="text-danger">{{ _t('admin.settings_db_reset_irreversible', 'This action is irreversible.') }}</strong>
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-danger">{{ _t('admin.settings_db_reset_confirm_label', 'Type RESET to confirm') }}</label>
+            <input type="text" id="resetConfirmInput" class="form-control form-control-sm"
+                   style="max-width:200px"
+                   placeholder="RESET"
+                   oninput="document.getElementById('resetBtn').disabled=this.value!=='RESET'">
+          </div>
+          <button type="submit" id="resetBtn" class="btn btn-danger" disabled form="db-reset-form">
+            <i class="bi bi-trash3 me-1"></i>{{ _t('admin.settings_db_reset_btn', 'Reset Database') }}
+          </button>
+        </div>
+      </div>
+
     </div>
 
 
@@ -1006,24 +1161,144 @@
                 {{ _t('admin.settings_bpmn_rules_desc', 'These rules are injected into the system prompt of every AI agent. Leave blank to use the built-in defaults. Changes take effect immediately for new conversations.') }}
               </p>
 
+              {% set active_langs = cms_active_languages %}
+
+              {# ── BPMN Syntax Rules ── #}
               <div class="mb-4">
                 <label class="form-label fw-semibold">{{ _t('admin.settings_bpmn_syntax_rules', 'BPMN Syntax & Modeling Rules') }} <code>{bpmn_standards}</code></label>
-                <textarea name="bpmn_syntax_rules" class="form-control font-monospace" rows="18"
-                          placeholder="{{ _t('admin.settings_bpmn_syntax_rules_placeholder', 'Leave blank to use the built-in BPMN standards rules.') }}">{{ s['bpmn_syntax_rules'] if 'bpmn_syntax_rules' in db_keys else bpmn_standards_default }}</textarea>
+
+                {% if active_langs | length > 1 %}
+                <ul class="nav nav-pills nav-sm mb-2" id="bpmn-rules-tabs" role="tablist">
+                  {% for lang in active_langs %}
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-3"
+                            id="bpmn-rules-tab-{{ lang.code }}"
+                            data-bs-toggle="pill"
+                            data-bs-target="#bpmn-rules-pane-{{ lang.code }}"
+                            type="button">{{ lang.code | upper }}</button>
+                  </li>
+                  {% endfor %}
+                </ul>
+                <div class="tab-content mb-1">
+                  {% for lang in active_langs %}
+                  <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="bpmn-rules-pane-{{ lang.code }}">
+                    {% if not loop.first %}
+                    <div class="mb-1">
+                      <button type="button" class="btn btn-outline-secondary btn-sm bpmn-translate-btn"
+                              data-source-field="bpmn_syntax_rules"
+                              data-target-field="bpmn_syntax_rules_{{ lang.code }}"
+                              data-target-lang="{{ lang.code }}"
+                              data-target-lang-name="{{ lang.name }}">
+                        <i class="bi bi-magic"></i> {{ _t('admin.settings_bpmn_auto_translate', 'Auto-translate from English') }}
+                      </button>
+                    </div>
+                    {% endif %}
+                    <textarea name="{{ 'bpmn_syntax_rules' if loop.first else 'bpmn_syntax_rules_' + lang.code }}"
+                              id="field-bpmn-syntax-rules-{{ lang.code }}"
+                              class="form-control font-monospace" rows="18"
+                              placeholder="{{ _t('admin.settings_bpmn_syntax_rules_placeholder', 'Leave blank to use the built-in BPMN standards rules.') }}">{% if loop.first %}{{ s.get('bpmn_syntax_rules') or bpmn_standards_default }}{% else %}{{ s.get('bpmn_syntax_rules_' + lang.code) or '' }}{% endif %}</textarea>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <textarea name="bpmn_syntax_rules" id="field-bpmn-syntax-rules-en" class="form-control font-monospace" rows="18"
+                          placeholder="{{ _t('admin.settings_bpmn_syntax_rules_placeholder', 'Leave blank to use the built-in BPMN standards rules.') }}">{{ s.get('bpmn_syntax_rules') or bpmn_standards_default }}</textarea>
+                {% endif %}
                 <div class="form-text">{{ _t('admin.settings_bpmn_syntax_rules_hint', 'Replaces the {bpmn_standards} placeholder. Plain text or Markdown-style rules.') }}</div>
               </div>
 
+              {# ── BPMN Element Reference ── #}
               <div class="mb-2">
                 <label class="form-label fw-semibold">{{ _t('admin.settings_bpmn_elements', 'BPMN Element Reference') }} <code>{bpmn_elements}</code></label>
-                <textarea name="bpmn_elements" class="form-control font-monospace" rows="18"
-                          placeholder="{{ _t('admin.settings_bpmn_elements_placeholder', 'Leave blank to use the built-in BPMN element reference.') }}">{{ s['bpmn_elements'] if 'bpmn_elements' in db_keys else bpmn_elements_default }}</textarea>
+
+                {% if active_langs | length > 1 %}
+                <ul class="nav nav-pills nav-sm mb-2" id="bpmn-elements-tabs" role="tablist">
+                  {% for lang in active_langs %}
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-3"
+                            id="bpmn-elements-tab-{{ lang.code }}"
+                            data-bs-toggle="pill"
+                            data-bs-target="#bpmn-elements-pane-{{ lang.code }}"
+                            type="button">{{ lang.code | upper }}</button>
+                  </li>
+                  {% endfor %}
+                </ul>
+                <div class="tab-content mb-1">
+                  {% for lang in active_langs %}
+                  <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="bpmn-elements-pane-{{ lang.code }}">
+                    {% if not loop.first %}
+                    <div class="mb-1">
+                      <button type="button" class="btn btn-outline-secondary btn-sm bpmn-translate-btn"
+                              data-source-field="bpmn_elements"
+                              data-target-field="bpmn_elements_{{ lang.code }}"
+                              data-target-lang="{{ lang.code }}"
+                              data-target-lang-name="{{ lang.name }}">
+                        <i class="bi bi-magic"></i> {{ _t('admin.settings_bpmn_auto_translate', 'Auto-translate from English') }}
+                      </button>
+                    </div>
+                    {% endif %}
+                    <textarea name="{{ 'bpmn_elements' if loop.first else 'bpmn_elements_' + lang.code }}"
+                              id="field-bpmn-elements-{{ lang.code }}"
+                              class="form-control font-monospace" rows="18"
+                              placeholder="{{ _t('admin.settings_bpmn_elements_placeholder', 'Leave blank to use the built-in BPMN element reference.') }}">{% if loop.first %}{{ s.get('bpmn_elements') or bpmn_elements_default }}{% else %}{{ s.get('bpmn_elements_' + lang.code) or '' }}{% endif %}</textarea>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <textarea name="bpmn_elements" id="field-bpmn-elements-en" class="form-control font-monospace" rows="18"
+                          placeholder="{{ _t('admin.settings_bpmn_elements_placeholder', 'Leave blank to use the built-in BPMN element reference.') }}">{{ s.get('bpmn_elements') or bpmn_elements_default }}</textarea>
+                {% endif %}
                 <div class="form-text">{{ _t('admin.settings_bpmn_elements_hint', 'Replaces the {bpmn_elements} placeholder. Lists supported BPMN element types and their IDs.') }}</div>
               </div>
+
+              {# ── General Behavior Rules ── #}
+              <div class="mb-4">
+                <label class="form-label fw-semibold">{{ _t('admin.settings_general_rules', 'General Behavior Rules') }} <code>{general_rules}</code></label>
+                {% if active_langs | length > 1 %}
+                <ul class="nav nav-pills nav-sm mb-2" id="general-rules-tabs" role="tablist">
+                  {% for lang in active_langs %}
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-3"
+                            id="general-rules-tab-{{ lang.code }}"
+                            data-bs-toggle="pill"
+                            data-bs-target="#general-rules-pane-{{ lang.code }}"
+                            type="button">{{ lang.code | upper }}</button>
+                  </li>
+                  {% endfor %}
+                </ul>
+                <div class="tab-content mb-1">
+                  {% for lang in active_langs %}
+                  <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="general-rules-pane-{{ lang.code }}">
+                    {% set field_name = 'general_rules' if lang.code == 'en' else 'general_rules_' + lang.code %}
+                    {% set default_val = general_rules_default if lang.code == 'en' else general_rules_de_default %}
+                    <textarea name="{{ field_name }}"
+                              id="field-general-rules-{{ lang.code }}"
+                              class="form-control font-monospace" rows="14"
+                              placeholder="{{ _t('admin.settings_general_rules_placeholder', 'Leave blank to use the built-in behavior rules.') }}">{{ s.get(field_name) or default_val }}</textarea>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <textarea name="general_rules" id="field-general-rules-en" class="form-control font-monospace" rows="14"
+                          placeholder="{{ _t('admin.settings_general_rules_placeholder', 'Leave blank to use the built-in behavior rules.') }}">{{ s.get('general_rules') or general_rules_default }}</textarea>
+                {% endif %}
+                <div class="form-text">{{ _t('admin.settings_general_rules_hint', 'Replaces the {general_rules} placeholder. Defines communication style and agent behavior.') }}</div>
+              </div>
+
+              {# ── LION Format Rules ── #}
+              <div class="mb-2">
+                <label class="form-label fw-semibold">{{ _t('admin.settings_lion_format_rules', 'LION Output Format') }} <code>{lion_rules}</code></label>
+                <textarea name="lion_format_rules" id="field-lion-format-rules" class="form-control font-monospace" rows="14"
+                          placeholder="{{ _t('admin.settings_lion_format_rules_placeholder', 'Leave blank to use the built-in LION format specification.') }}">{{ s.get('lion_format_rules') or lion_format_rules_default }}</textarea>
+                <div class="form-text">{{ _t('admin.settings_lion_format_rules_hint', 'Replaces the {lion_rules} placeholder. Automatically enforced for reaction/analysis prompts.') }}</div>
+              </div>
+
             </div>
           </div>
         </div>
       </div>
     </div>
+
 
 </div>{# /tab-content #}
 
@@ -1083,6 +1358,134 @@ function autoFillPort(enc) {
   else if (enc === 'none'     && (currentPort == 587 || currentPort == 465 || currentPort == '')) portEl.value = 25;
 
   if (warn) warn.style.display = enc === 'none' ? '' : 'none';
+
+}
+
+function triggerBackupNow() {
+
+  const btn = document.getElementById('backupNowBtn');
+
+  const scieboEl = document.getElementById('scieboUploadResult');
+
+  const csrfToken = document.querySelector('#settings-form input[name="csrf_token"]').value;
+
+  btn.disabled = true;
+
+  if (scieboEl) { scieboEl.style.display = 'none'; scieboEl.textContent = ''; }
+
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> {{ _t('admin.settings_backup_running', 'Running…') }}';
+
+  fetch('{{ url_for("admin.backup_now") }}', {
+
+    method: 'POST',
+
+    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+
+    body: 'csrf_token=' + encodeURIComponent(csrfToken),
+
+  })
+
+  .then(r => r.json())
+
+  .then(data => {
+
+    if (data.ok) {
+
+      const lastLabel = document.getElementById('lastBackupLabel');
+
+      if (lastLabel) {
+
+        lastLabel.innerHTML = '<i class="bi bi-check-circle text-success me-1"></i>{{ _t('admin.settings_backup_last_run', 'Last backup:') }} <span id="lastBackupTime">' + data.last_run + ' UTC</span>';
+
+      }
+
+      if (scieboEl && data.sciebo) {
+
+        const isOk = data.sciebo.startsWith('Uploaded');
+
+        scieboEl.innerHTML = (isOk ? '<i class="bi bi-cloud-check text-success me-1"></i>' : '<i class="bi bi-exclamation-triangle text-warning me-1"></i>') + 'Sciebo: ' + data.sciebo;
+
+        scieboEl.style.display = '';
+
+      }
+
+    } else {
+
+      alert('{{ _t('admin.settings_backup_failed', 'Backup failed:') }} ' + (data.error || ''));
+
+    }
+
+  })
+
+  .catch(err => {
+
+    alert('{{ _t('common.error', 'Error') }}: ' + err);
+
+  })
+
+  .finally(() => {
+
+    btn.disabled = false;
+
+    btn.innerHTML = '<i class="bi bi-cloud-arrow-up me-1"></i>{{ _t('admin.settings_backup_now', 'Backup Now') }}';
+
+  });
+
+}
+
+function testScieboConnection() {
+
+  const btn = document.querySelector('[onclick="testScieboConnection()"]');
+
+  const resultDiv = document.getElementById('sciebo-test-result');
+
+  const alertDiv  = document.getElementById('sciebo-test-alert');
+
+  const csrfToken = document.querySelector('#settings-form input[name="csrf_token"]').value;
+
+  btn.disabled = true;
+
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> {{ _t('admin.settings_testing', 'Testing…') }}';
+
+  fetch('{{ url_for("admin.test_sciebo") }}', {
+
+    method: 'POST',
+
+    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+
+    body: 'csrf_token=' + encodeURIComponent(csrfToken),
+
+  })
+
+  .then(r => r.json())
+
+  .then(data => {
+
+    resultDiv.style.display = '';
+
+    alertDiv.className = 'alert mb-0 py-1 px-2 small ' + (data.ok ? 'alert-success' : 'alert-danger');
+
+    alertDiv.innerHTML = (data.ok ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-exclamation-triangle me-1"></i>') + data.msg;
+
+  })
+
+  .catch(err => {
+
+    resultDiv.style.display = '';
+
+    alertDiv.className = 'alert alert-danger mb-0 py-1 px-2 small';
+
+    alertDiv.textContent = '{{ _t('common.error', 'Error') }}: ' + err;
+
+  })
+
+  .finally(() => {
+
+    btn.disabled = false;
+
+    btn.innerHTML = '<i class="bi bi-plug me-1"></i>{{ _t('admin.settings_sciebo_test_btn', 'Test Connection') }}';
+
+  });
 
 }
 
@@ -1297,6 +1700,47 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   renderRegFields();
+})();
+
+// ── BPMN Auto-translate ─────────────────────────────────────────────────────
+(function() {
+  document.querySelectorAll('.bpmn-translate-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var sourceFieldName = btn.getAttribute('data-source-field');
+      var targetFieldName = btn.getAttribute('data-target-field');
+      var targetLang = btn.getAttribute('data-target-lang');
+      var targetLangName = btn.getAttribute('data-target-lang-name');
+
+      var sourceEl = document.querySelector('[name="' + sourceFieldName + '"]');
+      var targetEl = document.querySelector('[name="' + targetFieldName + '"]');
+      if (!sourceEl || !targetEl) return;
+
+      var text = sourceEl.value.trim();
+      if (!text) { alert('{{ _t('admin.settings_bpmn_translate_no_source', 'The English field is empty. Nothing to translate.') }}'); return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> {{ _t('common.loading', 'Translating...') }}';
+
+      fetch('{{ url_for('admin.translate_text') }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, target_lang: targetLang, target_lang_name: targetLangName })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          targetEl.value = d.result;
+        } else {
+          alert('{{ _t('common.error', 'Error') }}: ' + (d.error || '{{ _t('common.unknown_error', 'Unknown error') }}'));
+        }
+      })
+      .catch(function(e) { alert('{{ _t('common.error', 'Error') }}: ' + e); })
+      .finally(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic"></i> {{ _t('admin.settings_bpmn_auto_translate', 'Auto-translate from English') }}';
+      });
+    });
+  });
 })();
 </script>
 

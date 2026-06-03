@@ -80,6 +80,7 @@ def settings():
             Settings.ALLOW_REGISTRATION: bool(request.form.get('allow_registration')),
             Settings.REQUIRE_EMAIL_VERIFICATION: bool(request.form.get('require_email_verification')),
             Settings.LEVEL_SYSTEM_ENABLED: bool(request.form.get('level_system_enabled')),
+            Settings.COHORTS_ENABLED: bool(request.form.get('cohorts_enabled')),
             Settings.RESEARCH_MODE_ENABLED: bool(request.form.get('research_mode_enabled')),
             Settings.MAINTENANCE_MODE: bool(request.form.get('maintenance_mode')),
             Settings.API_KEY_MODE: request.form.get('api_key_mode', 'per_user'),
@@ -115,7 +116,27 @@ def settings():
             Settings.MAIL_RESET_BODY: request.form.get('mail_reset_body', '').strip(),
             Settings.BPMN_SYNTAX_RULES: request.form.get('bpmn_syntax_rules', '').strip(),
             Settings.BPMN_ELEMENTS: request.form.get('bpmn_elements', '').strip(),
+            Settings.GENERAL_RULES: request.form.get('general_rules', '').strip(),
+            Settings.GENERAL_RULES_DE: request.form.get('general_rules_de', '').strip(),
+            Settings.LION_FORMAT_RULES: request.form.get('lion_format_rules', '').strip(),
+            # Auto-backup
+            Settings.AUTO_BACKUP_ENABLED: bool(request.form.get('auto_backup_enabled')),
+            Settings.AUTO_BACKUP_INTERVAL_HOURS: request.form.get('auto_backup_interval_hours', '24').strip(),
+            Settings.AUTO_BACKUP_STORAGE: request.form.get('auto_backup_storage', 'local').strip(),
+            Settings.AUTO_BACKUP_LOCAL_PATH: request.form.get('auto_backup_local_path', '').strip(),
+            Settings.AUTO_BACKUP_MAX_KEEP: request.form.get('auto_backup_max_keep', '14').strip(),
+            Settings.SCIEBO_URL: request.form.get('sciebo_url', '').strip(),
+            Settings.SCIEBO_USERNAME: request.form.get('sciebo_username', '').strip(),
+            Settings.SCIEBO_PASSWORD: request.form.get('sciebo_password', '').strip(),
+            Settings.SCIEBO_REMOTE_PATH: request.form.get('sciebo_remote_path', '').strip(),
         }
+
+        # Per-language BPMN rules (skip English — stored in the base keys)
+        for _al in active_languages:
+            if _al.code == 'en':
+                continue
+            mapping[f'bpmn_syntax_rules_{_al.code}'] = request.form.get(f'bpmn_syntax_rules_{_al.code}', '').strip()
+            mapping[f'bpmn_elements_{_al.code}'] = request.form.get(f'bpmn_elements_{_al.code}', '').strip()
 
         for _al in active_languages:
             _val = request.form.get(f'site_name_{_al.code}', '').strip()
@@ -147,7 +168,7 @@ def settings():
 
         # Encrypt sensitive values; if field left blank, keep the existing encrypted value
         from app.utils.crypto import encrypt_value as _enc
-        _SENSITIVE = (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD)
+        _SENSITIVE = (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD, Settings.SCIEBO_PASSWORD)
         for _key in _SENSITIVE:
             if _key in mapping:
                 _raw = str(mapping[_key] or '')
@@ -167,7 +188,8 @@ def settings():
         current_app.config['MAIL_DEFAULT_SENDER'] = mapping.get(Settings.MAIL_DEFAULT_SENDER, '')
         from app.extensions import mail as _mail_ext
         _mail_ext.init_app(current_app)
-        flash('Einstellungen gespeichert.', 'success')
+        from app.utils.i18n_helper import _t
+        flash(_t('admin.settings_saved', 'Settings saved.'), 'success')
         return redirect(url_for('admin.settings'))
 
     current_settings = {
@@ -178,7 +200,7 @@ def settings():
     _db_keys = {row.key for row in SystemSetting.query.all()}
     # Decrypt sensitive values for display so the form doesn't show cipher text
     from app.utils.crypto import decrypt_value as _dec
-    for _key in (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD):
+    for _key in (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD, Settings.SCIEBO_PASSWORD):
         if _key in current_settings:
             current_settings[_key] = _dec(str(current_settings[_key] or ''))
     reg_fields = RegistrationField.query.order_by(RegistrationField.sort_order).all()
@@ -188,12 +210,202 @@ def settings():
          'options': f.options or []}
         for f in reg_fields
     ]
+    from app.services.prompts._base import BPMN_STANDARDS as _bpmn_std, BPMN_ELEMENTS_REFERENCE as _bpmn_el, GENERAL_RULES as _general_rules_default, GENERAL_RULES_DE as _general_rules_de_default, LION_FORMAT_RULES as _lion_format_default
+
+    # Compute next backup time for display
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    _last_run_str = current_settings.get(Settings.AUTO_BACKUP_LAST_RUN, '') or ''
+    _backup_next_run = None
+    if _last_run_str:
+        try:
+            _interval_h = int(current_settings.get(Settings.AUTO_BACKUP_INTERVAL_HOURS, 24) or 24)
+            _last_dt = _dt.fromisoformat(_last_run_str).replace(tzinfo=_tz.utc)
+            _backup_next_run = (_last_dt + _td(hours=_interval_h)).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            pass
+
     return render_template('cms/admin/settings.html', s=current_settings, Settings=Settings,
                            active_languages=active_languages,
                            reg_fields_data=reg_fields_data,
                            db_keys=_db_keys,
-                           bpmn_standards_default=__import__('app.services.prompts', fromlist=['BPMN_STANDARDS']).BPMN_STANDARDS,
-                           bpmn_elements_default=__import__('app.services.prompts', fromlist=['BPMN_ELEMENTS_REFERENCE']).BPMN_ELEMENTS_REFERENCE)
+                           bpmn_standards_default=_bpmn_std,
+                           bpmn_elements_default=_bpmn_el,
+                           general_rules_default=_general_rules_default,
+                           general_rules_de_default=_general_rules_de_default,
+                           lion_format_rules_default=_lion_format_default,
+                           backup_next_run=_backup_next_run)
+
+
+def _sciebo_base(url: str, username: str) -> str:
+    """Build the WebDAV base URL, normalising whatever the user typed.
+
+    Accepts both:
+      • https://tu-dortmund.sciebo.de  (bare domain — recommended)
+      • https://tu-dortmund.sciebo.de/remote.php/dav/files/user@...  (full path — tolerated)
+    Always returns:  https://<host>/remote.php/dav/files/<username>
+    """
+    import re
+    # Strip any /remote.php/... suffix the user may have included
+    base = re.sub(r'/remote\.php.*$', '', url.rstrip('/'))
+    return f'{base}/remote.php/dav/files/{username}'
+
+
+# ── Manual backup trigger ─────────────────────────────────────────────────────
+
+@admin_bp.route('/settings/backup-now', methods=['POST'])
+@admin_required
+def backup_now():
+    """Run a backup immediately, bypassing the scheduled interval check."""
+    import os
+    import sqlite3
+    from datetime import datetime as _dt, timezone as _tz
+
+    try:
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if 'sqlite' not in db_uri:
+            return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+
+        db_path = db_uri.replace('sqlite:///', '', 1)
+        if not os.path.exists(db_path):
+            return jsonify(ok=False, error='Database file not found.'), 400
+
+        custom_path = (Settings.get(Settings.AUTO_BACKUP_LOCAL_PATH, '') or '').strip()
+        backup_dir = custom_path if custom_path else os.path.join(os.path.dirname(db_path), 'backups')
+        os.makedirs(backup_dir, exist_ok=True)
+
+        ts = _dt.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'bpmtutor_{ts}.db'
+        dest = os.path.join(backup_dir, filename)
+
+        # SQLite online backup
+        src = sqlite3.connect(db_path)
+        dst = sqlite3.connect(dest)
+        try:
+            src.backup(dst)
+        finally:
+            src.close()
+            dst.close()
+        current_app.logger.info('[backup_now] Created: %s', dest)
+
+        # Rotate local backups
+        try:
+            max_keep = int(Settings.get(Settings.AUTO_BACKUP_MAX_KEEP, 14) or 14)
+        except (TypeError, ValueError):
+            max_keep = 14
+        all_backups = sorted(
+            [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith('.db')]
+        )
+        for old in all_backups[:-max_keep]:
+            os.remove(old)
+
+        # Sciebo / WebDAV upload (if configured)
+        sciebo_detail = None
+        storage = (Settings.get(Settings.AUTO_BACKUP_STORAGE, 'local') or 'local').strip()
+        if storage == 'sciebo':
+            sciebo_url = (Settings.get(Settings.SCIEBO_URL, '') or '').rstrip('/')
+            sciebo_user = Settings.get(Settings.SCIEBO_USERNAME, '') or ''
+            from app.utils.crypto import decrypt_value as _dec
+            sciebo_pass = _dec(Settings.get(Settings.SCIEBO_PASSWORD, '') or '')
+            remote_path = (Settings.get(Settings.SCIEBO_REMOTE_PATH, '') or '').strip('/')
+            if not sciebo_url or not sciebo_user:
+                sciebo_detail = 'Sciebo URL or username not configured'
+                current_app.logger.warning('[backup_now] %s', sciebo_detail)
+            else:
+                try:
+                    import requests as _req
+                    webdav_base = _sciebo_base(sciebo_url, sciebo_user)
+                    auth = (sciebo_user, sciebo_pass)
+                    if remote_path:
+                        # Create each directory level individually (WebDAV MKCOL is not recursive)
+                        parts = remote_path.split('/')
+                        for i in range(1, len(parts) + 1):
+                            partial = '/'.join(parts[:i])
+                            mkcol_url = f'{webdav_base}/{partial}/'
+                            mkcol_resp = _req.request('MKCOL', mkcol_url, auth=auth, timeout=15)
+                            # 201 = created, 405 = already exists (both are fine)
+                            current_app.logger.info('[backup_now] MKCOL %s → %s', mkcol_url, mkcol_resp.status_code)
+                            if mkcol_resp.status_code not in (201, 405, 301, 302):
+                                current_app.logger.warning('[backup_now] MKCOL unexpected status %s for %s',
+                                                           mkcol_resp.status_code, mkcol_url)
+                        upload_url = f'{webdav_base}/{remote_path}/{filename}'
+                    else:
+                        upload_url = f'{webdav_base}/{filename}'
+                    with open(dest, 'rb') as fh:
+                        resp = _req.put(upload_url, data=fh, auth=auth, timeout=120)
+                    if resp.status_code in (200, 201, 204):
+                        sciebo_detail = f'Uploaded to {upload_url}'
+                        current_app.logger.info('[backup_now] Sciebo upload OK: %s', upload_url)
+                    else:
+                        sciebo_detail = f'Sciebo upload returned HTTP {resp.status_code}: {resp.text[:200]}'
+                        current_app.logger.warning('[backup_now] %s', sciebo_detail)
+                except Exception as sciebo_exc:
+                    sciebo_detail = f'Sciebo upload error: {sciebo_exc}'
+                    current_app.logger.warning('[backup_now] %s', sciebo_exc, exc_info=True)
+
+        now_iso = _dt.now(_tz.utc).isoformat()
+        Settings.set(Settings.AUTO_BACKUP_LAST_RUN, now_iso)
+
+        return jsonify(
+            ok=True,
+            last_run=now_iso[:19].replace('T', ' '),
+            local_path=dest,
+            sciebo=sciebo_detail,
+        )
+
+    except Exception as exc:
+        current_app.logger.exception('[backup_now] failed: %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500
+
+
+# ── Test Sciebo connection ────────────────────────────────────────────────────
+
+@admin_bp.route('/settings/test-sciebo', methods=['POST'])
+@admin_required
+def test_sciebo():
+    """Check whether Sciebo credentials are valid by doing a PROPFIND on the configured path."""
+    try:
+        import requests as _req
+        sciebo_url = (Settings.get(Settings.SCIEBO_URL, '') or '').rstrip('/')
+        sciebo_user = Settings.get(Settings.SCIEBO_USERNAME, '') or ''
+        from app.utils.crypto import decrypt_value as _dec
+        sciebo_pass = _dec(Settings.get(Settings.SCIEBO_PASSWORD, '') or '')
+        remote_path = (Settings.get(Settings.SCIEBO_REMOTE_PATH, '') or '').strip('/')
+
+        if not sciebo_url or not sciebo_user:
+            return jsonify(ok=False, msg='URL or username not configured.')
+
+        webdav_base = _sciebo_base(sciebo_url, sciebo_user)
+        probe_url = f'{webdav_base}/{remote_path}/' if remote_path else f'{webdav_base}/'
+
+        resp = _req.request('PROPFIND', probe_url,
+                            auth=(sciebo_user, sciebo_pass),
+                            headers={'Depth': '0'},
+                            timeout=15)
+
+        if resp.status_code in (200, 207):
+            return jsonify(ok=True, msg=f'Verbindung OK (HTTP {resp.status_code}). Pfad "{remote_path or "/"}" ist erreichbar.')
+        elif resp.status_code == 401:
+            return jsonify(ok=False, msg=f'Authentifizierung fehlgeschlagen (HTTP 401). Benutzername oder Passwort prüfen.\nGeprüfte URL: {probe_url}')
+        elif resp.status_code == 404:
+            # Try root to distinguish wrong path vs wrong credentials
+            root_resp = _req.request('PROPFIND', f'{webdav_base}/',
+                                     auth=(sciebo_user, sciebo_pass),
+                                     headers={'Depth': '0'}, timeout=15)
+            if root_resp.status_code in (200, 207):
+                return jsonify(ok=False, msg=(
+                    f'Credentials sind korrekt, aber Pfad "{remote_path}" wurde nicht gefunden (HTTP 404).\n'
+                    f'Geprüfte URL: {probe_url}\n'
+                    f'Bitte prüfen: Existiert der Ordner in Sciebo genau so? Groß-/Kleinschreibung beachten.\n'
+                    f'Beim nächsten Backup wird versucht den Ordner automatisch anzulegen.'
+                ))
+            elif root_resp.status_code == 401:
+                return jsonify(ok=False, msg=f'Authentifizierung fehlgeschlagen (HTTP 401). Benutzername oder Passwort prüfen.\nGeprüfte URL: {probe_url}')
+            else:
+                return jsonify(ok=False, msg=f'Pfad nicht gefunden (HTTP 404) und Root nicht erreichbar (HTTP {root_resp.status_code}).\nGeprüfte URL: {probe_url}')
+        else:
+            return jsonify(ok=False, msg=f'Unerwartete Antwort: HTTP {resp.status_code}\nGeprüfte URL: {probe_url}')
+    except Exception as exc:
+        return jsonify(ok=False, msg=f'Verbindungsfehler: {exc}')
 
 
 # ── Test mail connection ──────────────────────────────────────────────────────
@@ -272,6 +484,65 @@ def test_mail():
                    msg=f'Test-E-Mail erfolgreich an {current_user.email} gesendet.')
 
 
+# ── AI translate ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/api/translate-text', methods=['POST'])
+@admin_required
+def translate_text():
+    """Translate text to a target language using the configured AI.
+
+    Used by the BPMN Rules admin tab to auto-translate English rules into
+    other active UI languages.  Requires a global API key to be configured.
+    """
+    import requests as _http
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get('text') or '').strip()
+    target_lang = (data.get('target_lang') or '').strip()
+    target_lang_name = (data.get('target_lang_name') or target_lang).strip()
+
+    if not text:
+        return jsonify(ok=False, error='No text provided.'), 400
+    if not target_lang:
+        return jsonify(ok=False, error='No target language specified.'), 400
+
+    from app.utils.crypto import decrypt_value as _dec
+    api_key_raw = Settings.get(Settings.GLOBAL_API_KEY) or ''
+    api_key = _dec(api_key_raw) if api_key_raw else ''
+    if not api_key:
+        return jsonify(ok=False, error='No global API key configured. Please add one in the AI API section first.'), 400
+
+    endpoint = (Settings.get(Settings.API_ENDPOINT) or '').rstrip('/')
+    if not endpoint:
+        import config
+        endpoint = config.CAMPUS_KI_BASE_URL.rstrip('/')
+    model = Settings.get(Settings.DEFAULT_MODEL) or 'gpt-4o-mini'
+
+    system_prompt = (
+        f'Translate the following text to {target_lang_name} ({target_lang}). '
+        'Preserve all formatting exactly: line breaks, bullet points, indentation, '
+        'code-style rules, and technical terms (especially BPMN element names). '
+        'Return ONLY the translated text with no preamble or explanation.'
+    )
+    try:
+        resp = _http.post(
+            f'{endpoint}/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': model,
+                'messages': [
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': text},
+                ]
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        result = resp.json()['choices'][0]['message']['content']
+        return jsonify(ok=True, result=result)
+    except Exception as exc:
+        return jsonify(ok=False, error=str(exc)), 500
+
+
 # ── Database export / import ─────────────────────────────────────────────────
 
 @admin_bp.route('/settings/db-export')
@@ -344,6 +615,43 @@ def db_import():
             pass
 
     return redirect(url_for('admin.settings'))
+
+
+# ── Factory reset (drop all tables, recreate, seed) ──────────────────────────
+
+@admin_bp.route('/settings/db-reset', methods=['POST'])
+@admin_required
+def db_reset():
+    """Drop all tables and recreate the database as a fresh deployment."""
+    if request.form.get('confirm') != 'RESET':
+        flash('Bestätigung fehlt — Zurücksetzen abgebrochen.', 'warning')
+        return redirect(url_for('admin.settings'))
+
+    try:
+        from app.extensions import db as _db
+
+        # Dispose open connections before drop
+        _db.session.remove()
+        _db.engine.dispose()
+
+        _db.drop_all()
+        _db.create_all()
+
+        # Re-seed default data (agents, tasks, etc.)
+        from deploy.seed import step_languages, step_tasks, step_admin, step_system_agents
+        step_languages()
+        step_tasks()
+        step_system_agents()
+
+        flash('Datenbank wurde zurückgesetzt. Bitte neu anmelden.', 'success')
+    except Exception as exc:
+        current_app.logger.exception('db_reset failed: %s', exc)
+        flash(f'Fehler beim Zurücksetzen: {exc}', 'danger')
+
+    # Force logout since all sessions are gone
+    from flask_login import logout_user
+    logout_user()
+    return redirect(url_for('auth.login'))
 
 
 # ── Broadcast notification ────────────────────────────────────────────────────

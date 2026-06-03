@@ -12,6 +12,7 @@ from app.utils.tokens import (generate_email_token, verify_email_token,
                                generate_reset_token, verify_reset_token)
 from app.utils.email import send_verification_email, send_password_reset_email
 from app.utils.validators import is_valid_email
+from app.utils.i18n_helper import _t
 
 import re
 from datetime import datetime, timezone
@@ -42,9 +43,17 @@ def login():
             login_user(user, remember=remember)
             user.last_login = datetime.now(timezone.utc)
             db.session.commit()
+            # If maintenance mode is active and user is not admin, redirect to maintenance
+            if Settings.get(Settings.MAINTENANCE_MODE, False) and user.role != 'admin':
+                logout_user()
+                return render_template('cms/auth/login.html',
+                                       error=_t('auth.error_maintenance', 'The system is currently in maintenance mode. Only admins can log in.'))
             next_page = request.args.get('next', '')
-            if next_page and urlsplit(next_page).netloc == '':
-                return redirect(next_page)
+            # Validate next_page: must be a relative path (no scheme, no host, no //evil.com)
+            if next_page:
+                parsed = urlsplit(next_page)
+                if not parsed.scheme and not parsed.netloc and not next_page.startswith('//'):
+                    return redirect(next_page)
             return redirect('/')
     return render_template('cms/auth/login.html', error=error)
 
@@ -54,7 +63,7 @@ def login():
 def logout():
 
     logout_user()
-    flash('Du wurdest erfolgreich abgemeldet.', 'success')
+    flash(_t('auth.logout_success', 'You have been logged out successfully.'), 'success')
     if Settings.get(Settings.AUTH_REQUIRED):
         return redirect(url_for('auth.login'))
     return redirect('/')
@@ -64,7 +73,7 @@ def logout():
 def register():
 
     if not Settings.get(Settings.ALLOW_REGISTRATION):
-        flash('Die Registrierung ist derzeit deaktiviert.', 'warning')
+        flash(_t('auth.registration_disabled', 'Registration is currently disabled.'), 'warning')
         return redirect(url_for('auth.login'))
     if current_user.is_authenticated:
         return redirect('/')
@@ -123,13 +132,13 @@ def register():
                 token = generate_email_token(email)
                 mail_sent = send_verification_email(user, token)
                 if mail_sent:
-                    flash('Registrierung erfolgreich! Bitte bestätige deine E-Mail-Adresse.', 'success')
+                    flash(_t('auth.register_success_verify', 'Registration successful! Please confirm your email address.'), 'success')
                 else:
-                    flash('Registrierung erfolgreich! (Kein E-Mail-Versand konfiguriert \u2014 Admin kann dein Konto manuell aktivieren.)', 'warning')
+                    flash(_t('auth.register_success_no_mail', 'Registration successful! (No email sending configured — an admin can manually activate your account.)'), 'warning')
                 return redirect(url_for('auth.login'))
             else:
                 login_user(user)
-                flash('Willkommen! Registrierung erfolgreich.', 'success')
+                flash(_t('auth.register_success', 'Welcome! Registration successful.'), 'success')
                 return redirect('/')
     return render_template('cms/auth/register.html',
                            extra_fields=extra_fields, errors=errors)
@@ -140,25 +149,25 @@ def verify_email(token: str):
 
     email = verify_email_token(token)
     if email is None:
-        flash('Der Bestätigungslink ist ungültig oder abgelaufen.', 'danger')
+        flash(_t('auth.verify_invalid_link', 'The confirmation link is invalid or has expired.'), 'danger')
         return redirect(url_for('auth.login'))
     user = User.query.filter_by(email=email).first()
     if user is None:
-        flash('Kein Konto mit dieser E-Mail-Adresse gefunden.', 'danger')
+        flash(_t('auth.verify_no_account', 'No account found with this email address.'), 'danger')
         return redirect(url_for('auth.login'))
     if user.is_verified:
-        flash('Deine E-Mail-Adresse wurde bereits bestätigt.', 'info')
+        flash(_t('auth.verify_already_done', 'Your email address has already been confirmed.'), 'info')
     else:
         user.is_verified = True
         db.session.commit()
-        flash('E-Mail-Adresse erfolgreich bestätigt! Du kannst dich jetzt anmelden.', 'success')
+        flash(_t('auth.verify_success', 'Email address confirmed successfully! You can now sign in.'), 'success')
     return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
 
-    if not Settings.get(Settings.AUTH_REQUIRED):
+    if current_user.is_authenticated:
         return redirect('/')
     sent = False
     if request.method == 'POST':
@@ -177,23 +186,23 @@ def reset_password(token: str):
 
     user_id = verify_reset_token(token)
     if user_id is None:
-        flash('Der Reset-Link ist ungültig oder abgelaufen.', 'danger')
+        flash(_t('auth.reset_invalid_link', 'The reset link is invalid or has expired.'), 'danger')
         return redirect(url_for('auth.forgot_password'))
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     if user is None:
-        flash('Benutzer nicht gefunden.', 'danger')
+        flash(_t('auth.user_not_found', 'User not found.'), 'danger')
         return redirect(url_for('auth.login'))
     error = None
     if request.method == 'POST':
         password = request.form.get('password', '')
         password2 = request.form.get('password2', '')
         if len(password) < 8:
-            error = 'Passwort muss mindestens 8 Zeichen haben.'
+            error = _t('auth.error_password_too_short', 'Password must be at least 8 characters.')
         elif password != password2:
-            error = 'Passwörter stimmen nicht überein.'
+            error = _t('auth.error_passwords_mismatch', 'Passwords do not match.')
         else:
             user.set_password(password)
             db.session.commit()
-            flash('Passwort erfolgreich geändert. Du kannst dich jetzt anmelden.', 'success')
+            flash(_t('auth.password_reset_success', 'Password changed successfully. You can now sign in.'), 'success')
             return redirect(url_for('auth.login'))
     return render_template('cms/auth/reset_password.html', error=error, token=token)

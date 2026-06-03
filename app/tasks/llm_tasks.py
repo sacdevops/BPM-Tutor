@@ -68,7 +68,6 @@ def process_mentor_message(
     task_id: str,
     session_uuid: str,
     task_description: str,
-    instruction: str,
     memory: list[dict],
     current_bpmn: str,
     user_message: str,
@@ -102,7 +101,6 @@ def process_mentor_message(
 
             response = mentor.get_mentor_response(
                 task_description,
-                instruction,
                 memory,
                 current_bpmn,
                 user_message=user_message,
@@ -121,7 +119,7 @@ def process_mentor_message(
                         [{'role': 'assistant', 'content': resp_message}]
                         if resp_message else []
                     )
-                    sub = _Sub.query.get(submission_id)
+                    sub = _db.session.get(_Sub, submission_id)
                     if sub:
                         sub.mentor_memory = _j.dumps(updated_memory)
                         _db.session.commit()

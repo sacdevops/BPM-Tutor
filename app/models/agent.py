@@ -23,17 +23,6 @@ class AIAgent(db.Model):
     is_default = db.Column(db.Boolean, default=False, nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
 
-    # ── System prompts (EN / DE) ─────────────────────────────────────────────
-    # greeting: system prompt used when the AI introduces itself at task start
-    prompt_greeting_en = db.Column(db.Text, nullable=True)
-    prompt_greeting_de = db.Column(db.Text, nullable=True)
-    # analysis: system prompt used when the AI reviews the current BPMN model
-    prompt_analysis_en = db.Column(db.Text, nullable=True)
-    prompt_analysis_de = db.Column(db.Text, nullable=True)
-    # reaction: system prompt used for follow-up chat messages
-    prompt_reaction_en = db.Column(db.Text, nullable=True)
-    prompt_reaction_de = db.Column(db.Text, nullable=True)
-
     # ── Capability flags ──────────────────────────────────────────────────────
     # modeling_mode: what the AI is allowed to do with the BPMN model
     #   'none'          – AI cannot model; student always drives the canvas
@@ -53,6 +42,12 @@ class AIAgent(db.Model):
     can_model = db.Column(db.Boolean, default=False, nullable=False)
     model_override = db.Column(db.String(100), nullable=True)
 
+    # ── Memory settings ──────────────────────────────────────────────────────
+    # memory_enabled: whether the agent may reference previous chat messages
+    # memory_window:  how many past messages are passed to the LLM (0 = unlimited)
+    memory_enabled = db.Column(db.Boolean, default=True, nullable=True)
+    memory_window = db.Column(db.Integer, default=10, nullable=True)
+
     # ── Mode assignment ──────────────────────────────────────────────────────
     # Which contexts this agent is used in (can select multiple)
     use_standard = db.Column(db.Boolean, default=True, nullable=False)   # regular task mode
@@ -63,16 +58,63 @@ class AIAgent(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
+    # ── Prompt relationship ───────────────────────────────────────────────────
+    # All prompts are stored in agent_prompts (prompt_type × lang).
+    # Use get_prompt() / set_prompt() / get_prompts_dict() to access them.
+    prompts = db.relationship(
+        'AgentPrompt',
+        backref='agent',
+        cascade='all, delete-orphan',
+        lazy='select',
+        foreign_keys='AgentPrompt.agent_id',
+    )
+
     def __repr__(self) -> str:
         return f'<AIAgent {self.agent_type}:{self.name}>'
 
+    # ------------------------------------------------------------------
+    # Prompt access helpers
+    # ------------------------------------------------------------------
+
     def get_prompt(self, prompt_type: str, lang: str = 'en') -> str | None:
-        """Return the requested prompt for the given language, falling back to EN."""
-        col = f'prompt_{prompt_type}_{lang}'
-        val = getattr(self, col, None)
-        if not val and lang != 'en':
-            val = getattr(self, f'prompt_{prompt_type}_en', None)
-        return val or None
+        """Return the stored prompt for (prompt_type, lang), falling back to 'en'."""
+        from app.models.agent_prompt import AgentPrompt
+        ap = AgentPrompt.query.filter_by(
+            agent_id=self.id, prompt_type=prompt_type, lang=lang
+        ).first()
+        if ap and ap.content:
+            return ap.content
+        if lang != 'en':
+            ap = AgentPrompt.query.filter_by(
+                agent_id=self.id, prompt_type=prompt_type, lang='en'
+            ).first()
+            if ap and ap.content:
+                return ap.content
+        return None
+
+    def set_prompt(self, prompt_type: str, lang: str, content: str | None) -> None:
+        """Upsert a prompt record for (prompt_type, lang). Does NOT commit."""
+        from app.models.agent_prompt import AgentPrompt
+        ap = AgentPrompt.query.filter_by(
+            agent_id=self.id, prompt_type=prompt_type, lang=lang
+        ).first()
+        if ap is None:
+            if content:
+                ap = AgentPrompt(agent_id=self.id, prompt_type=prompt_type, lang=lang, content=content)
+                db.session.add(ap)
+        else:
+            if content:
+                ap.content = content
+            else:
+                db.session.delete(ap)
+
+    def get_prompts_dict(self) -> dict:
+        """Return all prompts as {(prompt_type, lang): content} — avoids N+1 in templates."""
+        from app.models.agent_prompt import AgentPrompt
+        rows = AgentPrompt.query.filter_by(agent_id=self.id).all()
+        return {(r.prompt_type, r.lang): r.content for r in rows if r.content}
+
+    # ------------------------------------------------------------------
 
     @classmethod
     def get_default(cls) -> 'AIAgent | None':

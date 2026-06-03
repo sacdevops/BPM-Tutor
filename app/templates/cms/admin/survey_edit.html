@@ -81,9 +81,9 @@
             ('select','list',_t('admin.qtype_select','Dropdown')),
             ('radio','record-circle',_t('admin.qtype_radio','Radio (choice)')),
             ('checkbox','check2-square',_t('admin.qtype_checkbox','Multiple choice')),
-            ('scale','bar-chart-line',_t('admin.qtype_scale','Scale')),
             ('info','info-circle',_t('admin.qtype_info','Info text')),
             ('image','image',_t('admin.qtype_image','Image')),
+            ('video','play-circle',_t('admin.qtype_video','Video')),
           ] %}
           <button type="button" class="btn btn-sm btn-outline-secondary m-1"
                   onclick="addQuestion('{{ qtype }}')">
@@ -112,6 +112,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="{{ url_for('static', filename='cms/js/survey_builder.js') }}"></script>
 <script>
 // Load existing survey data

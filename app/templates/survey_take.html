@@ -290,6 +290,24 @@
             {% endif %}
           </div>
 
+          {# ── Video display ── #}
+          {% elif q.question_type == 'video' %}
+          {% set vid_src = q.config.video_url if q.config else '' %}
+          <div class="survey-img-wrap">
+            {% if vid_src %}
+            <video controls style="max-width:100%;border-radius:8px;">
+              <source src="{{ vid_src }}">
+              {{ _t('survey.video_unsupported', 'Your browser does not support this video format.') }}
+            </video>
+            {% if q.label %}<p class="text-muted small mt-2">{{ q.label }}</p>{% endif %}
+            {% if q.description %}<p class="text-muted small">{{ q.description }}</p>{% endif %}
+            {% else %}
+            <div class="survey-info-block" style="border-left-color:#ffc107;background:rgba(255,193,7,.08)">
+              <i class="bi bi-play-circle text-warning me-2"></i>{{ _t('survey.no_video', 'No video configured.') }}
+            </div>
+            {% endif %}
+          </div>
+
           {% else %}
           {# All question types that need a label #}
           <div class="question-label">
@@ -338,8 +356,21 @@
           {# ── Likert (slider) ── #}
           {% elif q.question_type == 'likert' %}
           {% set steps = q.config.steps if q.config and q.config.steps else 5 %}
-          {% set min_lbl = q.config.likert_min_label if q.config and q.config.likert_min_label else _t('survey.likert_min_default', 'Strongly disagree') %}
-          {% set max_lbl = q.config.likert_max_label if q.config and q.config.likert_max_label else _t('survey.likert_max_default', 'Strongly agree') %}
+          {# Use `is not none` so that intentionally empty labels are respected #}
+          {% if q.config and q.config.min_label is not none %}
+            {% set min_lbl = q.config.min_label %}
+          {% elif q.config and q.config.likert_min_label is not none %}
+            {% set min_lbl = q.config.likert_min_label %}
+          {% else %}
+            {% set min_lbl = _t('survey.likert_min_default', 'Strongly disagree') %}
+          {% endif %}
+          {% if q.config and q.config.max_label is not none %}
+            {% set max_lbl = q.config.max_label %}
+          {% elif q.config and q.config.likert_max_label is not none %}
+            {% set max_lbl = q.config.likert_max_label %}
+          {% else %}
+            {% set max_lbl = _t('survey.likert_max_default', 'Strongly agree') %}
+          {% endif %}
           {% set cur_val = ans if ans else '1' %}
           <div class="likert-wrap">
             <div class="likert-value-display" id="likert_disp_{{ q.id }}">{{ cur_val }}</div>

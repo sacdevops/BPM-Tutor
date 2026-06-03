@@ -6,12 +6,15 @@
 // ─── BPMN Modeler ────────────────────────────────────────────────────────────
 
 function initBPMN() {
+    const isReadOnly = (typeof MODELING_MODE !== 'undefined' && MODELING_MODE === 'ai_only');
     modeler = new BpmnJS({
         container: '#bpmn-canvas',
-        keyboard: {
-            bindTo: document
-        }
+        keyboard: isReadOnly ? {} : { bindTo: document }
     });
+
+    if (isReadOnly) {
+        _lockModelerForAiOnly();
+    }
 
     const initialBPMN = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -30,6 +33,38 @@ function initBPMN() {
     modeler.importXML(initialBPMN).catch(err => {
         console.error('Failed to load BPMN diagram', err);
     });
+}
+
+/**
+ * Lock the modeler for AI-only mode: block all user-initiated modifications
+ * while keeping programmatic (AI) operations fully functional.
+ * Panning and zooming remain available for inspection.
+ */
+function _lockModelerForAiOnly() {
+    const HIGH = 10000; // priority above all built-in handlers
+    const eb = modeler.get('eventBus');
+
+    const cancel = (e) => {
+        e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        return false;
+    };
+
+    [
+        'shape.move.start',           // drag to move element
+        'resize.start',               // drag resize handle
+        'directEditing.activate',     // double-click label editing
+        'contextPad.open',            // context pad (delete, connect…)
+        'create.init',                // create from palette / drop
+        'bendpoint.move.start',       // edit connection bend points
+        'connectionSegment.move.start', // drag connection segments
+        'connectionReconnect.start',  // reconnect endpoints
+        'connect.start',              // drag to draw new connection
+    ].forEach(evt => eb.on(evt, HIGH, cancel));
+
+    // Hide palette, context pad and editing handles via a CSS class
+    const container = document.getElementById('bpmn-canvas');
+    if (container) container.classList.add('bpmn-readonly');
 }
 
 function getBPMNXML() {
@@ -62,7 +97,54 @@ function getBPMNXML() {
  * draw.connectTo[] is auto-expanded to separate connect ops executed after all shapes are placed.
  */
 function executeBpmnOps(ops) {
-    if (!modeler || !ops || !ops.length) return;
+    if (!modeler || !ops) return;
+
+    // ── Normalise grouped-object format → flat array ───────────────────────
+    // Supports both formats:
+    //   Old (flat array):  [{op: "draw", type: "Task", ...}, ...]
+    //   New (grouped obj): {draw(type, x, y, ...): [{Task, 100, 200, ...}], delete(id): [{MyId}]}
+    // The grouped format is already decoded by the LION parser into:
+    //   {participate: [{...}], draw: [{...}], connect: [{...}], ...}
+    function normalizeOps(raw) {
+        if (Array.isArray(raw)) return raw;
+        if (!raw || typeof raw !== 'object') return [];
+        const out = [];
+        // Process ops in a safe order: pools first, then elements, then
+        // renames/moves/resizes, then connections, then deletes last.
+        const ORDER = [
+            'clear',       // wipe canvas before building
+            'participate', // create pools
+            'draw',        // create elements inside pools
+            'create',      // alias for draw
+            'rename',      // label updates
+            'update',      // alias for rename
+            'resize',      // resize pools / elements
+            'move',        // reposition
+            'replace',     // change element type
+            'connect',     // draw connections (elements must exist)
+            'delete',      // remove elements last
+            'remove',      // alias for delete
+        ];
+        for (const opName of ORDER) {
+            if (!(opName in raw)) continue;
+            if (opName === 'clear') {
+                // clear takes no per-element arguments
+                out.push({ op: 'clear' });
+                continue;
+            }
+            const rows = raw[opName];
+            if (!Array.isArray(rows)) continue;
+            for (const row of rows) {
+                if (row && typeof row === 'object') {
+                    out.push(Object.assign({ op: opName }, row));
+                }
+            }
+        }
+        return out;
+    }
+
+    ops = normalizeOps(ops);
+    if (!ops.length) return;
 
     const modeling        = modeler.get('modeling');
     const elementFactory  = modeler.get('elementFactory');
@@ -129,11 +211,45 @@ function executeBpmnOps(ops) {
         'bpmn:TextAnnotation':         { width: 100, height: 50 },
     };
 
-    // ── Normalise eventDefinition short name → bpmn:XYZ ──────────────────
-    function normEventDef(raw) {
-        if (!raw) return null;
-        if (raw.startsWith('bpmn:')) return raw;
-        return 'bpmn:' + raw.charAt(0).toUpperCase() + raw.slice(1);
+    // ── Resolve compound event type → { drawType, eventDefinitionType } ─────
+    // Supports shorthand names like "MessageStartEvent", "TimerBoundaryEvent"
+    // so the LLM does not need a separate eventDefinition field.
+    // eventDefinitionType is passed directly to elementFactory.createShape—
+    // the official bpmn-js API that handles everything internally.
+    const _EVT_DEF_PREFIXES = [
+        ['message',    'bpmn:MessageEventDefinition'],
+        ['timer',      'bpmn:TimerEventDefinition'],
+        ['error',      'bpmn:ErrorEventDefinition'],
+        ['signal',     'bpmn:SignalEventDefinition'],
+        ['escalation', 'bpmn:EscalationEventDefinition'],
+        ['terminate',  'bpmn:TerminateEventDefinition'],
+        ['conditional','bpmn:ConditionalEventDefinition'],
+        ['compensate', 'bpmn:CompensateEventDefinition'],
+        ['cancel',     'bpmn:CancelEventDefinition'],
+        ['link',       'bpmn:LinkEventDefinition'],
+    ];
+    const _BASE_EVT_TYPES = [
+        'startevent', 'endevent',
+        'intermediatecatchevent', 'intermediatethrowevent', 'boundaryevent',
+    ];
+    function resolveDrawType(rawType, rawEventDef) {
+        const lower = (rawType || '').toLowerCase().replace(/[\s_-]/g, '');
+        for (const [prefix, defType] of _EVT_DEF_PREFIXES) {
+            if (lower.startsWith(prefix)) {
+                const remainder = lower.slice(prefix.length);
+                if (_BASE_EVT_TYPES.includes(remainder)) {
+                    return { drawType: bpmnType(remainder), eventDefinitionType: defType };
+                }
+            }
+        }
+        // Plain type — check for explicit eventDefinition field ("bpmn:XEventDefinition" or short "XEventDefinition")
+        let evtDefType = null;
+        if (rawEventDef) {
+            const ed = String(rawEventDef);
+            evtDefType = ed.startsWith('bpmn:') ? ed
+                : 'bpmn:' + ed.charAt(0).toUpperCase() + ed.slice(1);
+        }
+        return { drawType: bpmnType(rawType), eventDefinitionType: evtDefType };
     }
 
     // ── Resolve parent element (pool / lane / root) ───────────────────────
@@ -177,21 +293,76 @@ function executeBpmnOps(ops) {
                 if (op.id && elementRegistry.get(op.id)) {
                     modeling.removeElements([elementRegistry.get(op.id)]);
                 }
-                const participant = elementFactory.createParticipantShape({
-                    type: 'bpmn:Participant',
-                    isExpanded: true,
-                });
-                const w  = op.width  || 800;
-                const h  = op.height || 200;
+                // expanded: true (default) = white-box pool; false = black-box (collapsed) pool
+                const isExpanded = op.expanded !== false && op.expanded !== 'false';
+
+                const participant = elementFactory.createParticipantShape({ isExpanded });
+                const w  = op.width  || (isExpanded ? 800 : 150);
+                const h  = op.height || (isExpanded ? 200 : 60);
                 const cx = (op.x || 100) + w / 2;
                 const cy = (op.y || 100) + h / 2;
                 const created = modeling.createShape(participant, { x: cx, y: cy }, root);
                 modeling.resizeShape(created, {
                     x: op.x || 100, y: op.y || 100, width: w, height: h,
                 });
-                if (op.name)  modeling.updateLabel(created, op.name);
-                if (op.id)    modeling.updateProperties(created, { id: op.id });
-                console.log('[AI] Created pool:', op.name, op.id);
+                if (op.name) modeling.updateLabel(created, op.name);
+                if (op.id)   modeling.updateProperties(created, { id: op.id });
+
+                // For collapsed pools bpmn-js needs the business object flag set explicitly
+                if (!isExpanded) {
+                    try {
+                        const bpmnReplace = modeler.get('bpmnReplace');
+                        bpmnReplace.replaceElement(created, {
+                            type: 'bpmn:Participant',
+                            isExpanded: false,
+                        });
+                    } catch (_) {
+                        // Fallback: set the flag directly on the business object
+                        modeling.updateProperties(created, { isExpanded: false });
+                    }
+                }
+
+                // lanes: ["Lane A", "Lane B"] — divided evenly across the pool height
+                if (isExpanded && Array.isArray(op.lanes) && op.lanes.length > 0) {
+                    const POOL_HEADER = 30; // bpmn-js label strip on the left of a pool
+                    const poolEl    = elementRegistry.get(op.id) || created;
+                    const laneX     = poolEl.x + POOL_HEADER;
+                    const laneW     = poolEl.width - POOL_HEADER;
+                    const laneCount = op.lanes.length;
+                    const laneH     = Math.floor(poolEl.height / laneCount);
+                    op.lanes.forEach((laneName, i) => {
+                        try {
+                            const laneShape   = elementFactory.createShape({ type: 'bpmn:Lane' });
+                            const laneCenterX = laneX + laneW / 2;
+                            const laneCenterY = poolEl.y + i * laneH + laneH / 2;
+                            const laneCreated = modeling.createShape(
+                                laneShape,
+                                { x: laneCenterX, y: laneCenterY },
+                                poolEl
+                            );
+                            // Resize to the exact pool-inner bounds
+                            modeling.resizeShape(laneCreated, {
+                                x: laneX,
+                                y: poolEl.y + i * laneH,
+                                width: laneW,
+                                height: laneH,
+                            });
+                            if (laneName) modeling.updateLabel(laneCreated, String(laneName));
+                        } catch (laneErr) {
+                            console.warn('[AI] Lane creation error:', laneName, laneErr);
+                        }
+                    });
+                    // After lane creation bpmn-js can silently clear di.isExpanded.
+                    // Set it back directly on the DI object so saveXML exports
+                    // isExpanded="true" and the pool survives a round-trip.
+                    try {
+                        const poolShape = elementRegistry.get(op.id) || created;
+                        if (poolShape && poolShape.businessObject && poolShape.businessObject.di) {
+                            poolShape.businessObject.di.isExpanded = true;
+                        }
+                    } catch (_) {}
+                }
+                console.log('[AI] Created pool:', op.name, op.id, 'lanes:', op.lanes ? op.lanes.length : 0);
                 return;
             }
 
@@ -214,10 +385,13 @@ function executeBpmnOps(ops) {
                     modeling.removeElements([elementRegistry.get(op.id)]);
                 }
 
-                const isEvent = normalType.includes('Event');
-                const evtDef  = normEventDef(op.eventDefinition);
-                const shape   = elementFactory.createShape({ type: normalType });
-                const parent  = resolveParent(op.parentId);
+                const { drawType, eventDefinitionType } = resolveDrawType(op.type, op.eventDefinition);
+                // Pass eventDefinitionType to createShape — official bpmn-js API;
+                // the factory sets up the event definition on the business object.
+                const shapeConfig = { type: drawType };
+                if (eventDefinitionType) shapeConfig.eventDefinitionType = eventDefinitionType;
+                const shape  = elementFactory.createShape(shapeConfig);
+                const parent = resolveParent(op.parentId);
 
                 const created = modeling.createShape(
                     shape,
@@ -225,17 +399,9 @@ function executeBpmnOps(ops) {
                     parent
                 );
 
-                if (evtDef && isEvent) {
-                    try {
-                        const evtDefObj = bpmnFactory.create(evtDef);
-                        modeling.updateProperties(created, { eventDefinitions: [evtDefObj] });
-                    } catch (evtErr) {
-                        console.warn('[AI] eventDef error:', evtDef, evtErr);
-                    }
-                }
                 if (op.name || op.label) modeling.updateLabel(created, op.name || op.label);
                 if (op.id)              modeling.updateProperties(created, { id: op.id });
-                console.log('[AI] Drew:', normalType, op.id || created.id, 'in', op.parentId || 'root');
+                console.log('[AI] Drew:', drawType, eventDefinitionType || '', op.id || created.id, 'in', op.parentId || 'root');
                 return;
             }
 
@@ -317,6 +483,13 @@ function executeBpmnOps(ops) {
         } catch (err) {
             console.warn('[AI Modeling] op failed:', op, err);
         }
+
+        // Emit ai_action tracking event (best-effort — trackEvent is defined in task.js)
+        try {
+            if (typeof trackEvent === 'function') {
+                trackEvent('ai_action', { op: op.op, id: op.id || '', label: op.name || op.label || '' });
+            }
+        } catch (_) {}
     }
 
     // ── Expand connectTo, split into immediate (shapes) and deferred ──────

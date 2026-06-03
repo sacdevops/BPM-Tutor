@@ -116,6 +116,20 @@ def send_feedback_email(sender_name: str, sender_email: str, category: str,
     return True
 
 
+def _nl2br(text: str) -> str:
+    """Convert plain-text newlines to HTML <br> tags.
+
+    Applied only when the body template contains no HTML tags — so that
+    templates written in plain text with line breaks are rendered correctly
+    in email clients, while templates already containing HTML are left as-is.
+    """
+    if '<' in text:
+        return text  # already HTML — leave untouched
+    import html as _html_lib
+    escaped = _html_lib.escape(text)
+    return escaped.replace('\n', '<br>\n')
+
+
 def send_verification_email(user, token: str) -> bool:
     from flask import url_for
     from app.models.settings import Settings
@@ -124,7 +138,7 @@ def send_verification_email(user, token: str) -> bool:
     verify_url = url_for('auth.verify_email', token=token, _external=True)
     subject = Settings.get(Settings.MAIL_VERIFY_SUBJECT, '') or _DEFAULT_VERIFY_SUBJECT
     body_tpl = Settings.get(Settings.MAIL_VERIFY_BODY, '') or _DEFAULT_VERIFY_BODY
-    html = body_tpl.replace('{verify_url}', verify_url)
+    html = _nl2br(body_tpl.replace('{verify_url}', verify_url))
     _send_async(_get_app(), subject, [user.email], html,
                 f'Bestätige deine E-Mail: {verify_url}')
     return True
@@ -142,7 +156,7 @@ def send_password_reset_email(user, token: str) -> None:
     except Exception:
         subject = _DEFAULT_RESET_SUBJECT
         body_tpl = _DEFAULT_RESET_BODY
-    html = body_tpl.replace('{reset_url}', reset_url)
+    html = _nl2br(body_tpl.replace('{reset_url}', reset_url))
     _send_async(_get_app(), subject, [user.email], html,
                 f'Passwort zurücksetzen: {reset_url}')
 
@@ -256,4 +270,25 @@ def send_study_completed(user_email: str, user_name: str, study_title: str) -> N
 </div>"""
     _send_async(_get_app(), f'BPM-Tutor \u2013 Studie abgeschlossen: {study_title}',
                 [user_email], html)
+
+
+def send_notification_email(user, title: str, message: str, link: str = '') -> None:
+    """Send an in-app notification also as an email to the user."""
+    from app.models.settings import Settings
+    if not Settings.get(Settings.MAIL_ENABLED):
+        return
+    link_html = _study_btn(link, 'Ansehen') if link else ''
+    html = f"""
+<div style="font-family:sans-serif;max-width:580px;margin:0 auto">
+  <h2 style="color:#162700;border-bottom:3px solid #84BD00;padding-bottom:8px">
+    &#128276; {title}
+  </h2>
+  <p>Hallo {user.username},</p>
+  <p>{message}</p>
+  {link_html}
+  <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+  <p style="color:#aaa;font-size:11px">BPM-Tutor &mdash; automatische Benachrichtigung.
+    Du kannst E-Mail-Benachrichtigungen in deinem Profil deaktivieren.</p>
+</div>"""
+    _send_async(_get_app(), f'BPM-Tutor \u2013 {title}', [user.email], html)
 

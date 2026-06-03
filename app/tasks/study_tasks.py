@@ -134,21 +134,41 @@ def send_study_notifications(self):
     default_retry_delay=300,
 )
 def backup_database():
-    """Daily SQLite online backup.
+    """Periodic SQLite backup respecting auto-backup settings.
 
-    Uses sqlite3.Connection.backup() — a consistent snapshot even while the DB
-    is actively being written to (WAL mode checkpoint is not needed).  Keeps
-    the 14 most recent backups (~2 weeks) and prunes older ones automatically.
-    Backups are stored in data/backups/ on the shared Docker volume.
+    Runs every hour via Celery Beat but skips unless the configured interval has
+    elapsed.  Supports local storage and Sciebo (WebDAV / ownCloud) upload.
     """
     try:
         import os
         import sqlite3
-        from datetime import datetime as _dt
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
         from app import create_app
 
         _app = create_app()
         with _app.app_context():
+            from app.models.settings import Settings
+
+            # --- Check enabled ---
+            if not Settings.get(Settings.AUTO_BACKUP_ENABLED, False):
+                logger.debug('[backup] Auto-backup disabled, skipping')
+                return {'status': 'skipped', 'reason': 'disabled'}
+
+            # --- Check interval ---
+            try:
+                interval_h = int(Settings.get(Settings.AUTO_BACKUP_INTERVAL_HOURS, 24) or 24)
+            except (TypeError, ValueError):
+                interval_h = 24
+            last_run_str = Settings.get(Settings.AUTO_BACKUP_LAST_RUN, '') or ''
+            if last_run_str:
+                try:
+                    last_run = _dt.fromisoformat(last_run_str).replace(tzinfo=_tz.utc)
+                    if (_dt.now(_tz.utc) - last_run) < _td(hours=interval_h):
+                        logger.debug('[backup] Interval not elapsed, skipping')
+                        return {'status': 'skipped', 'reason': 'interval not elapsed'}
+                except Exception:
+                    pass
+
             db_uri = _app.config.get('SQLALCHEMY_DATABASE_URI', '')
             if 'sqlite' not in db_uri:
                 logger.info('[backup] Skipped — not a SQLite database')
@@ -159,14 +179,19 @@ def backup_database():
                 logger.error('[backup] Database file not found: %s', db_path)
                 return {'status': 'error', 'reason': 'file not found'}
 
-            backup_dir = os.path.join(os.path.dirname(db_path), 'backups')
+            # --- Determine local backup directory ---
+            custom_path = (Settings.get(Settings.AUTO_BACKUP_LOCAL_PATH, '') or '').strip()
+            if custom_path:
+                backup_dir = custom_path
+            else:
+                backup_dir = os.path.join(os.path.dirname(db_path), 'backups')
             os.makedirs(backup_dir, exist_ok=True)
-            dest = os.path.join(
-                backup_dir,
-                f'bpmtutor_{_dt.now().strftime("%Y%m%d_%H%M%S")}.db',
-            )
 
-            # sqlite3 online-backup API: consistent read even under concurrent writes
+            ts = _dt.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'bpmtutor_{ts}.db'
+            dest = os.path.join(backup_dir, filename)
+
+            # --- SQLite online backup ---
             src = sqlite3.connect(db_path)
             dst = sqlite3.connect(dest)
             try:
@@ -174,17 +199,62 @@ def backup_database():
             finally:
                 src.close()
                 dst.close()
-
             logger.info('[backup] Created: %s', dest)
 
-            # Rotate: keep the 14 most recent backups (~2 weeks of daily runs)
+            # --- Rotate local backups ---
+            try:
+                max_keep = int(Settings.get(Settings.AUTO_BACKUP_MAX_KEEP, 14) or 14)
+            except (TypeError, ValueError):
+                max_keep = 14
             all_backups = sorted(
                 [os.path.join(backup_dir, f)
                  for f in os.listdir(backup_dir) if f.endswith('.db')]
             )
-            for old in all_backups[:-14]:
+            for old in all_backups[:-max_keep]:
                 os.remove(old)
-                logger.info('[backup] Pruned old backup: %s', old)
+                logger.info('[backup] Pruned: %s', old)
+
+            # --- Sciebo / WebDAV upload (optional) ---
+            storage = (Settings.get(Settings.AUTO_BACKUP_STORAGE, 'local') or 'local').strip()
+            if storage == 'sciebo':
+                sciebo_url = (Settings.get(Settings.SCIEBO_URL, '') or '').rstrip('/')
+                sciebo_user = Settings.get(Settings.SCIEBO_USERNAME, '') or ''
+                from app.utils.crypto import decrypt_value as _dec
+                sciebo_pass = _dec(Settings.get(Settings.SCIEBO_PASSWORD, '') or '')
+                remote_path = (Settings.get(Settings.SCIEBO_REMOTE_PATH, '') or '').strip('/')
+                if sciebo_url and sciebo_user:
+                    try:
+                        import re as _re
+                        import requests as _req
+                        # Normalise URL: strip any /remote.php/... the user may have included
+                        _sciebo_base = re.sub(r'/remote\.php.*$', '', sciebo_url)
+                        webdav_base = f'{_sciebo_base}/remote.php/dav/files/{sciebo_user}'
+                        auth = (sciebo_user, sciebo_pass)
+                        # Create each directory level individually (MKCOL is not recursive)
+                        if remote_path:
+                            parts = remote_path.split('/')
+                            for i in range(1, len(parts) + 1):
+                                partial = '/'.join(parts[:i])
+                                mkcol_url = f'{webdav_base}/{partial}/'
+                                mkcol_resp = _req.request('MKCOL', mkcol_url, auth=auth, timeout=15)
+                                # 201 = created, 405 = already exists — both OK
+                                logger.info('[backup] MKCOL %s → %s', mkcol_url, mkcol_resp.status_code)
+                            upload_url = f'{webdav_base}/{remote_path}/{filename}'
+                        else:
+                            upload_url = f'{webdav_base}/{filename}'
+                        with open(dest, 'rb') as fh:
+                            resp = _req.put(upload_url, data=fh, auth=auth, timeout=120)
+                        if resp.status_code in (200, 201, 204):
+                            logger.info('[backup] Uploaded to Sciebo: %s', upload_url)
+                        else:
+                            logger.warning('[backup] Sciebo upload returned %s: %s', resp.status_code, resp.text[:200])
+                    except Exception as exc:
+                        logger.warning('[backup] Sciebo upload failed: %s', exc, exc_info=True)
+                else:
+                    logger.warning('[backup] Sciebo storage configured but URL/username missing')
+
+            # --- Update last-run timestamp ---
+            Settings.set(Settings.AUTO_BACKUP_LAST_RUN, _dt.now(_tz.utc).isoformat())
 
             return {'status': 'ok', 'path': dest}
 

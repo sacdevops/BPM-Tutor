@@ -84,4 +84,4 @@ signal.signal(signal.SIGINT, _graceful_shutdown)
 signal.signal(signal.SIGTERM, _graceful_shutdown)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=config.FLASK_DEBUG, host='127.0.0.1', port=8080)
+    socketio.run(app, debug=config.FLASK_DEBUG, host='127.0.0.1', port=5001)

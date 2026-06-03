@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Agenten-Auswahl: {{ study.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  .ac-wrap { display:flex;justify-content:center;align-items:flex-start;min-height:calc(100vh - 70px);padding:2.5rem 1rem; }
+  .ac-card  { background:var(--card-bg,#fff);border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,.12);
+    max-width:860px;width:100%;overflow:hidden; }
+  .ac-header { background:linear-gradient(135deg,var(--brand-primary,#84BD00) 0%,color-mix(in srgb,var(--brand-primary,#84BD00) 65%,#000) 100%);
+    padding:2rem 2rem 1.5rem;color:#fff;position:relative;overflow:hidden; }
+  .ac-header::after { content:"";position:absolute;right:-30px;bottom:-30px;width:140px;height:140px;
+    border-radius:50%;background:rgba(255,255,255,.08);pointer-events:none; }
+  .ac-header-icon { font-size:2.4rem;margin-bottom:.6rem;display:block; }
+  .ac-header-title { font-size:1.4rem;font-weight:800;margin:0 0 .3rem; }
+  .ac-header-desc  { font-size:.88rem;opacity:.85;margin:0; }
+  .ac-body { padding:1.5rem 2rem 2rem; }
+  .ac-intro { font-size:.92rem;color:var(--text-secondary,#555);margin-bottom:1.5rem; }
+  /* Agent cards */
+  .agent-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-bottom:1.5rem; }
+  .agent-label { display:block;cursor:pointer;height:100%; }
+  .agent-label input[type=radio] { position:absolute;opacity:0;width:0;height:0; }
+  .agent-tile { border:2px solid rgba(0,0,0,.1);border-radius:14px;padding:1.2rem 1rem;
+    background:var(--card-bg,#fff);transition:border-color .2s,box-shadow .2s;height:100%;
+    display:flex;flex-direction:column;gap:.5rem; }
+  [data-theme="dark"] .agent-tile { border-color:rgba(255,255,255,.12); }
+  .agent-label input[type=radio]:checked + .agent-tile {
+    border-color:var(--brand-primary,#84BD00);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-primary,#84BD00) 25%,transparent);
+  }
+  .agent-tile:hover { border-color:var(--brand-primary,#84BD00);box-shadow:0 4px 16px rgba(0,0,0,.08); }
+  .agent-icon { font-size:2rem;line-height:1; }
+  .agent-name { font-weight:700;font-size:1rem; }
+  .agent-desc { font-size:.82rem;color:var(--text-secondary,#666);flex-grow:1; }
+  .agent-extra { font-size:.78rem; }
+  .agent-extra ul { margin:0;padding-left:1.2em; }
+  /* Submit */
+  .ac-submit-btn { width:100%;padding:.75rem;font-size:1rem;font-weight:700;border-radius:12px;
+    background:var(--brand-primary,#84BD00);border:none;color:#fff;
+    transition:opacity .2s; }
+  .ac-submit-btn:hover { opacity:.88; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ac-wrap">
+<div class="ac-card">
+
+  <div class="ac-header">
+    <span class="ac-header-icon">🤖</span>
+    <p class="ac-header-title">Wähle deinen KI-Assistenten</p>
+    <p class="ac-header-desc">{{ study.title }}</p>
+  </div>
+
+  <div class="ac-body">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+      <div class="alert alert-{{ 'danger' if cat == 'danger' else 'info' }} alert-dismissible fade show" role="alert">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if step.agent_choice_intro %}
+    <p class="ac-intro">{{ step.agent_choice_intro }}</p>
+    {% else %}
+    <p class="ac-intro">
+      Wähle den KI-Assistenten aus, mit dem du in den folgenden Aufgaben arbeiten möchtest.
+      Deine Wahl bestimmt, wie der Assistent auf deine Eingaben reagiert.
+    </p>
+    {% endif %}
+
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="agent-grid">
+        {% for agent in agents %}
+        <label class="agent-label" for="agent_{{ agent.id }}">
+          <input type="radio" name="agent_id" id="agent_{{ agent.id }}" value="{{ agent.id }}"
+            {% if participant.active_agent_id == agent.id %}checked{% endif %}>
+          <div class="agent-tile">
+            <div class="agent-icon">🤖</div>
+            <div class="agent-name">{{ agent.name }}</div>
+            {% if agent.description %}
+            <div class="agent-desc">{{ agent.description }}</div>
+            {% endif %}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="ac-submit-btn">
+        <i class="bi bi-check2-circle me-1"></i> Auswahl bestätigen
+      </button>
+    </form>
+  </div>
+
+</div>
+</div>
+{% endblock %}

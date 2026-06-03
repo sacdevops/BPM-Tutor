@@ -2,7 +2,6 @@
 import json
 
 from flask import render_template, redirect, url_for, flash, request
-from flask_login import current_user
 
 from app.blueprints.admin import admin_bp
 from app.extensions import db
@@ -13,6 +12,7 @@ from app.models.settings import Settings
 from app.utils.decorators import admin_required
 from app.utils.audit import log_action
 from app.utils.i18n_helper import invalidate_cache
+from app import invalidate_language_cache
 
 
 # ── Language / i18n admin ─────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ def language_new():
     if not code or not name:
         flash('Code und Name erforderlich.', 'danger')
         return redirect(url_for('admin.languages_list'))
-    if Language.query.get(code):
+    if db.session.get(Language, code):
         flash('Sprachcode existiert bereits.', 'warning')
         return redirect(url_for('admin.languages_list'))
     lang = Language(
@@ -48,6 +48,7 @@ def language_new():
     db.session.add(lang)
     db.session.commit()
     invalidate_cache()
+    invalidate_language_cache()
     log_action('create_language', 'Language', None, {'code': code, 'name': name})
     flash(f'Sprache \u201e{name}\u201c ({code}) erstellt.', 'success')
     return redirect(url_for('admin.language_strings', lang_code=code))
@@ -74,6 +75,7 @@ def language_strings(lang_code: str):
             lang.sort_order = int(request.form.get('sort_order', lang.sort_order))
             db.session.commit()
             invalidate_cache()
+            invalidate_language_cache()
             log_action('update_language', 'Language', None, {'code': lang_code})
             flash('Sprache aktualisiert.', 'success')
         elif action == 'save_string':
@@ -205,7 +207,7 @@ def level_edit(level_id: int):
                 if t.id not in selected_ids:
                     level.tasks.remove(t)
             for tid in selected_ids:
-                task = Task.query.get(tid)
+                task = db.session.get(Task, tid)
                 if task and tid not in level_task_ids:
                     level.tasks.append(task)
             db.session.commit()

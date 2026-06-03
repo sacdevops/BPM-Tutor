@@ -7,6 +7,8 @@ const INITIAL_GREETING_SIGNAL = '[INITIAL_GREETING]';
 
 let lastChatSender = null;
 let _customFileContent = '';
+let _customTaskConfirmed = false;    // true only after confirmCustomTask() has been called
+let _customTaskDescription = '';    // stores the confirmed description for piggyback on send_message
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────
 
@@ -26,7 +28,15 @@ function initWebSocket() {
     });
 
     socket.on('task_joined', (data) => {
-        if (IS_CUSTOM) return;
+        if (IS_CUSTOM) {
+            // For custom tasks: if the user already confirmed their description
+            // (e.g. after a socket reconnection), re-trigger the greeting so the
+            // dots don't hang forever waiting for a response that was lost.
+            if (_customTaskConfirmed) {
+                requestInitialGreeting();
+            }
+            return;
+        }
 
         // Restore in-progress BPMN draft if available
         if (data.bpmn_draft) {
@@ -52,6 +62,7 @@ function initWebSocket() {
         const isResuming = !!(data.chat_log && data.chat_log.length > 0);
         if (isResuming) {
             setTimeout(() => {
+                hideTypingIndicator();
                 data.chat_log.forEach(msg => addMessageToChat(msg.sender, msg.message));
                 enableChatInput();
             }, 50);
@@ -82,6 +93,10 @@ function initWebSocket() {
     });
 
     socket.on('ai_typing', (data) => {
+        // For custom tasks: ignore server-pushed typing events until the user
+        // has confirmed their task description. This prevents stray ai_typing
+        // events (e.g. from a cached old client reconnecting) from showing dots.
+        if (IS_CUSTOM && !_customTaskConfirmed) return;
         if (data.typing) {
             showTypingIndicator();
         } else {
@@ -90,10 +105,18 @@ function initWebSocket() {
     });
 
     socket.on('ai_response', (data) => {
-        hideTypingIndicator();
+        // When the Delegant is mid-loop the server sets looping:true so we keep
+        // the typing indicator, locked input and stop button until the loop ends.
+        if (!data.looping) hideTypingIndicator();
         addMessageToChat(data.sender, data.message);
-        enableChatInput();
-        hideStopButton();
+
+        if (!data.looping) {
+            enableChatInput();
+            hideStopButton();
+        }
+
+        // Tracking — AI sent a chat message
+        try { if (typeof trackEvent === 'function') trackEvent('chat_message', { dir: 'ai', len: (data.message || '').length, phase: data.phase || '' }); } catch (_) {}
 
         // Re-enable the completion button in case it was disabled for a review request
         const _cb = document.getElementById('completeTaskBtn');
@@ -117,7 +140,7 @@ function initWebSocket() {
     });
 
     socket.on('bpmn_ops', (data) => {
-        if (data.ops && data.ops.length > 0) {
+        if (data.ops && (Array.isArray(data.ops) ? data.ops.length > 0 : typeof data.ops === 'object')) {
             executeBpmnOps(data.ops);
         }
     });
@@ -167,14 +190,23 @@ function initWebSocket() {
 // ─── Greeting ─────────────────────────────────────────────────────────────────
 
 function requestInitialGreeting() {
+    // For custom tasks, only proceed if the user has explicitly confirmed their description
+    if (typeof IS_CUSTOM !== 'undefined' && IS_CUSTOM && !_customTaskConfirmed) return;
+
     showTypingIndicator();
     disableChatInput();
 
-    socket.emit('send_message', Object.assign({
+    const _greetPayload = Object.assign({
         task_id: TASK_ID,
         message: INITIAL_GREETING_SIGNAL,
         bpmn_xml: ''
-    }, _getSettings()));
+    }, _getSettings());
+    // For custom tasks: piggyback the description so the server receives it atomically
+    // with the greeting request — no separate set_custom_task race condition possible.
+    if (IS_CUSTOM && _customTaskDescription) {
+        _greetPayload.custom_task_desc = _customTaskDescription;
+    }
+    socket.emit('send_message', _greetPayload);
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
@@ -199,6 +231,9 @@ function sendMessage() {
             bpmn_xml: xml
         }, _getSettings()));
     }).catch(err => console.error('[Frontend] Could not read BPMN XML:', err));
+
+    // Tracking — user sent a chat message
+    try { if (typeof trackEvent === 'function') trackEvent('chat_message', { dir: 'user', len: message.length }); } catch (_) {}
 }
 
 function handleChatKeyDown(event) {
@@ -341,8 +376,9 @@ function showTypingIndicator() {
     const indicator = document.createElement('div');
     indicator.id = 'typingIndicator';
     indicator.className = 'chat-message ai';
+    const _agentLabel = (typeof AGENT_NAME !== 'undefined' && AGENT_NAME) ? AGENT_NAME : t('chat.mentor');
     indicator.innerHTML = `
-        <div class="message-sender">${t('chat.mentor')}</div>
+        <div class="message-sender">${_agentLabel}</div>
         <div class="message-content">
             <div class="chat-typing-indicator">
                 <div class="typing-dot"></div>
@@ -551,6 +587,9 @@ function confirmCustomTask() {
     }
 
     socket.emit('set_custom_task', { task_id: TASK_ID, description: description });
+
+    _customTaskConfirmed = true;    // unlock requestInitialGreeting for this session
+    _customTaskDescription = description; // stored so requestInitialGreeting can piggyback it
 
     // Swap buttons
     const customUploadBtn = document.getElementById('customUploadBtn');

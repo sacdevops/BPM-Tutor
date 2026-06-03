@@ -1,5 +1,5 @@
 """Admin — task management routes."""
-from flask import render_template, redirect, url_for, flash, request, jsonify, current_app
+from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import current_user
 
 from app.blueprints.admin import admin_bp
@@ -7,7 +7,7 @@ from app.blueprints.admin._helpers import (
     _apply_task_form, _get_admin_api_key, _save_upload, _save_extra_translations,
 )
 from app.extensions import db
-from app.models.task import Task, TaskSubmission
+from app.models.task import Task
 from app.models.cohort import Cohort
 from app.utils.decorators import admin_required, tutor_or_admin_required
 from app.utils.audit import log_action
@@ -57,7 +57,7 @@ def task_create():
 
         if not task_id:
             errors['id'] = 'ID erforderlich.'
-        elif Task.query.get(task_id):
+        elif db.session.get(Task, task_id):
             errors['id'] = 'Diese Task-ID existiert bereits.'
         if not title:
             errors['title'] = 'Titel erforderlich.'
@@ -103,6 +103,7 @@ def task_create():
                 hide_after_completion=hide_after_completion,
                 sort_order=sort_order, is_active=is_active,
                 agent_id=agent_id,
+                task_mode=request.form.get('task_mode', 'standard') or 'standard',
                 created_by_id=current_user.id,
             )
             _save_extra_translations(task, request.form)
@@ -193,7 +194,7 @@ def task_delete(task_id: str):
 def tasks_reorder():
     order = request.json or []
     for item in order:
-        task = Task.query.get(item.get('id'))
+        task = db.session.get(Task, item.get('id'))
         if task:
             task.sort_order = item.get('order', 0)
     db.session.commit()

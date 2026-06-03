@@ -9,6 +9,7 @@ from app.models.task import Task
 from app.models.settings import Notification, Settings
 from app.utils.decorators import admin_required
 from app.utils.audit import log_action
+from app.utils.enums import UserRole
 from app.utils.stats import user_stats, since_from_period, chart_data_timeline
 
 
@@ -60,7 +61,7 @@ def user_create():
             errors['username'] = 'Benutzername bereits vergeben.'
         if not password or len(password) < 8:
             errors['password'] = 'Passwort (min. 8 Zeichen) erforderlich.'
-        if role not in ('admin', 'tutor', 'student'):
+        if role not in [r.value for r in UserRole]:
             errors['role'] = 'Ungültige Rolle.'
 
         if not errors:
@@ -108,7 +109,7 @@ def user_edit(user_id: int):
     value = request.form.get('value')
 
     allowed_fields = {
-        'role': ('admin', 'tutor', 'student'),
+        'role': [r.value for r in UserRole],
         'is_active': ('true', 'false'),
         'is_verified': ('true', 'false'),
         'is_locked': ('true', 'false'),

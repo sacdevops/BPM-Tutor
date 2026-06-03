@@ -203,6 +203,7 @@ const TRANSLATIONS = {
         'error.rate_limit': 'Rate limit exceeded. Please wait a moment and try again.',
         'error.service_down': 'The AI service is temporarily unavailable. Please try again later.',
         'error.unexpected': 'An unexpected error occurred.',
+        'task.ai_disclaimer': 'AI assistants can make mistakes. Review all suggestions.',
     },
     de: {
         // Hauptseite
@@ -387,6 +388,7 @@ const TRANSLATIONS = {
         'error.rate_limit': 'Rate-Limit \u00fcberschritten. Bitte warte einen Moment und versuche es erneut.',
         'error.service_down': 'Der KI-Dienst ist vor\u00fcbergehend nicht verf\u00fcgbar. Bitte versuche es sp\u00e4ter erneut.',
         'error.unexpected': 'Ein unerwarteter Fehler ist aufgetreten.',
+        'task.ai_disclaimer': 'KI-Assistenten k\u00f6nnen Fehler machen. \u00dcberpr\u00fcfe alle Hinweise.',
     }
 };
 

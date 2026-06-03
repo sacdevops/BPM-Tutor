@@ -358,6 +358,26 @@ DE_STRINGS: dict[str, str] = {
     'auth.new_password_page_title': 'Neues Passwort',
     'auth.new_password_label': 'Neues Passwort',
     'auth.save_password_btn': 'Passwort speichern',
+    # Auth flash messages
+    'auth.error_invalid_credentials': 'Ungültige Anmeldedaten.',
+    'auth.error_account_locked': 'Dein Konto wurde gesperrt. Wende dich an einen Administrator.',
+    'auth.error_account_inactive': 'Dieses Konto ist deaktiviert.',
+    'auth.error_not_verified': 'Bitte bestätige zuerst deine E-Mail-Adresse.',
+    'auth.error_maintenance': 'Das System befindet sich im Wartungsmodus. Nur Admins können sich anmelden.',
+    'auth.logout_success': 'Du wurdest erfolgreich abgemeldet.',
+    'auth.registration_disabled': 'Die Registrierung ist derzeit deaktiviert.',
+    'auth.register_success_verify': 'Registrierung erfolgreich! Bitte bestätige deine E-Mail-Adresse.',
+    'auth.register_success_no_mail': 'Registrierung erfolgreich! (Kein E-Mail-Versand konfiguriert — Admin kann dein Konto manuell aktivieren.)',
+    'auth.register_success': 'Willkommen! Registrierung erfolgreich.',
+    'auth.verify_invalid_link': 'Der Bestätigungslink ist ungültig oder abgelaufen.',
+    'auth.verify_no_account': 'Kein Konto mit dieser E-Mail-Adresse gefunden.',
+    'auth.verify_already_done': 'Deine E-Mail-Adresse wurde bereits bestätigt.',
+    'auth.verify_success': 'E-Mail-Adresse erfolgreich bestätigt! Du kannst dich jetzt anmelden.',
+    'auth.reset_invalid_link': 'Der Reset-Link ist ungültig oder abgelaufen.',
+    'auth.user_not_found': 'Benutzer nicht gefunden.',
+    'auth.error_password_too_short': 'Passwort muss mindestens 8 Zeichen haben.',
+    'auth.error_passwords_mismatch': 'Passwörter stimmen nicht überein.',
+    'auth.password_reset_success': 'Passwort erfolgreich geändert. Du kannst dich jetzt anmelden.',
     # Profile
     'profile.username_label': 'Benutzername',
     'profile.member_since': 'Mitglied seit',
@@ -663,7 +683,11 @@ DE_STRINGS: dict[str, str] = {
     'admin.settings_db_import': 'Importieren',
     'admin.settings_db_replace_confirm': 'Datenbank wirklich ersetzen? Alle aktuellen Daten werden überschrieben!',
     'admin.settings_save_btn': 'Einstellungen speichern',
-    'admin.settings_testing': 'Teste Verbindung…',
+    'admin.settings_saved': 'Einstellungen gespeichert.',
+    'admin.settings_cohorts_label': 'Kohorten aktivieren',
+    'admin.settings_cohorts_hint': 'Ermöglicht die Gruppierung von Nutzern in Kohorten. Bei Deaktivierung wird der Kohorten-Bereich ausgeblendet.',
+    'admin.settings_bpmn_auto_translate': 'Automatisch aus Englisch übersetzen',
+    'admin.settings_bpmn_translate_no_source': 'Das englische Feld ist leer. Nichts zu übersetzen.',
     # Admin - Studies list
     'admin.study_list_title': 'Research Studies',
     'admin.study_new_btn': 'Neue Studie',
@@ -716,7 +740,18 @@ DE_STRINGS: dict[str, str] = {
     'admin.study_enrollment_survey': 'Anmelde-Umfrage (optional)',
     'admin.study_enrollment_from': 'Anmeldung von',
     'admin.study_enrollment_until': 'Anmeldung bis',
+    'admin.study_self_enroll_hint': 'Teilnehmer können sich selbst für die Studie einschreiben',
+    'admin.study_enroll_survey': 'Anmelde-Umfrage',
+    'admin.study_enroll_survey_hint': 'Diese Umfrage erscheint bei der Anmeldung, vor dem ersten Schritt.',
+    'admin.study_enroll_from': 'Anmeldung von',
+    'admin.study_enroll_until': 'Anmeldung bis',
+    'admin.study_unlimited_ph': 'leer = unbegrenzt',
+    'admin.study_global_window': 'Globales Zeitfenster',
+    'admin.study_global_window_hint': 'Gilt für alle Schritte ohne eigenes Datum.',
+    'admin.study_available_from': 'Verfügbar von',
+    'admin.study_available_until': 'Verfügbar bis',
     'admin.study_max_participants': 'Max. Teilnehmer',
+    'admin.study_window_hint': 'Wenn keine Daten gesetzt sind, ist die Studie unbegrenzt verfügbar. Wenn nur "Verfügbar bis" gesetzt ist, läuft die Studie von jetzt bis zu diesem Datum. Wenn nur "Verfügbar von" gesetzt ist, startet die Studie an diesem Datum und bleibt offen, bis sie manuell beendet wird.',
     'admin.study_save_btn': 'Studie speichern',
     # Admin - Study conditions
     'admin.cond_list_title': 'Bedingungen',
@@ -1065,7 +1100,11 @@ DE_STRINGS: dict[str, str] = {
     'admin.settings_db_import_desc': 'Ersetzt die aktuelle Datenbank durch eine hochgeladene .db-Datei.',
     'admin.settings_db_replace_confirm': 'Wirklich die aktuelle Datenbank ersetzen?',
     'admin.settings_save_btn': 'Einstellungen speichern',
-    # Common
+    'admin.settings_saved': 'Einstellungen gespeichert.',
+    'admin.settings_cohorts_label': 'Kohorten aktivieren',
+    'admin.settings_cohorts_hint': 'Ermöglicht die Gruppierung von Nutzern in Kohorten. Bei Deaktivierung wird der Kohorten-Bereich ausgeblendet.',
+    'admin.settings_bpmn_auto_translate': 'Automatisch aus Englisch übersetzen',
+    'admin.settings_bpmn_translate_no_source': 'Das englische Feld ist leer. Nichts zu übersetzen.',
     'common.filter': 'Filtern',
     'common.reset': 'Zurücksetzen',
     'common.preview': 'Vorschau',
@@ -1337,6 +1376,26 @@ EN_STRINGS: dict[str, str] = {
     'auth.new_password_page_title': 'New Password',
     'auth.new_password_label': 'New Password',
     'auth.save_password_btn': 'Save password',
+    # Auth flash messages
+    'auth.error_invalid_credentials': 'Invalid credentials.',
+    'auth.error_account_locked': 'Your account has been locked. Please contact an administrator.',
+    'auth.error_account_inactive': 'This account is deactivated.',
+    'auth.error_not_verified': 'Please confirm your email address first.',
+    'auth.error_maintenance': 'The system is currently in maintenance mode. Only admins can log in.',
+    'auth.logout_success': 'You have been logged out successfully.',
+    'auth.registration_disabled': 'Registration is currently disabled.',
+    'auth.register_success_verify': 'Registration successful! Please confirm your email address.',
+    'auth.register_success_no_mail': 'Registration successful! (No email sending configured — an admin can manually activate your account.)',
+    'auth.register_success': 'Welcome! Registration successful.',
+    'auth.verify_invalid_link': 'The confirmation link is invalid or has expired.',
+    'auth.verify_no_account': 'No account found with this email address.',
+    'auth.verify_already_done': 'Your email address has already been confirmed.',
+    'auth.verify_success': 'Email address confirmed successfully! You can now sign in.',
+    'auth.reset_invalid_link': 'The reset link is invalid or has expired.',
+    'auth.user_not_found': 'User not found.',
+    'auth.error_password_too_short': 'Password must be at least 8 characters.',
+    'auth.error_passwords_mismatch': 'Passwords do not match.',
+    'auth.password_reset_success': 'Password changed successfully. You can now sign in.',
     # Profile
     'profile.username_label': 'Username',
     'profile.member_since': 'Member since',
@@ -1642,6 +1701,11 @@ EN_STRINGS: dict[str, str] = {
     'admin.settings_db_import': 'Import',
     'admin.settings_db_replace_confirm': 'Really replace database? All current data will be overwritten!',
     'admin.settings_save_btn': 'Save Settings',
+    'admin.settings_saved': 'Settings saved.',
+    'admin.settings_cohorts_label': 'Enable Cohorts',
+    'admin.settings_cohorts_hint': 'Enables group/cohort management. When disabled, cohorts are hidden from the navigation.',
+    'admin.settings_bpmn_auto_translate': 'Auto-translate from English',
+    'admin.settings_bpmn_translate_no_source': 'The English field is empty. Nothing to translate.',
     'admin.settings_testing': 'Testing connection…',
     # Admin - Studies list
     'admin.study_list_title': 'Research Studies',
@@ -1695,7 +1759,18 @@ EN_STRINGS: dict[str, str] = {
     'admin.study_enrollment_survey': 'Enrollment Survey (optional)',
     'admin.study_enrollment_from': 'Enrollment from',
     'admin.study_enrollment_until': 'Enrollment until',
+    'admin.study_self_enroll_hint': 'Participants can register themselves for the study',
+    'admin.study_enroll_survey': 'Enrollment Survey',
+    'admin.study_enroll_survey_hint': 'This survey appears during enrollment, before the first step.',
+    'admin.study_enroll_from': 'Enrollment from',
+    'admin.study_enroll_until': 'Enrollment until',
+    'admin.study_unlimited_ph': 'empty = unlimited',
+    'admin.study_global_window': 'Global Time Window',
+    'admin.study_global_window_hint': 'Applies to all steps without their own date.',
+    'admin.study_available_from': 'Available from',
+    'admin.study_available_until': 'Available until',
     'admin.study_max_participants': 'Max. Participants',
+    'admin.study_window_hint': 'If no dates are set, the study is available indefinitely. If only "Available until" is set, the study runs from now until that date. If only "Available from" is set, the study starts on that date and remains open until ended manually.',
     'admin.study_save_btn': 'Save Study',
     # Admin - Study conditions
     'admin.cond_list_title': 'Conditions',
@@ -2044,6 +2119,11 @@ EN_STRINGS: dict[str, str] = {
     'admin.settings_db_import_desc': 'Replaces the current database with an uploaded .db file.',
     'admin.settings_db_replace_confirm': 'Really replace the current database?',
     'admin.settings_save_btn': 'Save Settings',
+    'admin.settings_saved': 'Settings saved.',
+    'admin.settings_cohorts_label': 'Enable Cohorts',
+    'admin.settings_cohorts_hint': 'Enables group/cohort management. When disabled, cohorts are hidden from the navigation.',
+    'admin.settings_bpmn_auto_translate': 'Auto-translate from English',
+    'admin.settings_bpmn_translate_no_source': 'The English field is empty. Nothing to translate.',
     # Common
     'common.filter': 'Filter',
     'common.reset': 'Reset',
@@ -2066,7 +2146,7 @@ def seed_languages() -> None:
         from app.models.i18n import Language, LanguageString
 
         # German
-        de = Language.query.get('de')
+        de = db.session.get(Language, 'de')
         if de is None:
             de = Language(code='de', name='Deutsch', flag='🇩🇪',
                           is_active=True, is_default=False, sort_order=1)
@@ -2074,7 +2154,7 @@ def seed_languages() -> None:
             db.session.flush()
 
         # English (default)
-        en = Language.query.get('en')
+        en = db.session.get(Language, 'en')
         if en is None:
             en = Language(code='en', name='English', flag='\U0001f1ec\U0001f1e7',
                           is_active=True, is_default=True, sort_order=0)

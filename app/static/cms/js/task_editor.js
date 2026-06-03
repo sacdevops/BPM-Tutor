@@ -5,7 +5,7 @@
 
 'use strict';
 
-let _bpmnModeler = null;
+window._bpmnModeler = null;
 
 /**
  * initBpmnEditor(containerId, xmlTextareaId)
@@ -16,7 +16,7 @@ async function initBpmnEditor(containerId, xmlTextareaId) {
   const textarea = document.getElementById(xmlTextareaId);
   if (!container || !textarea) return;
 
-  // Lazy-load bpmn-js modeler (only available as UMD bundle via CDN)
+  // Lazy-load bpmn-js modeler
   if (!window.BpmnJS) {
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
@@ -27,31 +27,38 @@ async function initBpmnEditor(containerId, xmlTextareaId) {
     });
   }
 
-  _bpmnModeler = new BpmnJS({ container: `#${containerId}` });
+  window._bpmnModeler = new BpmnJS({ container: `#${containerId}` });
 
   // Import existing XML or create blank diagram
   const xml = textarea.value.trim();
   if (xml) {
     try {
-      await _bpmnModeler.importXML(xml);
+      await window._bpmnModeler.importXML(xml);
     } catch (err) {
       console.warn('BPMN import warning:', err);
     }
   } else {
-    await _bpmnModeler.createDiagram();
+    await window._bpmnModeler.createDiagram();
   }
 
-  // Fit view
-  _bpmnModeler.get('canvas').zoom('fit-viewport');
+  window._bpmnModeler.get('canvas').zoom('fit-viewport');
+
+  // Sync canvas → XML textarea on every change
+  window._bpmnModeler.on('commandStack.changed', async () => {
+    try {
+      const { xml: updatedXml } = await window._bpmnModeler.saveXML({ format: true });
+      if (textarea) textarea.value = updatedXml;
+    } catch (e) { /* ignore */ }
+  });
 }
 
 /**
  * Call before form submit to serialize current BPMN XML into the textarea.
  */
 async function saveBpmnToTextarea(xmlTextareaId) {
-  if (!_bpmnModeler) return;
+  if (!window._bpmnModeler) return;
   try {
-    const { xml } = await _bpmnModeler.saveXML({ format: true });
+    const { xml } = await window._bpmnModeler.saveXML({ format: true });
     const textarea = document.getElementById(xmlTextareaId);
     if (textarea) textarea.value = xml;
   } catch (err) {

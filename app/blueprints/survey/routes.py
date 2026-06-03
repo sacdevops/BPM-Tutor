@@ -17,18 +17,24 @@ from datetime import datetime, timezone
 survey_bp = Blueprint('survey_bp', __name__, url_prefix='/survey')
 
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogg', 'mov'}
 
 
 def _allowed_image(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
-def _get_or_create_response(survey_id: int, submission_id) -> SurveyResponse:
+def _allowed_video(filename: str) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+
+def _get_or_create_response(survey_id: int, submission_id, step_id=None) -> SurveyResponse:
     user_id = current_user.id if current_user.is_authenticated else None
     resp = SurveyResponse(
         user_id=user_id,
         survey_id=survey_id,
         submission_id=submission_id,
+        step_id=step_id,
     )
     db.session.add(resp)
     db.session.flush()
@@ -43,6 +49,7 @@ def take(survey_id: int):
         return redirect('/')
 
     submission_id = request.args.get('submission_id', type=int)
+    step_id = request.args.get('step_id', type=int)
     page_num = request.args.get('page', 0, type=int)
     pages = survey.pages
 
@@ -53,8 +60,9 @@ def take(survey_id: int):
     current_page = pages[page_num] if page_num < len(pages) else pages[-1]
     is_last = page_num >= len(pages) - 1
 
-    # Store partial answers in session
-    session_key = f'survey_{survey_id}_answers'
+    # Store partial answers in session; include step_id to avoid conflicts when
+    # the same survey is used multiple times in one study
+    session_key = f'survey_{survey_id}_step_{step_id}_answers' if step_id else f'survey_{survey_id}_answers'
     answers = session.get(session_key, {})
 
     if request.method == 'POST':
@@ -80,17 +88,32 @@ def take(survey_id: int):
         if action == 'prev' and page_num > 0:
             return redirect(url_for('survey_bp.take', survey_id=survey_id,
                                     page=page_num - 1, submission_id=submission_id,
-                                    next=request.args.get('next', '')))
+                                    step_id=step_id, next=request.args.get('next', '')))
 
         if not is_last and action == 'next':
             return redirect(url_for('survey_bp.take', survey_id=survey_id,
                                     page=page_num + 1, submission_id=submission_id,
-                                    next=request.args.get('next', '')))
+                                    step_id=step_id, next=request.args.get('next', '')))
 
         # Final submit
-        resp = _get_or_create_response(survey_id, submission_id)
+        resp = _get_or_create_response(survey_id, submission_id, step_id=step_id)
         resp.answers = answers
         resp.completed_at = datetime.now(timezone.utc)
+        # Snapshot the question structure so later template edits cannot alter past responses
+        try:
+            snapshot = {}
+            for _pg in survey.pages:
+                for _q in _pg.questions:
+                    if _q.question_type != 'info':
+                        snapshot[str(_q.id)] = {
+                            'label': _q.label,
+                            'type': _q.question_type,
+                            'options': _q.options,
+                            'page': _pg.title or '',
+                        }
+            resp.questions_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        except Exception:
+            pass
         db.session.commit()
 
         # Clear session
@@ -129,9 +152,32 @@ def upload_image():
     image_url = f'/data-uploads/survey_images/{filename}'
 
     if question_id:
-        q = SurveyQuestion.query.get(question_id)
+        q = db.session.get(SurveyQuestion, question_id)
         if q:
             q.image_path = image_url
             db.session.commit()
 
     return jsonify({'url': image_url})
+
+
+@survey_bp.route('/upload-video', methods=['POST'])
+def upload_video():
+    """Upload a video for a survey question (admin only)."""
+    from flask_login import current_user
+    if not current_user.is_authenticated or not current_user.has_role('admin'):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': 'No file provided'}), 400
+    if not _allowed_video(file.filename):
+        return jsonify({'error': 'Invalid file type. Allowed: mp4, webm, ogg, mov'}), 400
+
+    filename = secure_filename(f'{uuid.uuid4().hex}_{file.filename}')
+    upload_dir = os.path.join(current_app.root_path, '..', 'data', 'survey_videos')
+    os.makedirs(upload_dir, exist_ok=True)
+    filepath = os.path.join(upload_dir, filename)
+    file.save(filepath)
+    video_url = f'/data-uploads/survey_videos/{filename}'
+
+    return jsonify({'url': video_url})

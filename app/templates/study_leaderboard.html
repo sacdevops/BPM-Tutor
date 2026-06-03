@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}{{ _t('leaderboard.title', 'Leaderboard') }} – {{ study.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+  .lb-wrap { min-height: calc(100vh - 70px); padding: 2.5rem 1rem 5rem; }
+  .lb-container { max-width: 700px; margin: 0 auto; }
+  .lb-back { display:inline-flex;align-items:center;gap:.4rem;color:var(--text-secondary,#666);
+    font-size:.85rem;text-decoration:none;margin-bottom:1.5rem;transition:color .15s; }
+  .lb-back:hover { color:var(--brand-primary,#84BD00); }
+  .lb-hero { background:linear-gradient(135deg,var(--brand-primary,#84BD00) 0%,color-mix(in srgb,var(--brand-primary,#84BD00) 65%,#000) 100%);
+    border-radius:20px;padding:2rem 2rem 0;margin-bottom:1.8rem;color:#fff;position:relative;overflow:hidden; }
+  .lb-hero::before { content:"";position:absolute;right:-40px;top:-40px;width:200px;height:200px;
+    border-radius:50%;background:rgba(255,255,255,.08);pointer-events:none; }
+  .lb-hero-top { display:flex;align-items:flex-start;gap:1rem;margin-bottom:1rem; }
+  .lb-hero-icon { font-size:2.5rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));flex-shrink:0; }
+  .lb-hero-title { font-size:1.5rem;font-weight:800;margin:0; }
+  .lb-hero-sub { font-size:.9rem;opacity:.8;margin-top:.2rem; }
+  .lb-podium { display:flex;align-items:flex-end;justify-content:center;gap:.6rem;padding-bottom:0; }
+  .lb-podium-item { display:flex;flex-direction:column;align-items:center;flex:1;max-width:160px; }
+  .lb-podium-emoji { font-size:1.6rem;margin-bottom:.3rem; }
+  .lb-podium-name { font-size:.78rem;font-weight:700;color:#fff;text-align:center;
+    max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:.2rem; }
+  .lb-podium-score { font-size:.72rem;color:rgba(255,255,255,.75);margin-bottom:.4rem; }
+  .lb-podium-block { width:100%;border-radius:10px 10px 0 0;display:flex;align-items:center;
+    justify-content:center;font-weight:900;color:rgba(255,255,255,.9); }
+  .lb-podium-block.r1 { background:rgba(255,255,255,.22);height:72px;font-size:1.8rem; }
+  .lb-podium-block.r2 { background:rgba(255,255,255,.14);height:56px;font-size:1.4rem; }
+  .lb-podium-block.r3 { background:rgba(255,255,255,.09);height:44px;font-size:1.2rem; }
+  .lb-card { background:var(--card-bg,#fff);border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);overflow:hidden; }
+  .lb-table { margin:0; }
+  .lb-table thead th { background:transparent;font-weight:600;font-size:.75rem;text-transform:uppercase;
+    letter-spacing:.06em;color:#aaa;padding:.85rem 1rem;border-bottom:1px solid rgba(0,0,0,.06); }
+  .lb-table tbody tr { border-bottom:1px solid rgba(0,0,0,.04);transition:background .12s; }
+  .lb-table tbody tr:last-child { border-bottom:none; }
+  .lb-table td { padding:.8rem 1rem;vertical-align:middle; }
+  .lb-rank-badge { display:inline-flex;align-items:center;justify-content:center;
+    width:30px;height:30px;border-radius:50%;font-weight:700;font-size:.82rem;flex-shrink:0; }
+  .lb-rank-badge.r1 { background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;box-shadow:0 2px 8px rgba(245,158,11,.4); }
+  .lb-rank-badge.r2 { background:linear-gradient(135deg,#94a3b8,#64748b);color:#fff; }
+  .lb-rank-badge.r3 { background:linear-gradient(135deg,#d97706,#b45309);color:#fff; }
+  .lb-rank-badge.rn { background:#f1f3f5;color:#888; }
+  .lb-me td { background:rgba(132,189,0,.06) !important; }
+  .lb-me .lb-name { font-weight:700; }
+  .lb-score-val { font-weight:700;color:var(--brand-primary,#84BD00); }
+  .lb-score-bar { height:4px;background:#e9ecef;border-radius:2px;margin-top:4px; }
+  .lb-score-fill { height:4px;border-radius:2px;
+    background:linear-gradient(90deg,var(--brand-primary,#84BD00),color-mix(in srgb,var(--brand-primary,#84BD00) 65%,#000)); }
+  .lb-empty { text-align:center;padding:4rem 1rem;color:#bbb; }
+  .lb-empty i { font-size:3rem;margin-bottom:1rem;display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-wrap">
+  <div class="lb-container">
+
+    <a href="{{ url_for('study.available_studies') }}" class="lb-back">
+      <i class="bi bi-arrow-left"></i> {{ _t('common.back', 'Back') }}
+    </a>
+
+    <div class="lb-hero">
+      <div class="lb-hero-top">
+        <div class="lb-hero-icon"><i class="bi bi-trophy-fill"></i></div>
+        <div>
+          <div class="lb-hero-title">{{ _t('leaderboard.title', 'Leaderboard') }}</div>
+          <div class="lb-hero-sub">{{ study.title }}</div>
+        </div>
+      </div>
+
+      {% if entries %}
+      {% set top3 = entries[:3] %}
+      <div class="lb-podium">
+        {% if top3 | length >= 2 %}
+        <div class="lb-podium-item">
+          <div class="lb-podium-emoji">&#x1F948;</div>
+          <div class="lb-podium-name">{{ top3[1].display }}</div>
+          <div class="lb-podium-score">{{ top3[1].avg_score }}%</div>
+          <div class="lb-podium-block r2">2</div>
+        </div>
+        {% endif %}
+        <div class="lb-podium-item">
+          <div class="lb-podium-emoji" style="font-size:2rem">&#x1F3C6;</div>
+          <div class="lb-podium-name">{{ top3[0].display }}</div>
+          <div class="lb-podium-score">{{ top3[0].avg_score }}%</div>
+          <div class="lb-podium-block r1">1</div>
+        </div>
+        {% if top3 | length >= 3 %}
+        <div class="lb-podium-item">
+          <div class="lb-podium-emoji">&#x1F949;</div>
+          <div class="lb-podium-name">{{ top3[2].display }}</div>
+          <div class="lb-podium-score">{{ top3[2].avg_score }}%</div>
+          <div class="lb-podium-block r3">3</div>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if entries %}
+    <div class="lb-card">
+      <table class="table lb-table">
+        <thead>
+          <tr>
+            <th style="width:52px">#</th>
+            <th>{{ _t('leaderboard.name_col', 'Name') }}</th>
+            <th class="text-end" style="min-width:120px">{{ _t('leaderboard.avg_score_col', 'Avg. Score') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr {% if e.is_me %}class="lb-me"{% endif %}>
+            <td>
+              <span class="lb-rank-badge {% if e.rank == 1 %}r1{% elif e.rank == 2 %}r2{% elif e.rank == 3 %}r3{% else %}rn{% endif %}">
+                {{ e.rank }}
+              </span>
+            </td>
+            <td>
+              <span class="lb-name">{{ e.display }}</span>
+              {% if e.is_me %}<span class="badge ms-2" style="background:var(--brand-primary,#84BD00);font-size:.7rem">{{ _t('leaderboard.me_badge', 'You') }}</span>{% endif %}
+            </td>
+            <td class="text-end">
+              <div class="lb-score-val">{{ e.avg_score }}%</div>
+              <div class="lb-score-bar ms-auto" style="width:80px">
+                <div class="lb-score-fill" style="width:{{ e.avg_score }}%"></div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-muted small mt-3 text-center">
+      <i class="bi bi-person-fill-slash me-1"></i>
+      {{ _t('leaderboard.anon_note', "Participants who opted out appear as 'Anonymous'.") }}
+    </p>
+    {% else %}
+    <div class="lb-empty">
+      <i class="bi bi-trophy"></i>
+      <p>{{ _t('leaderboard.empty', 'No scores yet.') }}</p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

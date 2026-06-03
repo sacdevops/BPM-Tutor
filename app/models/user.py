@@ -1,11 +1,20 @@
 ﻿"""CMS database models — User."""
 import json
 from datetime import datetime, timezone
+from typing import TypedDict
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
+
+
+class ProfileData(TypedDict, total=False):
+    """Typed schema for the JSON `profile_data` column."""
+    study_program: str
+    semester: str
+    experience_level: str
+    institution: str
 
 
 class User(UserMixin, db.Model):
@@ -45,12 +54,18 @@ class User(UserMixin, db.Model):
     # GDPR consent
     data_consent = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Leaderboard anonymization — if True, username is hidden on leaderboards
+    leaderboard_anonymous = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Email notifications — if True, send email when a notification is created
+    email_notifications = db.Column(db.Boolean, default=True, nullable=False)
+
     # Relationships
     submissions = db.relationship(
         'TaskSubmission', backref='user', lazy='dynamic',
         foreign_keys='TaskSubmission.user_id'
     )
-    notifications = db.relationship('Notification', backref='user', lazy='dynamic')
+    notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     survey_responses = db.relationship('SurveyResponse', backref='user', lazy='dynamic')
     graded_submissions = db.relationship(
         'TaskSubmission', lazy='dynamic',
@@ -65,7 +80,7 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
     @property
-    def profile(self) -> dict:
+    def profile(self) -> ProfileData:
         if self.profile_data:
             try:
                 return json.loads(self.profile_data)
@@ -74,7 +89,7 @@ class User(UserMixin, db.Model):
         return {}
 
     @profile.setter
-    def profile(self, data: dict) -> None:
+    def profile(self, data: ProfileData) -> None:
         self.profile_data = json.dumps(data, ensure_ascii=False)
 
     @property
@@ -85,11 +100,24 @@ class User(UserMixin, db.Model):
             return self.first_name
         return self.username
 
-    @property
-    def unread_notifications_count(self) -> int:
-        return self.notifications.filter_by(is_read=False).count()
+    @staticmethod
+    def unread_counts(user_ids: list[int]) -> dict[int, int]:
+        """Return a mapping of user_id → unread notification count.
 
-    def has_role(self, *roles) -> bool:
+        Uses a single GROUP BY aggregate query instead of N individual
+        COUNT queries, making it safe to call inside list-rendering loops.
+        """
+        from app.models.notification import Notification
+        from sqlalchemy import func
+        rows = (
+            db.session.query(Notification.user_id, func.count(Notification.id))
+            .filter(Notification.user_id.in_(user_ids), Notification.is_read == False)  # noqa: E712
+            .group_by(Notification.user_id)
+            .all()
+        )
+        return {uid: cnt for uid, cnt in rows}
+
+    def has_role(self, *roles: str) -> bool:
         return self.role in roles
 
     def __repr__(self) -> str:

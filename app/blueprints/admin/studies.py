@@ -5,7 +5,7 @@ import json
 import zipfile
 from datetime import datetime, timezone
 
-from flask import render_template, redirect, url_for, flash, request, jsonify, current_app
+from flask import render_template, redirect, url_for, flash, request, current_app
 from flask import Response
 from flask_login import current_user
 
@@ -76,8 +76,29 @@ def _save_study_steps(study) -> None:
             late_penalty_note=s.get('late_penalty_note', '').strip() or None,
             condition_id=int(s['condition_id']) if s.get('condition_id') else None,
             condition_ids=json.dumps([int(x) for x in s['condition_ids']]) if s.get('condition_ids') else None,
+            available_agents=json.dumps(s['available_agents']) if isinstance(s.get('available_agents'), list) else (s.get('available_agents') or None),
+            agent_choice_intro=s.get('agent_choice_intro', '').strip() or None,
         )
         db.session.add(step)
+
+
+def _build_tracking_config() -> str:
+    """Build JSON tracking_config from the current POST request form data.
+
+    Three UI groups map to underlying event types:
+      tracking_cursor -> mousemove, click, chat_focus
+      tracking_bpmn   -> bpmn_add, bpmn_remove, bpmn_move
+      tracking_chat   -> chat_message, ai_action, llm_prompt
+    """
+    enabled = bool(request.form.get('tracking_enabled'))
+    events = []
+    if request.form.get('tracking_cursor'):
+        events += ['mousemove', 'click', 'chat_focus']
+    if request.form.get('tracking_bpmn'):
+        events += ['bpmn_add', 'bpmn_remove', 'bpmn_move']
+    if request.form.get('tracking_chat'):
+        events += ['chat_message', 'ai_action', 'llm_prompt']
+    return json.dumps({'enabled': enabled, 'events': events})
 
 
 # ── Studies CRUD ──────────────────────────────────────────────────────────────
@@ -110,7 +131,7 @@ def study_create():
         if not title:
             flash('Titel ist erforderlich.', 'danger')
             return render_template('cms/admin/study_edit.html', study=None, surveys=surveys,
-                                   tasks=tasks, conditions=[], agents=agents)
+                                   tasks=tasks, conditions=[], agents=agents, tracking_cfg={})
 
         _esid = request.form.get('enrollment_survey_id', '') or None
         study = Study(
@@ -125,6 +146,9 @@ def study_create():
             study_design=request.form.get('study_design', 'within'),
             is_template=bool(request.form.get('is_template')),
             enrollment_survey_id=int(_esid) if _esid else None,
+            leaderboard_enabled=bool(request.form.get('leaderboard_enabled')),
+            agent_display_name=request.form.get('agent_display_name', '').strip() or None,
+            tracking_config=_build_tracking_config(),
             created_by_id=current_user.id,
         )
         _set_study_dates(study)
@@ -137,7 +161,7 @@ def study_create():
         return redirect(url_for('admin.study_edit', study_id=study.id))
 
     return render_template('cms/admin/study_edit.html', study=None, surveys=surveys,
-                           tasks=tasks, conditions=[], agents=agents)
+                           tasks=tasks, conditions=[], agents=agents, tracking_cfg={})
 
 
 @admin_bp.route('/studies/<int:study_id>/edit', methods=['GET', 'POST'])
@@ -155,8 +179,15 @@ def study_edit(study_id: int):
         title = request.form.get('title', '').strip()
         if not title:
             flash('Titel ist erforderlich.', 'danger')
+            _tc = {}
+            if study.tracking_config:
+                try:
+                    _tc = json.loads(study.tracking_config)
+                except Exception:
+                    _tc = {}
             return render_template('cms/admin/study_edit.html', study=study, surveys=surveys,
-                                   tasks=tasks, conditions=study.conditions, agents=agents)
+                                   tasks=tasks, conditions=study.conditions, agents=agents,
+                                   tracking_cfg=_tc)
 
         study.title = title
         study.description = request.form.get('description', '').strip() or None
@@ -170,6 +201,9 @@ def study_edit(study_id: int):
         study.is_template = bool(request.form.get('is_template'))
         _esid = request.form.get('enrollment_survey_id', '') or None
         study.enrollment_survey_id = int(_esid) if _esid else None
+        study.leaderboard_enabled = bool(request.form.get('leaderboard_enabled'))
+        study.agent_display_name = request.form.get('agent_display_name', '').strip() or None
+        study.tracking_config = _build_tracking_config()
         _set_study_dates(study)
         _save_study_steps(study)
         db.session.commit()
@@ -177,8 +211,15 @@ def study_edit(study_id: int):
         flash(f'Studie "{title}" gespeichert.', 'success')
         return redirect(url_for('admin.study_edit', study_id=study_id))
 
+    _tc = {}
+    if study.tracking_config:
+        try:
+            _tc = json.loads(study.tracking_config)
+        except Exception:
+            _tc = {}
     return render_template('cms/admin/study_edit.html', study=study, surveys=surveys,
-                           tasks=tasks, conditions=study.conditions, agents=agents)
+                           tasks=tasks, conditions=study.conditions, agents=agents,
+                           tracking_cfg=_tc)
 
 
 @admin_bp.route('/studies/<int:study_id>/delete', methods=['POST'])
@@ -276,6 +317,8 @@ def study_clone(study_id: int):
             allow_late_submission=step.allow_late_submission,
             late_penalty_note=step.late_penalty_note,
             condition_id=cond_map.get(step.condition_id) if step.condition_id else None,
+            available_agents=step.available_agents,
+            agent_choice_intro=step.agent_choice_intro,
         )
         db.session.add(new_step)
     db.session.commit()
@@ -530,10 +573,16 @@ def study_export_zip(study_id: int):
 
     def _csv_bytes(rows: list) -> bytes:
         buf = io.StringIO()
-        w = csv.writer(buf)
+        w = csv.writer(buf, quoting=csv.QUOTE_ALL)
         for r in rows:
             w.writerow(r)
         return buf.getvalue().encode('utf-8-sig')
+
+    def _sanitize(val) -> str:
+        """Replace literal newlines in text fields so each record stays on one CSV row."""
+        if val is None:
+            return ''
+        return str(val).replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
 
     p_header = ['participant_id', 'user_identifier']
     if not anon:
@@ -579,7 +628,8 @@ def study_export_zip(study_id: int):
                 ])
 
     sub_header = ['participant_id', 'user_identifier', 'condition',
-                  'task_id', 'task_title', 'step_number',
+                  'task_id', 'task_title', 'step_number', 'wave_number',
+                  'agent_id', 'agent_name',
                   'started_at', 'completed_at', 'time_spent_seconds',
                   'interactions', 'tokens_in', 'tokens_out',
                   'grade_value', 'grade_passed', 'grade_comment', 'submission_id']
@@ -597,6 +647,9 @@ def study_export_zip(study_id: int):
                 sub.task_id,
                 sub.task.title if sub.task else sub.task_id,
                 (step.step_order + 1) if step else '',
+                step.wave_number if step else '',
+                sub.agent_id or '',
+                sub.agent_name or '',
                 sub.started_at.isoformat() if sub.started_at else '',
                 sub.completed_at.isoformat() if sub.completed_at else '',
                 duration,
@@ -610,42 +663,164 @@ def study_export_zip(study_id: int):
             ])
 
     from app.models.survey import Survey as SurveyModel
-    all_questions = []
+    from app.models.tracking import TaskSessionTracking
+
+    # ── Survey responses — step-aware (one column-group per step, not per survey)
+    # This ensures two steps using the same survey template get SEPARATE columns
+    # and separate response lookups, so they never overwrite each other.
+    step_surveys = []  # (step_id, srv_id, srv_name, step_num)
+    all_questions = []  # (step_id, srv_id, srv_name, step_num, q_id, q_label)
     for step in study.steps:
         if step.step_type != 'survey' or not step.survey_id:
             continue
-        srv = SurveyModel.query.get(step.survey_id)
+        srv = db.session.get(SurveyModel, step.survey_id)
         if not srv:
             continue
+        safe_name = srv.name[:20].replace(',', ';').replace('\n', ' ')
+        step_surveys.append((step.id, srv.id, safe_name, step.step_order + 1))
         for page in srv.pages:
             for q in page.questions:
                 if q.question_type == 'info':
                     continue
-                all_questions.append((srv.id, srv.name, step.step_order + 1, q.id,
-                                      q.label[:60].replace('\n', ' ')))
+                all_questions.append((step.id, srv.id, safe_name, step.step_order + 1,
+                                      q.id, q.label[:60].replace('\n', ' ')))
 
+    # Build header: meta cols + one col per (step × question)
+    # Each step block starts with a response_id and completed_at col for traceability
     sr_header = ['participant_id', 'user_identifier', 'condition']
-    q_cols = []
-    for srv_id, srv_name, step_num, q_id, q_label in all_questions:
-        col_name = f's{step_num}_{srv_name[:20]}_{q_id}_{q_label[:30]}'
+    q_cols = []  # (step_id, srv_id, q_id)
+    emitted_step_meta = set()
+    for step_id, srv_id, srv_name, step_num, q_id, q_label in all_questions:
+        if (step_id, srv_id) not in emitted_step_meta:
+            sr_header.append(f's{step_num}_{srv_name}_response_id')
+            sr_header.append(f's{step_num}_{srv_name}_completed_at')
+            emitted_step_meta.add((step_id, srv_id))
+        col_name = f's{step_num}_{srv_name}_{q_id}_{q_label[:30]}'
         col_name = col_name.replace(',', ';').replace('\n', ' ')
         sr_header.append(col_name)
-        q_cols.append((srv_id, q_id))
+        q_cols.append((step_id, srv_id, q_id))
 
     sr_rows = [sr_header]
     for p in participants:
         row = [p.id, _ident(p), p.condition.name if p.condition else '']
-        responses_by_survey = {}
-        for srv_id in set(s[0] for s in all_questions):
+
+        # Lookup responses keyed by (step_id, srv_id) for exact match
+        responses_by_step = {}   # (step_id, srv_id) -> SurveyResponse or None
+        for step_id, srv_id, _, _ in step_surveys:
             resp = SurveyResponse.query.filter_by(
-                survey_id=srv_id, user_id=p.user_id
+                survey_id=srv_id, user_id=p.user_id, step_id=step_id
             ).order_by(SurveyResponse.id.desc()).first()
-            if resp:
-                responses_by_survey[srv_id] = resp.answers
-        for srv_id, q_id in q_cols:
-            answers = responses_by_survey.get(srv_id, {})
-            row.append(answers.get(str(q_id), ''))
+            if resp is None:
+                # Fallback for legacy data: use the single response only if unambiguous
+                all_resps = SurveyResponse.query.filter_by(
+                    survey_id=srv_id, user_id=p.user_id
+                ).all()
+                if len(all_resps) == 1:
+                    resp = all_resps[0]
+            responses_by_step[(step_id, srv_id)] = resp
+
+        # Emit meta cols + answer cols, tracking which (step_id, srv_id) we've emitted meta for
+        emitted_meta = set()
+        col_idx = 0
+        prev_step_key = None
+        for step_id, srv_id, q_id in q_cols:
+            step_key = (step_id, srv_id)
+            if step_key not in emitted_meta:
+                resp = responses_by_step.get(step_key)
+                row.append(resp.id if resp else '')
+                row.append(resp.completed_at.isoformat() if (resp and resp.completed_at) else '')
+                emitted_meta.add(step_key)
+            answers = responses_by_step.get(step_key)
+            row.append((answers.answers if answers else {}).get(str(q_id), ''))
         sr_rows.append(row)
+
+    # ── Tracking events ─────────────────────────────────────────────────────────
+    tr_header = ['participant_id', 'user_identifier', 'condition',
+                 'task_id', 'submission_id', 'session_start',
+                 'batch_seq', 'event_count', 'events_json']
+    tr_rows = [tr_header]
+    for p in participants:
+        trackings = (TaskSessionTracking.query
+                     .filter_by(study_id=study_id, user_id=p.user_id)
+                     .order_by(TaskSessionTracking.task_id, TaskSessionTracking.batch_seq)
+                     .all())
+        for tr in trackings:
+            try:
+                evts = json.loads(tr.events_data) if tr.events_data else []
+                ev_count = len(evts) if isinstance(evts, list) else 0
+            except Exception:
+                ev_count = 0
+            tr_rows.append([
+                p.id, _ident(p), p.condition.name if p.condition else '',
+                tr.task_id, tr.submission_id or '',
+                tr.session_start or '',
+                tr.batch_seq,
+                ev_count,
+                tr.events_data or '[]',
+            ])
+
+    # ── Full LLM interaction log ─────────────────────────────────────────────────
+    llm_header = ['participant_id', 'user_identifier', 'condition',
+                  'task_id', 'submission_id', 'submission_started_at',
+                  'call_index', 'timestamp', 'phase_label',
+                  'message_count', 'system_prompt', 'full_messages_json', 'response']
+    llm_rows = [llm_header]
+    for p in participants:
+        subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
+        for sub in subs:
+            if not sub.llm_prompt_log:
+                continue
+            try:
+                calls = json.loads(sub.llm_prompt_log)
+            except Exception:
+                continue
+            if not isinstance(calls, list):
+                continue
+            for idx, call in enumerate(calls):
+                messages = call.get('messages', [])
+                # Extract the first SYSTEM message as a dedicated column for easy reading
+                system_prompt = ''
+                for m in messages:
+                    if m.get('role') == 'system':
+                        system_prompt = m.get('content', '')
+                        break
+                llm_rows.append([
+                    p.id, _ident(p), p.condition.name if p.condition else '',
+                    sub.task_id, sub.id,
+                    sub.started_at.isoformat() if sub.started_at else '',
+                    idx + 1,
+                    call.get('ts', ''),
+                    call.get('label', ''),
+                    len(messages),
+                    _sanitize(system_prompt),
+                    _sanitize(json.dumps(messages, ensure_ascii=False)),
+                    _sanitize(call.get('response', '')),
+                ])
+
+    # ── Agent switch history ─────────────────────────────────────────────────────
+    from app.models.study import AgentSwitchHistory
+    ac_header = ['participant_id', 'user_identifier', 'condition',
+                 'wave_number', 'step_label', 'chosen_agent_id', 'chosen_agent_name',
+                 'previous_agent_id', 'previous_agent_name', 'chosen_at']
+    ac_rows = [ac_header]
+    for p in participants:
+        switches = (AgentSwitchHistory.query
+                    .join(AgentSwitchHistory.participant)
+                    .filter(AgentSwitchHistory.participant_id == p.id)
+                    .order_by(AgentSwitchHistory.chosen_at)
+                    .all())
+        for sw in switches:
+            step_lbl = sw.step.display_label if sw.step else ''
+            ac_rows.append([
+                p.id, _ident(p), p.condition.name if p.condition else '',
+                sw.wave_number,
+                step_lbl,
+                sw.agent_id or '',
+                sw.agent.name if sw.agent else '',
+                sw.previous_agent_id or '',
+                sw.previous_agent.name if sw.previous_agent else '',
+                sw.chosen_at.isoformat() if sw.chosen_at else '',
+            ])
 
     readme = (
         f"BPM-Tutor Study Export\n"
@@ -654,11 +829,16 @@ def study_export_zip(study_id: int):
         f"Anonymized: {'yes' if anon else 'no'}\n"
         f"Design: {study.study_design}\n\n"
         f"Files:\n"
-        f"  00_participants.csv      - One row per participant\n"
-        f"  01_survey_responses.csv  - Wide format: one row per participant\n"
-        f"  02_task_submissions.csv  - One row per task submission\n"
-        f"  03_step_timings.csv      - Step-level start/end/duration\n"
-        f"  bpmn/                    - Raw BPMN XML files per submission\n"
+        f"  00_participants.csv        - One row per participant\n"
+        f"  01_survey_responses.csv    - Wide format: one row per participant per step\n"
+        f"  02_task_submissions.csv    - One row per task submission (incl. agent, grades, tokens)\n"
+        f"  03_step_timings.csv        - Step-level start/end/duration\n"
+        f"  04_tracking_events.csv     - Cursor/BPMN interaction events (JSON per batch)\n"
+        f"  05_llm_interactions.csv    - Full LLM prompt log per submission\n"
+        f"  06_agent_choices.csv       - Agent selections per participant per wave\n"
+        f"                               chosen_agent, previous_agent, chosen_at\n"
+        f"  bpmn/                      - Raw BPMN XML files per submission\n"
+        f"                               Filename: participant_taskid_subNNN.xml\n"
     ).encode('utf-8')
 
     zip_buf = io.BytesIO()
@@ -669,11 +849,16 @@ def study_export_zip(study_id: int):
         zf.writestr('01_survey_responses.csv', _csv_bytes(sr_rows))
         zf.writestr('02_task_submissions.csv', _csv_bytes(sub_rows))
         zf.writestr('03_step_timings.csv', _csv_bytes(t_rows))
+        zf.writestr('04_tracking_events.csv', _csv_bytes(tr_rows))
+        zf.writestr('05_llm_interactions.csv', _csv_bytes(llm_rows))
+        zf.writestr('06_agent_choices.csv', _csv_bytes(ac_rows))
         for p in participants:
             subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
             for sub in subs:
                 if sub.bpmn_xml:
-                    fname = f'bpmn/{_ident(p)}_{sub.task_id}.xml'
+                    # Include submission ID in filename so multiple submissions for the
+                    # same task never overwrite each other
+                    fname = f'bpmn/{_ident(p)}_{sub.task_id}_sub{sub.id}.xml'
                     zf.writestr(fname, sub.bpmn_xml.encode('utf-8'))
 
     zip_buf.seek(0)
@@ -779,4 +964,25 @@ def study_condition_delete(study_id: int, cond_id: int):
     db.session.delete(cond)
     db.session.commit()
     flash(f'Bedingung "{name}" gelöscht.', 'success')
+    return redirect(next_url)
+
+
+@admin_bp.route('/studies/<int:study_id>/conditions/<int:cond_id>/update', methods=['POST'])
+@admin_required
+def study_condition_update(study_id: int, cond_id: int):
+    from app.models.study import StudyCondition
+    cond = StudyCondition.query.filter_by(id=cond_id, study_id=study_id).first_or_404()
+    name = request.form.get('name', '').strip()
+    next_url = request.form.get('next') or url_for('admin.study_conditions', study_id=study_id)
+    if not name:
+        flash('Name ist erforderlich.', 'danger')
+        return redirect(next_url)
+    cond.name = name
+    cond.description = request.form.get('description', '').strip() or None
+    raw_ts = request.form.get('target_size', '').strip()
+    cond.target_size = int(raw_ts) if raw_ts.isdigit() else None
+    agent_id = request.form.get('agent_id', '').strip()
+    cond.agent_id = int(agent_id) if agent_id.isdigit() else None
+    db.session.commit()
+    flash(f'Bedingung "{name}" aktualisiert.', 'success')
     return redirect(next_url)

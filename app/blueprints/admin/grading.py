@@ -52,7 +52,7 @@ def grading_list():
 @tutor_or_admin_required
 def grading_detail(sub_id: int):
     submission = TaskSubmission.query.get_or_404(sub_id)
-    task = Task.query.get(submission.task_id)
+    task = db.session.get(Task, submission.task_id)
 
     if request.method == 'POST':
         grading_type = request.form.get('grading_type', 'none')
@@ -62,10 +62,14 @@ def grading_detail(sub_id: int):
         if grading_type == 'points':
             grade_val = request.form.get('grade_value', '')
             try:
-                submission.grade_value = float(grade_val)
+                grade_float = float(grade_val)
             except ValueError:
                 flash('Ungültiger Punktwert.', 'danger')
                 return redirect(request.url)
+            if task and task.max_points is not None and grade_float > task.max_points:
+                flash(f'Punktzahl darf {task.max_points} nicht überschreiten.', 'danger')
+                return redirect(request.url)
+            submission.grade_value = grade_float
             submission.grade_passed = None
         elif grading_type == 'pass_fail':
             submission.grade_passed = request.form.get('grade_passed') == 'true'
@@ -148,7 +152,7 @@ def submission_delete(sub_id: int):
 @tutor_or_admin_required
 def grading_ai_suggest(sub_id: int):
     sub = TaskSubmission.query.get_or_404(sub_id)
-    task = Task.query.get(sub.task_id)
+    task = db.session.get(Task, sub.task_id)
     if not task:
         return jsonify({'error': 'Task not found'}), 404
     try:

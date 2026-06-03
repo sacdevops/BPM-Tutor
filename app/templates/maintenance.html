@@ -19,5 +19,20 @@
     <hr>
     <p class="small text-muted mb-0">{{ site_name }}</p>
   </div>
+  <script>
+    // Automatically redirect to home when maintenance mode is lifted
+    (function() {
+      function checkMaintenance() {
+        fetch('/maintenance', { method: 'HEAD' })
+          .then(function(r) {
+            // If the server no longer returns 503 (maintenance off), redirect to home
+            if (r.status !== 503) { window.location.href = '/'; }
+          })
+          .catch(function() {});
+      }
+      // Check every 30 seconds
+      setInterval(checkMaintenance, 30000);
+    })();
+  </script>
 </body>
 </html>

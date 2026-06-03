@@ -8,6 +8,42 @@
 </a>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css">
+<style>
+  /* Undo the global box-sizing reset for all bpmn-js elements */
+  #bpmn-editor-container .djs-container *,
+  #bpmn-editor-container .djs-container *::before,
+  #bpmn-editor-container .djs-container *::after {
+    box-sizing: content-box;
+    padding: revert;
+    margin: revert;
+  }
+  #bpmn-editor-container .djs-palette .entry {
+    padding: 0;
+    margin: 0;
+  }
+  .bpmn-editor-zoom {
+    position: absolute; bottom: 12px; left: 12px;
+    display: flex; align-items: center; gap: 6px; z-index: 10;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 6px 10px;
+  }
+  .bpmn-editor-zoom .zoom-btn {
+    width: 28px; height: 28px;
+    background: #fff; border: 1px solid #dee2e6; border-radius: 4px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .bpmn-editor-zoom .zoom-btn:hover { background: #f0f0f0; }
+  .bpmn-editor-zoom .zoom-btn:active { transform: scale(0.95); }
+</style>
+{% endblock %}
+
 {% block content %}
 <form method="post"
       action="{{ url_for('admin.task_edit', task_id=task.id) if task else url_for('admin.task_create') }}"
@@ -147,23 +183,28 @@
       <div class="card shadow-sm mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h6 class="mb-0"><i class="bi bi-diagram-3"></i> {{ _t('admin.task_bpmn_header', 'Pre-modelled BPMN Process (optional)') }}</h6>
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearBpmn()">
-              <i class="bi bi-trash"></i> {{ _t('common.delete', 'Delete') }}
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleBpmnEditor()">
-              <i class="bi bi-pencil"></i> {{ _t('admin.task_bpmn_open_editor', 'Open Editor') }}
-            </button>
-          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearBpmn()">
+            <i class="bi bi-trash"></i> {{ _t('common.delete', 'Delete') }}
+          </button>
         </div>
-        <div class="card-body">
-          <div id="bpmn-editor-container" style="display:none; height: 400px; border: 1px solid #dee2e6; border-radius: 4px; overflow:hidden;">
-            <div id="bpmn-canvas" style="height:100%"></div>
+        <div class="card-body p-0">
+          <div id="bpmn-editor-container" style="height: 420px; border-bottom: 1px solid #dee2e6; overflow:hidden; position:relative;">
+            <div id="bpmn-canvas" style="height:100%; width:100%;"></div>
+            <div class="bpmn-editor-zoom">
+              <button type="button" class="zoom-btn" onclick="bpmnZoom(-0.2)" title="Zoom Out">&#8722;</button>
+              <span id="bpmnZoomLevel" style="font-size:12px;font-weight:600;min-width:38px;text-align:center">100%</span>
+              <button type="button" class="zoom-btn" onclick="bpmnZoom(0.2)" title="Zoom In">+</button>
+              <button type="button" class="zoom-btn" onclick="bpmnZoomFit()" title="Fit to screen" style="font-size:13px">&#8596;</button>
+            </div>
           </div>
-          <textarea name="bpmn_xml" id="bpmn_xml" class="form-control font-monospace"
-                    rows="4" placeholder="BPMN 2.0 XML (optional) — oder Editor verwenden"
-                    style="font-size:11px">{{ task.bpmn_xml or '' if task else '' }}</textarea>
-          <div class="form-text">{{ _t('admin.task_bpmn_hint', 'If filled, the BPMN diagram is displayed next to the task description.') }}</div>
+          <div class="p-2">
+            <label class="form-label small fw-semibold mb-1">{{ _t('admin.task_bpmn_xml_label', 'BPMN XML') }}</label>
+            <textarea name="bpmn_xml" id="bpmn_xml" class="form-control font-monospace"
+                      rows="5" placeholder="BPMN 2.0 XML (optional)"
+                      style="font-size:11px"
+                      oninput="onXmlChange()">{{ task.bpmn_xml or '' if task else '' }}</textarea>
+            <div class="form-text">{{ _t('admin.task_bpmn_hint', 'If filled, the BPMN diagram is displayed next to the task description.') }}</div>
+          </div>
         </div>
       </div>
 
@@ -188,6 +229,19 @@
       <div class="card shadow-sm mb-3">
         <div class="card-header"><h6 class="mb-0"><i class="bi bi-star"></i> {{ _t('admin.grading_form_header', 'Grade') }}</h6></div>
         <div class="card-body">
+          <label class="form-label">{{ _t('admin.task_mode_label', 'Task Mode') }}</label>
+          <select name="task_mode" id="task_mode" class="form-select mb-3">
+            {% set tm = task.task_mode if task else 'standard' %}
+            <option value="standard" {% if tm == 'standard' %}selected{% endif %}>
+              {{ _t('admin.task_mode_standard', 'Standard') }} — {{ _t('admin.task_mode_standard_hint', 'visible on homepage') }}
+            </option>
+            <option value="leveling" {% if tm == 'leveling' %}selected{% endif %}>
+              {{ _t('admin.task_mode_leveling', 'Leveling Mode') }} — {{ _t('admin.task_mode_leveling_hint', 'only in level system') }}
+            </option>
+            <option value="research" {% if tm == 'research' %}selected{% endif %}>
+              {{ _t('admin.task_mode_research', 'Research Mode') }} — {{ _t('admin.task_mode_research_hint', 'only in research studies') }}
+            </option>
+          </select>
           <label class="form-label">{{ _t('admin.grading_type_label', 'Grading Type') }}</label>
           <select name="grading_type" id="grading_type" class="form-select mb-2"
                   onchange="toggleMaxPoints()">
@@ -331,20 +385,45 @@ function toggleMaxPoints() {
 
 function clearBpmn() {
   document.getElementById('bpmn_xml').value = '';
-}
-
-function toggleBpmnEditor() {
-  const c = document.getElementById('bpmn-editor-container');
-  c.style.display = c.style.display === 'none' ? '' : 'none';
-  if (c.style.display !== 'none') {
-    initBpmnEditor('bpmn-canvas', 'bpmn_xml');
+  if (window._bpmnModeler) {
+    window._bpmnModeler.createDiagram();
   }
 }
 
+function _updateZoomLabel() {
+  if (!window._bpmnModeler) return;
+  const z = window._bpmnModeler.get('canvas').zoom();
+  const el = document.getElementById('bpmnZoomLevel');
+  if (el) el.textContent = Math.round(z * 100) + '%';
+}
+function bpmnZoom(delta) {
+  if (!window._bpmnModeler) return;
+  const canvas = window._bpmnModeler.get('canvas');
+  canvas.zoom(canvas.zoom() + delta);
+  _updateZoomLabel();
+}
+function bpmnZoomFit() {
+  if (!window._bpmnModeler) return;
+  window._bpmnModeler.get('canvas').zoom('fit-viewport');
+  _updateZoomLabel();
+}
+
+// Sync XML textarea → BPMN canvas
+let _xmlChangeTimer = null;
+function onXmlChange() {
+  clearTimeout(_xmlChangeTimer);
+  _xmlChangeTimer = setTimeout(async () => {
+    const xml = document.getElementById('bpmn_xml').value.trim();
+    if (!xml || !window._bpmnModeler) return;
+    try {
+      await window._bpmnModeler.importXML(xml);
+      window._bpmnModeler.get('canvas').zoom('fit-viewport');
+    } catch (e) { /* invalid XML while typing — ignore */ }
+  }, 600);
+}
+
 async function syncBpmnBeforeSubmit(event) {
-  // If the BPMN editor is open, sync XML to textarea before submit
-  const c = document.getElementById('bpmn-editor-container');
-  if (c && c.style.display !== 'none') {
+  if (window._bpmnModeler) {
     event.preventDefault();
     await saveBpmnToTextarea('bpmn_xml');
     event.target.submit();
@@ -352,9 +431,12 @@ async function syncBpmnBeforeSubmit(event) {
   return true;
 }
 
-// Tooltip init
-document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
-  new bootstrap.Tooltip(el));
+// Tooltip init + auto-start BPMN editor
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el =>
+    new bootstrap.Tooltip(el));
+  initBpmnEditor('bpmn-canvas', 'bpmn_xml');
+});
 
 // ── Prerequisites visual builder ──────────────────────────────────────────────
 const PREREQ_FIELDS = [

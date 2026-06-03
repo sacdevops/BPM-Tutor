@@ -7,7 +7,7 @@ import requests as http_requests
 from flask import Blueprint, jsonify, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from app.extensions import csrf, limiter
+from app.extensions import csrf, limiter, db
 
 main_bp = Blueprint('main', __name__)
 logger = logging.getLogger('bpmtutor.main')
@@ -55,68 +55,64 @@ def brand_logo():
 
 @main_bp.route('/maintenance')
 def maintenance():
+    from app.models.settings import Settings
+    if not Settings.get(Settings.MAINTENANCE_MODE, False):
+        return redirect('/')
     return render_template('maintenance.html'), 503
 
 @main_bp.route('/')
 def index():
-    from app.models.task import Task
+    from app.models.task import Task, TaskSubmission
     from app.models.settings import Settings
-    from app.models.level import LearningLevel
+    from app.models.level import LearningLevel, level_tasks as _lv_tasks_tbl
 
     if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
         return redirect(url_for('auth.login', next='/'))
 
     tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
 
-    # Exclude tasks that belong to any study step (they appear in Research Studies only)
-    try:
-        from app.models.study import StudyStep
-        study_task_ids = {
-            ss.task_id for ss in StudyStep.query.filter(StudyStep.task_id.isnot(None)).all()
-        }
-    except Exception:
-        study_task_ids = set()
+    # Show only standard-mode tasks on the index
+    # (leveling-mode tasks appear in the level system, research-mode tasks in studies)
+    tasks = [t for t in tasks if getattr(t, 'task_mode', 'standard') == 'standard']
 
-    # Exclude tasks that belong to any level (they appear in level sections only)
-    try:
-        level_task_ids = set()
-        from app.models.level import LearningLevel
-        for lv in LearningLevel.query.filter_by(is_active=True).all():
-            for t in lv.tasks:
-                level_task_ids.add(t.id)
-    except Exception:
-        level_task_ids = set()
-
-    excluded_task_ids = study_task_ids | level_task_ids
-    tasks = [t for t in tasks if t.id not in excluded_task_ids]
-
-    # Remove tasks the user has already completed if hide_after_completion is set
-    in_progress_task_ids = set()
+    # Load ALL user submissions once; derive completed/in_progress/submitted sets in memory
+    in_progress_task_ids: set = set()
+    completed_task_ids: set = set()
+    submitted_ids: set = set()
     if current_user.is_authenticated:
-        from app.models.task import TaskSubmission
-        completed_task_ids = {
-            s.task_id for s in TaskSubmission.query.filter_by(user_id=current_user.id)
-            .filter(TaskSubmission.completed_at.isnot(None)).all()
-        }
+        all_subs = TaskSubmission.query.filter_by(user_id=current_user.id).all()
+        for s in all_subs:
+            submitted_ids.add(s.task_id)
+            if s.completed_at:
+                completed_task_ids.add(s.task_id)
+            else:
+                in_progress_task_ids.add(s.task_id)
         tasks = [t for t in tasks if not (t.hide_after_completion and t.id in completed_task_ids)]
-        in_progress_task_ids = {
-            s.task_id for s in TaskSubmission.query.filter_by(user_id=current_user.id)
-            .filter(TaskSubmission.completed_at.is_(None)).all()
-        }
 
     level_system_enabled = Settings.get(Settings.LEVEL_SYSTEM_ENABLED, False)
     levels = []
     level_data = []
     if level_system_enabled:
         levels = LearningLevel.query.filter_by(is_active=True).order_by(LearningLevel.level_number).all()
-        if current_user.is_authenticated:
-            from app.models.task import TaskSubmission
-            # Build set of task_ids the user has submitted
-            submitted_ids = {
-                s.task_id for s in TaskSubmission.query.filter_by(user_id=current_user.id).all()
-            }
+        if current_user.is_authenticated and levels:
+            # Pre-fetch all tasks for all levels in one join query — avoids N+1
+            level_ids = [lv.id for lv in levels]
+            level_task_rows = (
+                db.session.query(_lv_tasks_tbl.c.level_id, Task)
+                .join(Task, Task.id == _lv_tasks_tbl.c.task_id)
+                .filter(
+                    _lv_tasks_tbl.c.level_id.in_(level_ids),
+                    Task.is_active.is_(True),
+                )
+                .order_by(Task.sort_order)
+                .all()
+            )
+            tasks_by_level: dict = {}
+            for lvl_id, t in level_task_rows:
+                tasks_by_level.setdefault(lvl_id, []).append(t)
+
             for lv in levels:
-                lv_tasks = lv.tasks.filter_by(is_active=True).order_by(Task.sort_order).all()
+                lv_tasks = tasks_by_level.get(lv.id, [])
                 done = sum(1 for t in lv_tasks if t.id in submitted_ids)
                 total = len(lv_tasks)
                 completed = done == total and total > 0
@@ -173,7 +169,7 @@ def task_page(task_id):
     if Settings.get(Settings.AUTH_REQUIRED) and not current_user.is_authenticated:
         return redirect(url_for('auth.login', next=f'/task/{task_id}'))
 
-    task = Task.query.get(task_id)
+    task = db.session.get(Task, task_id)
     if not task or not task.is_active:
         return render_template(
             'index.html',
@@ -184,7 +180,7 @@ def task_page(task_id):
     # Resolve agent for this task
     agent = None
     if task.agent_id:
-        agent = AIAgent.query.get(task.agent_id)
+        agent = db.session.get(AIAgent, task.agent_id)
     if not agent:
         agent = AIAgent.get_default()
 
@@ -251,7 +247,6 @@ def auto_save_bpmn():
     if not bpmn_xml or not task_id:
         return jsonify({'success': False}), 400
     try:
-        from app.extensions import db as _db
         from app.models.task import TaskSubmission, TaskBPMNSnapshot
         sub = None
         if sid:
@@ -263,8 +258,8 @@ def auto_save_bpmn():
         if sub:
             sub.bpmn_draft = bpmn_xml
             snapshot = TaskBPMNSnapshot(submission_id=sub.id, bpmn_xml=bpmn_xml, source='auto')
-            _db.session.add(snapshot)
-            _db.session.commit()
+            db.session.add(snapshot)
+            db.session.commit()
     except Exception as e:
         logger.debug('[auto_save_bpmn] %s', e)
     return jsonify({'success': True})
@@ -293,7 +288,7 @@ def save_bpmn():
         try:
             from app.extensions import db
             from app.models.task import TaskSubmission
-            sub = TaskSubmission.query.get(submission_id)
+            sub = db.session.get(TaskSubmission, submission_id)
             if sub:
                 sub.study_id = int(study_id)
                 db.session.commit()

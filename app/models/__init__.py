@@ -8,7 +8,9 @@ from .cohort import Cohort, CohortMembership
 from .i18n import Language, LanguageString
 from .level import LearningLevel, UserLevelProgress
 from .agent import AIAgent
-from .study import Study, StudyCondition, StudyStep, StudyParticipant, StudyStepCompletion
+from .agent_prompt import AgentPrompt
+from .study import Study, StudyCondition, StudyStep, StudyParticipant, StudyStepCompletion, AgentSwitchHistory
+from .tracking import TaskSessionTracking
 
 __all__ = [
     'User',
@@ -19,6 +21,8 @@ __all__ = [
     'Cohort', 'CohortMembership',
     'Language', 'LanguageString',
     'LearningLevel', 'UserLevelProgress',
-    'AIAgent',
+    'AIAgent', 'AgentPrompt',
     'Study', 'StudyCondition', 'StudyStep', 'StudyParticipant', 'StudyStepCompletion',
+    'AgentSwitchHistory',
+    'TaskSessionTracking',
 ]

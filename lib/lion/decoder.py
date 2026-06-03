@@ -1,7 +1,7 @@
 """LION format decoder."""
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 
 class LionDecoder:
