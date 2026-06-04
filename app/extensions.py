@@ -17,3 +17,4 @@ talisman = Talisman()
 login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Bitte melde dich an, um fortzufahren.'
 login_manager.login_message_category = 'warning'
+login_manager.session_protection = 'basic'

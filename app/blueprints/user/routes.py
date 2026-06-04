@@ -13,6 +13,8 @@ from app.models.level import LearningLevel
 from app.utils.stats import user_stats, since_from_period, chart_data_timeline
 from app.utils.crypto import encrypt_api_key, decrypt_api_key
 from app.utils.validators import is_valid_email
+from app.utils.tokens import generate_email_token
+from app.utils.email import send_verification_email
 
 user_bp = Blueprint('user_bp', __name__, url_prefix='/me')
 
@@ -46,7 +48,9 @@ def profile_edit():
         # Require re-verification if setting is on
         if Settings.get(Settings.REQUIRE_EMAIL_VERIFICATION):
             current_user.is_verified = False
-            flash('E-Mail geändert — bitte bestätige deine neue E-Mail-Adresse.', 'warning')
+            token = generate_email_token(new_email)
+            send_verification_email(current_user, token)
+            flash('E-Mail geändert — eine Bestätigungs-E-Mail wurde an die neue Adresse gesendet.', 'warning')
 
     current_user.first_name = first_name or None
     current_user.last_name = last_name or None

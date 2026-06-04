@@ -113,7 +113,13 @@
                  class="form-check-input {% if errors.data_consent %}is-invalid{% endif %}"
                  {% if request.form.get('data_consent') %}checked{% endif %} required>
           <label class="form-check-label" for="data_consent">
-            {{ _t('auth.data_consent_check', 'I have read the privacy policy and agree.') }}
+            {{ _t('auth.data_consent_check_prefix', 'I have read the') }}
+            {% if privacy_policy %}
+            <a href="#" data-bs-toggle="modal" data-bs-target="#privacyPolicyModal" onclick="return false;">{{ _t('auth.privacy_policy_link', 'privacy policy') }}</a>
+            {% else %}
+            {{ _t('auth.privacy_policy_link', 'privacy policy') }}
+            {% endif %}
+            {{ _t('auth.data_consent_check_suffix', 'and agree.') }}
             <span class="text-danger">*</span>
           </label>
           {% if errors.data_consent %}
@@ -135,4 +141,35 @@
     </p>
   </form>
 </div>
+
+{% if privacy_policy %}
+<!-- Privacy Policy Modal -->
+<div class="modal fade" id="privacyPolicyModal" tabindex="-1" aria-labelledby="privacyPolicyModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="privacyPolicyModalLabel">
+          <i class="bi bi-file-earmark-lock me-2"></i>{{ _t('auth.privacy_policy_title', 'Privacy Policy') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="privacyPolicyContent"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+          {{ _t('common.close', 'Close') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  marked.use({ breaks: true });
+  document.getElementById('privacyPolicyContent').innerHTML =
+    marked.parse({{ privacy_policy | tojson }});
+</script>
+{% endif %}
+
 {% endblock %}

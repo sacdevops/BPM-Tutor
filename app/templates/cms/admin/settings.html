@@ -119,6 +119,18 @@
 
     </li>
 
+    <li class="nav-item" role="presentation">
+
+      <button class="nav-link" id="tab-legal-btn" data-bs-toggle="tab"
+
+              data-bs-target="#tab-legal" type="button" role="tab">
+
+        <i class="bi bi-file-earmark-lock me-1"></i> {{ _t('admin.settings_tab_legal', 'Legal') }}
+
+      </button>
+
+    </li>
+
   </ul>
 
 
@@ -1293,6 +1305,29 @@
                 <div class="form-text">{{ _t('admin.settings_lion_format_rules_hint', 'Replaces the {lion_rules} placeholder. Automatically enforced for reaction/analysis prompts.') }}</div>
               </div>
 
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── TAB: Legal ── #}
+    <div class="tab-pane fade" id="tab-legal" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="card shadow-sm">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="bi bi-file-earmark-lock me-2"></i>{{ _t('admin.settings_privacy_policy_header', 'Privacy Policy') }}</h6>
+            </div>
+            <div class="card-body">
+              <p class="text-muted small mb-3">
+                {{ _t('admin.settings_privacy_policy_hint', 'This text is shown to users in a popup when they click the privacy policy link on the registration page. Plain text or HTML is accepted.') }}
+              </p>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">{{ _t('admin.settings_privacy_policy_label', 'Privacy Policy Text') }}</label>
+                <textarea name="privacy_policy" class="form-control font-monospace" rows="20"
+                          placeholder="{{ _t('admin.settings_privacy_policy_placeholder', 'Enter your privacy policy text here...') }}">{{ s.get('privacy_policy', '') }}</textarea>
+              </div>
             </div>
           </div>
         </div>

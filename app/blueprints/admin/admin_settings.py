@@ -88,6 +88,7 @@ def settings():
             Settings.API_ENDPOINT: request.form.get('api_endpoint', '').strip(),
             Settings.DEFAULT_MODEL: request.form.get('default_model', '').strip(),
             Settings.FEEDBACK_EMAIL: request.form.get('feedback_email', '').strip(),
+            Settings.PRIVACY_POLICY: request.form.get('privacy_policy', '').strip(),
             Settings.MAIL_ENABLED: bool(request.form.get('mail_enabled')),
             Settings.MAIL_SERVER: request.form.get('mail_server', '').strip(),
             Settings.MAIL_PORT: request.form.get('mail_port', '587').strip(),

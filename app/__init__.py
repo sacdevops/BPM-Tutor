@@ -169,6 +169,13 @@ def _configure_session_security(app: Flask) -> None:
     is_production = os.getenv('FLASK_ENV', 'development') == 'production'
     app.config.setdefault('SESSION_COOKIE_SECURE', is_production)
     app.config.setdefault('SESSION_COOKIE_NAME', 'bpmtutor_session')
+    # Remember-me cookie — must be configured explicitly so the cookie persists
+    # across browser restarts and survives after the session cookie expires.
+    app.config.setdefault('REMEMBER_COOKIE_DURATION', timedelta(days=30))
+    app.config.setdefault('REMEMBER_COOKIE_HTTPONLY', True)
+    app.config.setdefault('REMEMBER_COOKIE_SAMESITE', 'Lax')
+    app.config.setdefault('REMEMBER_COOKIE_SECURE', is_production)
+    app.config.setdefault('REMEMBER_COOKIE_NAME', 'bpmtutor_remember')
 
 
 def _init_extensions(app: Flask) -> None:

@@ -141,7 +141,8 @@ def register():
                 flash(_t('auth.register_success', 'Welcome! Registration successful.'), 'success')
                 return redirect('/')
     return render_template('cms/auth/register.html',
-                           extra_fields=extra_fields, errors=errors)
+                           extra_fields=extra_fields, errors=errors,
+                           privacy_policy=Settings.get(Settings.PRIVACY_POLICY, ''))
 
 
 @auth_bp.route('/verify/<token>')

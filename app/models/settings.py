@@ -102,6 +102,9 @@ class Settings:
     # Feedback / bug reports
     FEEDBACK_EMAIL = 'feedback_email'
 
+    # Legal / privacy
+    PRIVACY_POLICY = 'privacy_policy'              # HTML/text shown in the registration privacy policy popup
+
     # AI prompt rules — editable global content injected into all agent system prompts
     BPMN_SYNTAX_RULES = 'bpmn_syntax_rules'       # replaces {bpmn_standards}
     BPMN_ELEMENTS = 'bpmn_elements'                # replaces {bpmn_elements}
@@ -188,6 +191,7 @@ class Settings:
         COHORTS_ENABLED: (True, 'bool'),
         MAINTENANCE_MODE: (False, 'bool'),
         FEEDBACK_EMAIL: ('', 'string'),
+        PRIVACY_POLICY: ('', 'string'),
         BPMN_SYNTAX_RULES: ('', 'string'),   # empty = use built-in Python fallback
         BPMN_ELEMENTS: ('', 'string'),        # empty = use built-in Python fallback
         GENERAL_RULES: ('', 'string'),        # empty = use built-in Python fallback
