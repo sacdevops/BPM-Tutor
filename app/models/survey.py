@@ -31,7 +31,8 @@ class Survey(db.Model):
         order_by='SurveyPage.page_order',
         cascade='all, delete-orphan', lazy='select'
     )
-    responses = db.relationship('SurveyResponse', backref='survey', lazy='dynamic')
+    responses = db.relationship('SurveyResponse', backref='survey',
+                                cascade='all, delete-orphan', lazy='dynamic')
 
     def to_dict(self) -> dict:
         return {

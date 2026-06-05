@@ -46,7 +46,7 @@
             </a>
             {% endif %}
             <a href="{{ url_for('user_bp.my_stats') }}" class="header-nav-link" data-i18n="nav.stats">Statistics</a>
-            <a href="{{ url_for('study.available_studies') }}" class="header-nav-link" data-i18n="nav.studies">Studies</a>
+            <a href="{{ url_for('study.available_studies') }}" class="header-nav-link header-nav-studies" data-i18n="nav.studies">Studies{% if research_pending_badge %}<span class="header-research-badge"></span>{% endif %}</a>
 
             <!-- Notification bell -->
             <a href="{{ url_for('user_bp.notifications') }}" class="header-nav-link header-nav-notif" data-i18n-title="nav.notifications_title" title="Notifications">

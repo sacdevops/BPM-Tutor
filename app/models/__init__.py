@@ -9,6 +9,7 @@ from .i18n import Language, LanguageString
 from .level import LearningLevel, UserLevelProgress
 from .agent import AIAgent
 from .agent_prompt import AgentPrompt
+from .research import Research, ResearchCondition, ResearchParticipant
 from .study import Study, StudyCondition, StudyStep, StudyParticipant, StudyStepCompletion, AgentSwitchHistory
 from .tracking import TaskSessionTracking
 
@@ -22,6 +23,7 @@ __all__ = [
     'Language', 'LanguageString',
     'LearningLevel', 'UserLevelProgress',
     'AIAgent', 'AgentPrompt',
+    'Research', 'ResearchCondition', 'ResearchParticipant',
     'Study', 'StudyCondition', 'StudyStep', 'StudyParticipant', 'StudyStepCompletion',
     'AgentSwitchHistory',
     'TaskSessionTracking',

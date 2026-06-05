@@ -513,7 +513,14 @@ async function completeTask() {
         const data = await response.json();
 
         if (data.success) {
-            window.location.href = data.redirect || '/';
+            const dest = data.redirect || '/';
+            // If the task has grading configured and we're going back to index,
+            // pass a query param so the index page can show a "pending grade" notice.
+            if (data.grading_pending && dest === '/') {
+                window.location.href = '/?grading_submitted=1';
+            } else {
+                window.location.href = dest;
+            }
         } else {
             alert(t('task.error_complete') + ': ' + (data.message || ''));
         }

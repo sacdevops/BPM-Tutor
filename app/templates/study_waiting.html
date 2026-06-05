@@ -24,7 +24,6 @@
       {{ _t('study.available_from', 'Available from: <strong>{date}</strong>').format(date=available_from.strftime('%d.%m.%Y %H:%M')) | safe }}
     </div>
     {% endif %}
-    <p class="small text-muted">{{ _t('study.waiting_email', 'You will be notified by email when new tasks are ready for you.') }}</p>
     <a href="/" class="btn btn-outline-secondary mt-2">
       <i class="bi bi-house me-1"></i> {{ _t('study.go_home', 'Back to Home') }}
     </a>

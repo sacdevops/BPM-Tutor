@@ -623,6 +623,59 @@ def _register_cli(app: Flask) -> None:
             click.echo(f'Error: {exc}', err=True)
 
 
+def _compute_research_badge(current_user, research_mode_enabled: bool) -> bool:
+    """Return True when the user is enrolled in the active Research and has
+    at least one sub-Study that is currently available but not yet completed."""
+    import logging
+    _log = logging.getLogger(__name__)
+    if not research_mode_enabled:
+        _log.debug('research_badge: research_mode_enabled is False')
+        return False
+    try:
+        if not current_user.is_authenticated:
+            _log.debug('research_badge: user not authenticated')
+            return False
+        from datetime import datetime as _dt
+        from app.models.research import Research, ResearchParticipant
+        from app.models.study import StudyParticipant
+        research = Research.query.filter_by(is_active=True, is_enabled=True).first()
+        if not research:
+            _log.debug('research_badge: no active+enabled Research found')
+            return False
+        rp = ResearchParticipant.query.filter_by(
+            research_id=research.id, user_id=current_user.id
+        ).first()
+        if rp and rp.is_dropped_out:
+            _log.debug('research_badge: user %s is dropped out', current_user.id)
+            return False
+        now = _dt.now()
+
+        def _naive(dt):
+            if dt is None:
+                return None
+            return dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) else dt
+
+        for study in research.studies:
+            if not study.is_active or getattr(study, 'is_archived', False):
+                continue
+            if study.task_start and now < _naive(study.task_start):
+                continue
+            if study.task_end and now > _naive(study.task_end):
+                continue
+            sp = StudyParticipant.query.filter_by(
+                study_id=study.id, user_id=current_user.id
+            ).first()
+            if not sp or not sp.completed_at:
+                _log.debug('research_badge: study %s not completed for user %s → badge=True',
+                           study.id, current_user.id)
+                return True
+        _log.debug('research_badge: all studies completed or unavailable → badge=False')
+        return False
+    except Exception as exc:
+        _log.warning('research_badge: exception → %s', exc, exc_info=True)
+        return False
+
+
 def _register_context_processors(app: Flask) -> None:
     # Maps language code → ISO 3166-1 alpha-2 country code for flagcdn.com
     _LANG_TO_CC = {
@@ -730,6 +783,7 @@ def _register_context_processors(app: Flask) -> None:
             'level_system_enabled': level_system_enabled,
             'research_mode_enabled': research_mode_enabled,
             'cohorts_enabled': cohorts_enabled,
+            'research_pending_badge': _compute_research_badge(current_user, research_mode_enabled),
         }
 
 

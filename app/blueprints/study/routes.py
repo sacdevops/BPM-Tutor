@@ -20,6 +20,67 @@ def _get_participant(study_id: int):
     ).first()
 
 
+def _get_research_participant(research_id: int):
+    """Return the ResearchParticipant for the current user, or None."""
+    from app.models.research import ResearchParticipant
+    if not current_user.is_authenticated:
+        return None
+    return ResearchParticipant.query.filter_by(
+        research_id=research_id, user_id=current_user.id
+    ).first()
+
+
+def _auto_dropout_check(research, rp) -> bool:
+    """If auto_dropout_on_miss is set, drop participant when a Study deadline was missed.
+    Returns True if the participant was just dropped."""
+    if not research.auto_dropout_on_miss or rp.is_dropped_out:
+        return False
+    from app.models.study import StudyParticipant
+    now = datetime.utcnow()
+    for study in research.studies:
+        if not study.is_active or study.is_archived:
+            continue
+        if not study.task_end:
+            continue
+        if now <= study.task_end:
+            continue
+        # Deadline has passed — check if participant completed this Study
+        sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()
+        if not sp or not sp.completed_at:
+            rp.dropped_out_at = datetime.now(timezone.utc)
+            rp.dropout_reason = (
+                f'Auto-Ausschluss: Frist für Study „{study.title}" wurde versäumt.'
+            )
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            return True
+    return False
+
+
+def _ensure_study_participant(study, rp):
+    """Auto-create a StudyParticipant for a Research sub-Study if it doesn't exist."""
+    from app.models.study import StudyParticipant
+    sp = StudyParticipant.query.filter_by(
+        study_id=study.id, user_id=current_user.id
+    ).first()
+    if sp is None:
+        sp = StudyParticipant(
+            study_id=study.id,
+            user_id=current_user.id,
+        )
+        db.session.add(sp)
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            sp = StudyParticipant.query.filter_by(
+                study_id=study.id, user_id=current_user.id
+            ).first()
+    return sp
+
+
 def _record_step_start(participant, step):
     """Upsert a StudyStepCompletion with started_at for the given step."""
     from app.models.study import StudyStepCompletion
@@ -80,39 +141,51 @@ def study_index(study_id: int):
         flash('Diese Studie ist nicht verfuegbar.', 'warning')
         return redirect('/')
 
-    participant = _get_participant(study_id)
-    if not participant:
-        return redirect(url_for('study.enroll', study_id=study_id))
+    # ── Research sub-Study: check Research enrollment instead of Study enrollment
+    if study.research_id:
+        from app.models.research import Research
+        research = db.session.get(Research, study.research_id)
+        rp = _get_research_participant(study.research_id)
+        if not rp or rp.is_dropped_out:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
+        # Auto-dropout check
+        if _auto_dropout_check(research, rp):
+            flash('Du wurdest automatisch aus dem Research ausgeschlossen, da eine Frist versäumt wurde.', 'warning')
+            return redirect(url_for('study.research_home', research_id=study.research_id))
+        participant = _ensure_study_participant(study, rp)
+    else:
+        participant = _get_participant(study_id)
+        if not participant:
+            return redirect(url_for('study.enroll', study_id=study_id))
 
     if participant.is_dropped_out:
         flash('Du hast dich aus dieser Studie abgemeldet.', 'info')
         return redirect(url_for('study.available_studies'))
 
     if participant.is_completed:
+        # For Research sub-Studies, go back to the Research home
+        if study.research_id:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
     step = study.get_step_for_participant(participant)
     if step is None:
         participant.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        try:
-            from app.utils.email import send_study_completed
-            send_study_completed(
-                participant.user.email,
-                participant.user.display_name or participant.user.username,
-                study.title,
-            )
-        except Exception:
-            pass
+        # For Research sub-Studies, return to Research home when Study is done
+        if study.research_id:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
     # Per-step availability check
     eff_from, eff_until = step.get_availability(study)
-    now = datetime.utcnow()
-    if eff_from and now < eff_from:
+    now = datetime.now()
+    _eff_from = eff_from.replace(tzinfo=None) if eff_from and eff_from.tzinfo else eff_from
+    _eff_until = eff_until.replace(tzinfo=None) if eff_until and eff_until.tzinfo else eff_until
+    if _eff_from and now < _eff_from:
         return render_template('study_waiting.html', study=study, step=step,
-                               available_from=eff_from, participant=participant)
-    if eff_until and now > eff_until and not step.allow_late_submission:
+                               available_from=_eff_from, participant=participant)
+    if _eff_until and now > _eff_until and not step.allow_late_submission:
         flash('Die Frist fuer diesen Schritt ist abgelaufen.', 'danger')
         # Move past a hard-deadline missed step to avoid getting stuck
         participant.current_step += 1
@@ -175,6 +248,12 @@ def enroll(study_id: int):
             flash('Du bist bereits angemeldet.', 'warning')
             return redirect(url_for('study.study_index', study_id=study_id))
         flash('Erfolgreich angemeldet!', 'success')
+        # If the study has an enrollment survey, show it before entering the study
+        if study.enrollment_survey_id:
+            next_url = url_for('study.study_index', study_id=study_id)
+            return redirect(url_for('survey_bp.take',
+                                    survey_id=study.enrollment_survey_id,
+                                    next=next_url))
         return redirect(url_for('study.study_index', study_id=study_id))
 
     return render_template('study_enroll.html', study=study)
@@ -189,9 +268,19 @@ def task_step(study_id: int, task_id: str):
     study = Study.query.get_or_404(study_id)
     task = Task.query.get_or_404(task_id)
 
-    participant = _get_participant(study_id)
-    if not participant:
-        return redirect(url_for('study.enroll', study_id=study_id))
+    # ── Research sub-Study: check Research enrollment
+    rp = None
+    if study.research_id:
+        from app.models.research import Research
+        research = db.session.get(Research, study.research_id)
+        rp = _get_research_participant(study.research_id)
+        if not rp or rp.is_dropped_out:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
+        participant = _ensure_study_participant(study, rp)
+    else:
+        participant = _get_participant(study_id)
+        if not participant:
+            return redirect(url_for('study.enroll', study_id=study_id))
     if participant.is_dropped_out:
         return redirect(url_for('study.available_studies'))
 
@@ -201,22 +290,38 @@ def task_step(study_id: int, task_id: str):
         _record_step_start(participant, step)
         # Availability check
         eff_from, eff_until = step.get_availability(study)
-        now = datetime.utcnow()
-        if eff_from and now < eff_from:
+        now = datetime.now()
+        _eff_from = eff_from.replace(tzinfo=None) if eff_from and eff_from.tzinfo else eff_from
+        _eff_until = eff_until.replace(tzinfo=None) if eff_until and eff_until.tzinfo else eff_until
+        if _eff_from and now < _eff_from:
             return render_template('study_waiting.html', study=study, step=step,
-                                   available_from=eff_from, participant=participant)
-        if eff_until and now > eff_until and not step.allow_late_submission:
+                                   available_from=_eff_from, participant=participant)
+        if _eff_until and now > _eff_until and not step.allow_late_submission:
             flash('Die Frist fuer diesen Schritt ist abgelaufen.', 'danger')
             participant.current_step += 1
             db.session.commit()
             return redirect(url_for('study.study_index', study_id=study_id))
 
-    # Determine agent: priority 1 = participant's active_agent (set by agent_choice step)
-    #                   priority 2 = between-subjects condition agent
-    #                   priority 3 = task-level agent override
+    # Determine agent:
+    # Research sub-Study: use ResearchParticipant.active_agent_id or condition agent
+    # Standalone Study: use StudyParticipant.active_agent_id or condition agent
     agent = None
     no_ai = False
-    if participant.active_agent_id:
+    if rp:
+        # Research context: priority order:
+        # 1. StudyParticipant.active_agent_id  — set by agent_choice_step
+        # 2. ResearchParticipant.active_agent_id — admin/system override
+        # 3. Condition agent — default for this cohort
+        _chosen_id = (participant.active_agent_id if participant else None) or rp.active_agent_id
+        if _chosen_id:
+            from app.models.agent import AIAgent
+            agent = db.session.get(AIAgent, _chosen_id)
+        elif rp.condition_id and rp.condition and rp.condition.agent_id:
+            from app.models.agent import AIAgent
+            agent = db.session.get(AIAgent, rp.condition.agent_id)
+        elif rp.condition_id and rp.condition and not rp.condition.agent_id:
+            no_ai = True
+    elif participant.active_agent_id:
         from app.models.agent import AIAgent
         agent = db.session.get(AIAgent, participant.active_agent_id)
     elif study.study_design == 'between' and participant.condition_id:
@@ -257,9 +362,17 @@ def step_done(study_id: int):
     """Called after a step is completed; records completion and advances step."""
     from app.models.study import Study
     study = Study.query.get_or_404(study_id)
-    participant = _get_participant(study_id)
-    if not participant:
-        return redirect(url_for('study.enroll', study_id=study_id))
+
+    # Research sub-Study: use ResearchParticipant + auto-create StudyParticipant
+    if study.research_id:
+        rp = _get_research_participant(study.research_id)
+        if not rp or rp.is_dropped_out:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
+        participant = _ensure_study_participant(study, rp)
+    else:
+        participant = _get_participant(study_id)
+        if not participant:
+            return redirect(url_for('study.enroll', study_id=study_id))
     if participant.is_completed:
         return render_template('study_done.html', study=study, participant=participant)
 
@@ -272,15 +385,9 @@ def step_done(study_id: int):
     if participant.current_step >= total_steps:
         participant.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        try:
-            from app.utils.email import send_study_completed
-            send_study_completed(
-                participant.user.email,
-                participant.user.display_name or participant.user.username,
-                study.title,
-            )
-        except Exception:
-            pass
+        # For Research sub-Studies go back to the Research home
+        if study.research_id:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
     db.session.commit()
@@ -368,14 +475,159 @@ def agent_choice_step(study_id: int, step_id: int):
 @study_bp.route('/available')
 @login_required
 def available_studies():
-    """List all studies a student can enroll in or is already enrolled in."""
+    """Redirect to the active Research home when Research Mode is enabled,
+    otherwise fall back to the classic standalone-Studies list."""
+    from app.models.settings import Settings
+    if Settings.get(Settings.RESEARCH_MODE_ENABLED, False):
+        from app.models.research import Research
+        research = Research.query.filter_by(is_active=True, is_enabled=True).first()
+        if research:
+            return redirect(url_for('study.research_home', research_id=research.id))
+    # Classic standalone-Studies list
     from app.models.study import Study, StudyParticipant
-    studies = Study.query.filter_by(is_active=True, is_archived=False).all()
+    studies = Study.query.filter_by(is_active=True, is_archived=False).filter_by(research_id=None).all()
     my_studies = {
         p.study_id: p for p in
         StudyParticipant.query.filter_by(user_id=current_user.id).all()
     }
     return render_template('study_list.html', studies=studies, my_studies=my_studies)
+
+
+# ── Research home (enrolled participant view) ─────────────────────────────────
+
+@study_bp.route('/research/<int:research_id>')
+@login_required
+def research_home(research_id: int):
+    """Show the list of sub-Studies within a Research for an enrolled participant."""
+    from app.models.research import Research
+    from app.models.study import Study, StudyParticipant
+    research = Research.query.get_or_404(research_id)
+
+    if not research.is_active or not research.is_enabled:
+        flash('Dieses Research-Programm ist derzeit nicht verfügbar.', 'warning')
+        return redirect('/')
+
+    rp = _get_research_participant(research_id)
+    if not rp:
+        # Admins and tutors can preview without being stored as real participants
+        if current_user.has_role('admin', 'tutor'):
+            from app.models.research import ResearchParticipant
+            rp = ResearchParticipant(research_id=research_id, user_id=current_user.id)
+            # Do NOT persist — admins preview without appearing in the participant list
+        else:
+            return redirect(url_for('study.research_enroll', research_id=research_id))
+
+    if rp.is_dropped_out:
+        flash('Du bist nicht mehr Teilnehmer dieses Research-Programms.', 'info')
+        return redirect('/')
+
+    # Auto-dropout check
+    if _auto_dropout_check(research, rp):
+        flash('Du wurdest automatisch ausgeschlossen, da eine Studien-Frist versäumt wurde.', 'warning')
+        return redirect('/')
+
+    # Build study status list
+    # Use naive local datetime to match how datetime-local inputs store times (no timezone)
+    now = datetime.now()
+
+    def _naive(dt):
+        """Strip timezone info for consistent naive comparison."""
+        if dt is None:
+            return None
+        return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
+
+    study_status = []
+    for study in sorted(research.studies, key=lambda s: s.created_at or datetime.min):
+        if study.is_archived:
+            continue
+        sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()
+        # Determine state
+        if sp and sp.completed_at:
+            state = 'completed'
+        elif study.task_end and now > _naive(study.task_end):
+            if sp and sp.completed_at:
+                state = 'completed'
+            else:
+                state = 'expired'
+        elif not study.is_active:
+            state = 'inactive'
+        elif study.task_start and now < _naive(study.task_start):
+            state = 'upcoming'
+        elif sp:
+            state = 'in_progress'
+        else:
+            state = 'available'
+
+        study_status.append({
+            'study': study,
+            'participant': sp,
+            'state': state,
+        })
+
+    return render_template('research_studies.html', research=research, rp=rp,
+                           study_status=study_status)
+
+
+@study_bp.route('/research/<int:research_id>/enroll', methods=['GET', 'POST'])
+@login_required
+def research_enroll(research_id: int):
+    """Enroll in a Research project."""
+    from app.models.research import Research, ResearchParticipant
+    research = Research.query.get_or_404(research_id)
+
+    if not research.is_active or not research.is_enabled:
+        flash('Dieses Research-Programm ist nicht verfügbar.', 'warning')
+        return redirect('/')
+
+    rp = _get_research_participant(research_id)
+    if rp:
+        return redirect(url_for('study.research_home', research_id=research_id))
+
+    if not research.enrollment_open:
+        flash('Die Anmeldefrist für dieses Research-Programm ist abgelaufen oder noch nicht gestartet.', 'warning')
+        return redirect('/')
+
+    if research.max_participants:
+        count = ResearchParticipant.query.filter_by(research_id=research_id).count()
+        if count >= research.max_participants:
+            flash('Maximale Teilnehmerzahl erreicht.', 'warning')
+            return redirect('/')
+
+    if request.method == 'POST':
+        if research.require_consent and not request.form.get('consent_checkbox'):
+            flash('Bitte stimme den Datenschutzhinweisen zu, um fortzufahren.', 'danger')
+            return render_template('research_enroll.html', research=research)
+
+        new_rp = ResearchParticipant(
+            research_id=research_id,
+            user_id=current_user.id,
+        )
+        if research.require_consent:
+            new_rp.consent_given_at = datetime.now(timezone.utc)
+        db.session.add(new_rp)
+        try:
+            db.session.flush()
+            research.assign_condition(new_rp)
+            # Set active_agent from condition if between-subjects
+            if new_rp.condition_id and new_rp.condition and new_rp.condition.agent_id:
+                new_rp.active_agent_id = new_rp.condition.agent_id
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash('Du bist bereits angemeldet.', 'warning')
+            return redirect(url_for('study.research_home', research_id=research_id))
+
+        flash('Erfolgreich angemeldet!', 'success')
+        # Show enrollment survey if configured
+        if research.enrollment_survey_id:
+            next_url = url_for('study.research_home', research_id=research_id)
+            return redirect(url_for('survey_bp.take',
+                                    survey_id=research.enrollment_survey_id,
+                                    next=next_url))
+        return redirect(url_for('study.research_home', research_id=research_id))
+
+    return render_template('research_enroll.html', research=research)
+
 
 
 @study_bp.route('/<int:study_id>/leaderboard')

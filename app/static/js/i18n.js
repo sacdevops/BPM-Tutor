@@ -30,6 +30,10 @@ const TRANSLATIONS = {
         'index.start_custom': 'Start Custom \u2192',
         'index.start_task': 'Start Task \u2192',
         'index.continue_task': 'Continue \u2192',
+        'index.task_done': '\u2713 Completed',
+        'index.pending_grade': '\u23f3 Submitted \u2014 Awaiting Grade',
+        'index.submitted_pending_grade': 'Task submitted! Your work will be graded by the course team.',
+
 
         // Task page — sidebar
         'task.back': '\u2190 Back',
@@ -215,6 +219,10 @@ const TRANSLATIONS = {
         'index.start_custom': 'Starten \u2192',
         'index.start_task': 'Starten \u2192',
         'index.continue_task': 'Weiter \u2192',
+        'index.task_done': '\u2713 Abgeschlossen',
+        'index.pending_grade': '\u23f3 Eingereicht \u2014 Bewertung ausstehend',
+        'index.submitted_pending_grade': 'Aufgabe eingereicht! Deine Abgabe wird vom Kurs-Team bewertet.',
+
 
         // Aufgabenseite \u2014 Seitenleiste
         'task.back': '\u2190 Zur\u00fcck',
@@ -420,7 +428,25 @@ function applyTranslations() {
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
             el.placeholder = translated;
         } else {
-            el.innerHTML = translated;
+            // If the element has child elements (e.g. badge spans), only update
+            // the first text node to preserve child elements.
+            const childElements = el.querySelectorAll('*');
+            if (childElements.length > 0) {
+                let textNode = null;
+                for (const node of el.childNodes) {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        textNode = node;
+                        break;
+                    }
+                }
+                if (textNode) {
+                    textNode.textContent = translated;
+                } else {
+                    el.insertBefore(document.createTextNode(translated), el.firstChild);
+                }
+            } else {
+                el.innerHTML = translated;
+            }
         }
     });
 

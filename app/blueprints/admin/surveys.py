@@ -55,8 +55,6 @@ def survey_create():
     tasks = Task.query.order_by(Task.sort_order).all()
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
-        survey_type = request.form.get('survey_type', 'pre_all')
-        task_id = request.form.get('task_id', '') or None
         allow_skip = bool(request.form.get('allow_skip'))
         pages_json = request.form.get('pages_json', '[]')
 
@@ -66,7 +64,7 @@ def survey_create():
                                    survey=None, tasks=tasks)
 
         survey = Survey(
-            name=name, survey_type=survey_type, task_id=task_id,
+            name=name, survey_type='research', task_id=None,
             allow_skip=allow_skip, is_active=True,
             created_by_id=current_user.id,
         )
@@ -94,8 +92,6 @@ def survey_edit(survey_id: int):
 
     if request.method == 'POST':
         survey.name = request.form.get('name', survey.name).strip()
-        survey.survey_type = request.form.get('survey_type', survey.survey_type)
-        survey.task_id = request.form.get('task_id', '') or None
         survey.allow_skip = bool(request.form.get('allow_skip'))
         survey.is_active = bool(request.form.get('is_active'))
         pages_json = request.form.get('pages_json', '[]')

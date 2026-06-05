@@ -25,34 +25,6 @@
             <input type="text" name="name" class="form-control"
                    value="{{ survey.name if survey else '' }}" required>
           </div>
-          <div class="mb-3">
-            <label class="form-label">{{ _t('common.type', 'Type') }}</label>
-            <select name="survey_type" id="survey_type" class="form-select" onchange="toggleTaskSelect()">
-              {% set st = survey.survey_type if survey else 'pre_all' %}
-              <option value="pre_all" {% if st == 'pre_all' %}selected{% endif %}>
-                {{ _t('admin.survey_type_pre_all_long', 'Before all tasks (once)') }}
-              </option>
-              <option value="post_task" {% if st == 'post_task' %}selected{% endif %}>
-                {{ _t('admin.survey_type_post_task_long', 'After a specific task') }}
-              </option>
-              <option value="post_all" {% if st == 'post_all' %}selected{% endif %}>
-                {{ _t('admin.survey_type_post_all_long', 'After all tasks') }}
-              </option>
-            </select>
-          </div>
-          <div id="taskSelectRow" class="mb-3"
-               style="{% if st != 'post_task' %}display:none{% endif %}">
-            <label class="form-label">{{ _t('common.task', 'Task') }}</label>
-            <select name="task_id" class="form-select">
-              <option value="">{{ _t('admin.study_step_select_task', '— Select task —') }}</option>
-              {% for t in tasks %}
-              <option value="{{ t.id }}"
-                      {% if survey and survey.task_id == t.id %}selected{% endif %}>
-                {{ t.title }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
           <div class="form-check form-switch mb-2">
             <input type="checkbox" class="form-check-input" id="allow_skip" name="allow_skip"
                    {% if survey and survey.allow_skip %}checked{% endif %}>
@@ -123,10 +95,6 @@ function addPage() { SurveyBuilder.addPage(); }
 function addQuestion(type) { SurveyBuilder.addQuestion(type); }
 function serializePages() {
   document.getElementById('pages_json').value = JSON.stringify(SurveyBuilder.getPages());
-}
-function toggleTaskSelect() {
-  const st = document.getElementById('survey_type').value;
-  document.getElementById('taskSelectRow').style.display = st === 'post_task' ? '' : 'none';
 }
 </script>
 {% endblock %}

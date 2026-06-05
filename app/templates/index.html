@@ -80,7 +80,13 @@
                 <span class="lang-en">{{ task.description[:200] }}{% if task.description|length > 200 %}...{% endif %}</span>
                 <span class="lang-de" style="display:none;">{{ (task.description_de or task.description)[:200] }}{% if (task.description_de or task.description)|length > 200 %}...{% endif %}</span>
             </p>
-            {% if task.id in (in_progress_task_ids or []) %}
+            {% if task.id in (completed_task_ids or []) %}
+                {% if task.grading_type and task.grading_type != 'none' %}
+                <span class="start-btn start-btn-pending" data-i18n="index.pending_grade">&#9203; Eingereicht &mdash; Bewertung ausstehend</span>
+                {% else %}
+                <span class="start-btn start-btn-done" data-i18n="index.task_done">&#10003; Abgeschlossen</span>
+                {% endif %}
+            {% elif task.id in (in_progress_task_ids or []) %}
             <span class="start-btn" data-i18n="index.continue_task">Continue &rarr;</span>
             {% else %}
             <span class="start-btn" data-i18n="index.start_task">Start Task &rarr;</span>
@@ -98,6 +104,24 @@
     document.querySelectorAll('.lp-progress-fill[data-pct]').forEach(function(el) {
         el.style.width = (el.dataset.pct || 0) + '%';
     });
+    // Show flash message when redirected back after a graded-task submission
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('grading_submitted') === '1') {
+            // Remove the param from the URL without a page reload
+            var clean = window.location.pathname + (window.location.hash || '');
+            history.replaceState(null, '', clean);
+            // Render a dismissible alert at the top of .index-body
+            var body = document.querySelector('.index-body');
+            if (body) {
+                var alert = document.createElement('div');
+                alert.style.cssText = 'background:#d1e7dd;color:#0a3622;border:1px solid #a3cfbb;border-radius:8px;padding:12px 16px;margin-bottom:1.2rem;font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;';
+                alert.innerHTML = '<span>&#10003; ' + ((typeof t === 'function' && t('index.submitted_pending_grade')) || 'Aufgabe eingereicht! Deine Abgabe wird vom Kurs-Team bewertet.') + '</span>'
+                    + '<button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:#0a3622;line-height:1;">&times;</button>';
+                body.insertBefore(alert, body.firstChild);
+            }
+        }
+    })();
 </script>
 
 <!-- ── Feedback FAB Button ── -->

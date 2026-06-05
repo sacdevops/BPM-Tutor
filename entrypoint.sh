@@ -1,6 +1,6 @@
 #!/bin/sh
 # BPM-Tutor container entrypoint
-# Starts Gunicorn (web) or Celery (worker). Schema is managed by db.create_all() + _run_column_migrations() at startup.
+# Starts Gunicorn (web) or Celery (worker). Schema is managed by migrate_schema.py at startup.
 set -e
 
 # ROLE defaults to 'web'; docker-compose overrides with 'worker' for Celery
@@ -17,14 +17,16 @@ fi
 
 if [ "$ROLE" = "beat" ]; then
     echo "[entrypoint] Starting Celery Beat scheduler..."
-    # --schedule stores the beat state file in the shared data/ volume so it
-    # survives container restarts (avoids re-firing tasks after a restart).
     exec celery -A app.celery_app.celery beat \
         --loglevel=info \
         --schedule=/app/data/celerybeat-schedule
 fi
 
-# Default: web role
+# Default: web role — run schema migration before starting the server
+echo "[entrypoint] Running schema migration..."
+python deploy/migrate_schema.py
+echo "[entrypoint] Schema migration done."
+
 echo "[entrypoint] Starting Gunicorn..."
 exec gunicorn \
     --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker \

@@ -58,6 +58,9 @@ class Study(db.Model):
     # Survey shown at enrollment (before study steps begin)
     enrollment_survey_id = db.Column(db.Integer, db.ForeignKey("surveys.id"), nullable=True)
 
+    # Parent Research project (null = standalone study)
+    research_id = db.Column(db.Integer, db.ForeignKey("researches.id", ondelete="SET NULL"), nullable=True, index=True)
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
@@ -80,15 +83,19 @@ class Study(db.Model):
     creator = db.relationship("User", foreign_keys=[created_by_id])
     clone_parent = db.relationship("Study", remote_side="Study.id", foreign_keys=[cloned_from_id])
     enrollment_survey = db.relationship("Survey", foreign_keys=[enrollment_survey_id], lazy="select")
+    research = db.relationship("Research", foreign_keys=[research_id], back_populates="studies", lazy="select")
 
     @property
     def enrollment_open(self) -> bool:
-        now = datetime.utcnow()
+        # Compare at day granularity so that setting enrollment_start = "today"
+        # opens enrollment for the entire calendar day regardless of the stored
+        # time component (which may reflect the admin's local timezone offset).
+        today = datetime.utcnow().date()
         if not self.allow_self_enrollment:
             return False
-        if self.enrollment_start and now < self.enrollment_start:
+        if self.enrollment_start and today < self.enrollment_start.date():
             return False
-        if self.enrollment_end and now > self.enrollment_end:
+        if self.enrollment_end and today > self.enrollment_end.date():
             return False
         return True
 

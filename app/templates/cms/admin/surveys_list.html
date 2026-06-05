@@ -13,22 +13,12 @@
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
-        <tr><th>{{ _t('common.name', 'Name') }}</th><th>{{ _t('common.type', 'Type') }}</th><th>{{ _t('common.task', 'Task') }}</th><th>{{ _t('admin.survey_pages_questions', 'Pages/Questions') }}</th><th>{{ _t('common.status', 'Status') }}</th><th>{{ _t('admin.survey_responses', 'Responses') }}</th><th class="text-end">{{ _t('common.actions', 'Actions') }}</th></tr>
+        <tr><th>{{ _t('common.name', 'Name') }}</th><th>{{ _t('admin.survey_pages_questions', 'Pages/Questions') }}</th><th>{{ _t('common.status', 'Status') }}</th><th>{{ _t('admin.survey_responses', 'Responses') }}</th><th class="text-end">{{ _t('common.actions', 'Actions') }}</th></tr>
       </thead>
       <tbody>
         {% for s in surveys %}
         <tr>
           <td><strong>{{ s.name }}</strong></td>
-          <td>
-            {% if s.survey_type == 'pre_all' %}
-            <span class="badge bg-primary">{{ _t('admin.survey_type_pre_all', 'Before all') }}</span>
-            {% elif s.survey_type == 'post_task' %}
-            <span class="badge bg-info">{{ _t('admin.survey_type_post_task', 'After task') }}</span>
-            {% else %}
-            <span class="badge bg-secondary">{{ _t('admin.survey_type_post_all', 'After all') }}</span>
-            {% endif %}
-          </td>
-          <td><code>{{ s.task_id or '—' }}</code></td>
           <td>
             <span class="badge bg-light text-dark">{{ s.pages|length }} {{ _t('admin.survey_pages_label', 'Pages') }}</span>
             <span class="badge bg-light text-dark ms-1">
@@ -49,7 +39,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-4">{{ _t('admin.survey_empty', 'No surveys created.') }}</td></tr>
+        <tr><td colspan="5" class="text-center text-muted py-4">{{ _t('admin.survey_empty', 'No surveys created.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>

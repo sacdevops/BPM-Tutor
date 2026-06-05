@@ -130,7 +130,8 @@ def index():
 
     return render_template('index.html', tasks=tasks, levels=levels, level_data=level_data,
                            level_system_enabled=level_system_enabled,
-                           in_progress_task_ids=list(in_progress_task_ids))
+                           in_progress_task_ids=list(in_progress_task_ids),
+                           completed_task_ids=list(completed_task_ids))
 
 
 @main_bp.route('/feedback', methods=['POST'])
@@ -283,6 +284,26 @@ def save_bpmn():
     from app.sockets import chat_handler
     submission_id = chat_handler.complete_and_upload(task_id, bpmn_xml, sid=sid)
 
+    # Fallback: if the socket session was already gone (e.g. socket disconnected before
+    # the save request arrived), find the latest open submission for this user and
+    # mark it complete directly from the database.
+    if not submission_id and task_id and task_id != 'custom' and current_user.is_authenticated:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            from app.models.task import TaskSubmission as _TS
+            sub = (_TS.query
+                   .filter_by(task_id=task_id, user_id=current_user.id)
+                   .filter(_TS.completed_at.is_(None))
+                   .order_by(_TS.started_at.desc())
+                   .first())
+            if sub:
+                sub.bpmn_xml = bpmn_xml or sub.bpmn_xml
+                sub.completed_at = _dt.now(_tz.utc)
+                db.session.commit()
+                submission_id = sub.id
+        except Exception:
+            logger.exception('[save_bpmn] fallback persist error')
+
     # Tag the submission with the study_id if present
     if study_id and submission_id:
         try:
@@ -298,13 +319,20 @@ def save_bpmn():
     # If in a study, redirect to study step_done instead of survey/index
     if study_id:
         redirect_url = url_for('study.step_done', study_id=study_id)
+        logger.info('[save_bpmn] study_id=%s → redirect to step_done: %s', study_id, redirect_url)
         return jsonify({'success': True, 'redirect': redirect_url})
 
     redirect_url = '/'
-    if task_id:
+    grading_pending = False
+    if task_id and task_id != 'custom':
         try:
             from app.extensions import db
+            from app.models.task import Task as _Task
             from app.models.survey import Survey
+            task_obj = db.session.get(_Task, task_id)
+            # Determine grading state
+            if task_obj and task_obj.grading_type and task_obj.grading_type != 'none':
+                grading_pending = True
             # First try a survey linked to this specific task
             survey = Survey.query.filter_by(
                 survey_type='post_task', task_id=task_id, is_active=True
@@ -331,7 +359,7 @@ def save_bpmn():
         except Exception:
             logger.exception('[save_bpmn] survey redirect lookup failed')
 
-    return jsonify({'success': True, 'redirect': redirect_url})
+    return jsonify({'success': True, 'redirect': redirect_url, 'grading_pending': grading_pending})
 
 
 @main_bp.route('/api/models', methods=['POST'])

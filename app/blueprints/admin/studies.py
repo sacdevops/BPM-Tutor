@@ -21,13 +21,27 @@ from app.utils.audit import log_action
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 def _set_study_dates(study) -> None:
-    """Parse date/time fields from form and set on study object."""
+    """Parse date/time fields from form and set on study object.
+
+    The browser submits datetime-local values in the user's local time.
+    A hidden field 'utc_offset_minutes' carries getTimezoneOffset() (positive
+    means behind UTC, e.g. UTC+2 → -120).  We subtract that offset to get UTC.
+    """
+    from datetime import timedelta
+    try:
+        offset_min = int(request.form.get('utc_offset_minutes', 0) or 0)
+    except (ValueError, TypeError):
+        offset_min = 0
+
     def _parse_dt(key):
         val = request.form.get(key, '').strip()
         if not val:
             return None
         try:
-            return datetime.fromisoformat(val).replace(tzinfo=timezone.utc)
+            # Parse as naive local time, shift to UTC
+            local_dt = datetime.fromisoformat(val)
+            utc_dt = local_dt + timedelta(minutes=offset_min)
+            return utc_dt.replace(tzinfo=timezone.utc)
         except Exception:
             return None
 
@@ -122,9 +136,11 @@ def study_create():
     from app.models.study import Study
     from app.models.survey import Survey
     from app.models.agent import AIAgent
+    from app.models.research import Research
     surveys = Survey.query.filter_by(is_active=True).order_by(Survey.name).all()
     tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
     agents = AIAgent.query.filter_by(is_active=True).order_by(AIAgent.sort_order).all()
+    researches = Research.query.order_by(Research.title).all()
 
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -156,12 +172,15 @@ def study_create():
         db.session.flush()
         _save_study_steps(study)
         db.session.commit()
+        _rid = request.form.get('research_id', '') or None
+        study.research_id = int(_rid) if _rid else None
+        db.session.commit()
         log_action('create_study', 'Study', study.id, {'title': title})
         flash(f'Studie "{title}" erstellt.', 'success')
         return redirect(url_for('admin.study_edit', study_id=study.id))
 
     return render_template('cms/admin/study_edit.html', study=None, surveys=surveys,
-                           tasks=tasks, conditions=[], agents=agents, tracking_cfg={})
+                           tasks=tasks, conditions=[], agents=agents, tracking_cfg={}, researches=researches)
 
 
 @admin_bp.route('/studies/<int:study_id>/edit', methods=['GET', 'POST'])
@@ -170,10 +189,12 @@ def study_edit(study_id: int):
     from app.models.study import Study
     from app.models.survey import Survey
     from app.models.agent import AIAgent
+    from app.models.research import Research
     study = Study.query.get_or_404(study_id)
     surveys = Survey.query.filter_by(is_active=True).order_by(Survey.name).all()
     tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
     agents = AIAgent.query.filter_by(is_active=True).order_by(AIAgent.sort_order).all()
+    researches = Research.query.order_by(Research.title).all()
 
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
@@ -204,6 +225,8 @@ def study_edit(study_id: int):
         study.leaderboard_enabled = bool(request.form.get('leaderboard_enabled'))
         study.agent_display_name = request.form.get('agent_display_name', '').strip() or None
         study.tracking_config = _build_tracking_config()
+        _rid = request.form.get('research_id', '') or None
+        study.research_id = int(_rid) if _rid else None
         _set_study_dates(study)
         _save_study_steps(study)
         db.session.commit()
@@ -219,7 +242,7 @@ def study_edit(study_id: int):
             _tc = {}
     return render_template('cms/admin/study_edit.html', study=study, surveys=surveys,
                            tasks=tasks, conditions=study.conditions, agents=agents,
-                           tracking_cfg=_tc)
+                           tracking_cfg=_tc, researches=researches)
 
 
 @admin_bp.route('/studies/<int:study_id>/delete', methods=['POST'])
@@ -334,6 +357,9 @@ def study_clone(study_id: int):
 def study_participants(study_id: int):
     from app.models.study import Study, StudyParticipant
     study = Study.query.get_or_404(study_id)
+    # Studies that belong to a Research share the Research participant list
+    if study.research_id:
+        return redirect(url_for('admin.research_participants', research_id=study.research_id))
     participants = (StudyParticipant.query
                     .filter_by(study_id=study_id)
                     .order_by(StudyParticipant.enrolled_at.desc())
