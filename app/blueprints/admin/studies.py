@@ -357,9 +357,6 @@ def study_clone(study_id: int):
 def study_participants(study_id: int):
     from app.models.study import Study, StudyParticipant
     study = Study.query.get_or_404(study_id)
-    # Studies that belong to a Research share the Research participant list
-    if study.research_id:
-        return redirect(url_for('admin.research_participants', research_id=study.research_id))
     participants = (StudyParticipant.query
                     .filter_by(study_id=study_id)
                     .order_by(StudyParticipant.enrolled_at.desc())
@@ -405,15 +402,43 @@ def study_participant_remove(study_id: int, participant_id: int):
 @admin_bp.route('/studies/<int:study_id>/participants/<int:participant_id>/reset', methods=['POST'])
 @admin_required
 def study_participant_reset(study_id: int, participant_id: int):
-    from app.models.study import StudyParticipant, StudyStepCompletion
+    from app.models.study import Study, StudyParticipant, StudyStepCompletion, AgentSwitchHistory
+    from app.models.task import TaskSubmission
+    from app.models.survey import SurveyResponse
     p = StudyParticipant.query.filter_by(id=participant_id, study_id=study_id).first_or_404()
+    study = Study.query.get_or_404(study_id)
+
+    # Reset participant state
     p.current_step = 0
     p.completed_at = None
     p.dropped_out_at = None
     p.dropout_reason = None
-    StudyStepCompletion.query.filter_by(participant_id=p.id).delete()
+    p.active_agent_id = None
+
+    # Delete step completions
+    StudyStepCompletion.query.filter_by(participant_id=p.id).delete(synchronize_session=False)
+
+    # Delete agent switch history for this participant
+    AgentSwitchHistory.query.filter_by(participant_id=p.id).delete(synchronize_session=False)
+
+    # Delete task submissions belonging to this study for this user
+    if p.user_id:
+        TaskSubmission.query.filter_by(
+            study_id=study_id, user_id=p.user_id
+        ).delete(synchronize_session=False)
+
+        # Delete survey responses for steps of this study for this user
+        step_ids = [s.id for s in study.steps]
+        if step_ids:
+            SurveyResponse.query.filter(
+                SurveyResponse.user_id == p.user_id,
+                SurveyResponse.step_id.in_(step_ids)
+            ).delete(synchronize_session=False)
+
     db.session.commit()
-    flash('Fortschritt zurückgesetzt.', 'success')
+    log_action('reset_study_participant', 'Study', study_id,
+               {'participant_id': participant_id, 'user_id': p.user_id})
+    flash('Studienfortschritt vollständig zurückgesetzt.', 'success')
     return redirect(url_for('admin.study_participants', study_id=study_id))
 
 

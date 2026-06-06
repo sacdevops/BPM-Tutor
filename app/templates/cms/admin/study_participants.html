@@ -155,7 +155,7 @@
           </td>
           <td class="text-end">
             <form method="post" action="{{ url_for('admin.study_participant_reset', study_id=study.id, participant_id=p.id) }}"
-                  class="d-inline" onsubmit="return confirm('{{ _t('admin.participants_reset_confirm', 'Reset progress?') }}')">
+                  class="d-inline" onsubmit="return confirm('{{ _t('admin.participants_reset_confirm', 'Studienfortschritt vollständig zurücksetzen? Alle Aufgaben-Einreichungen, Umfrageantworten und Schrittverläufe dieser Studie werden für diesen Teilnehmer gelöscht.') }}')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm btn-outline-warning" title="{{ _t('common.reset', 'Reset') }}">
                 <i class="bi bi-arrow-counterclockwise"></i>

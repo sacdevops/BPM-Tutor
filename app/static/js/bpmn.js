@@ -5,18 +5,7 @@
 
 // ─── BPMN Modeler ────────────────────────────────────────────────────────────
 
-function initBPMN() {
-    const isReadOnly = (typeof MODELING_MODE !== 'undefined' && MODELING_MODE === 'ai_only');
-    modeler = new BpmnJS({
-        container: '#bpmn-canvas',
-        keyboard: isReadOnly ? {} : { bindTo: document }
-    });
-
-    if (isReadOnly) {
-        _lockModelerForAiOnly();
-    }
-
-    const initialBPMN = `<?xml version="1.0" encoding="UTF-8"?>
+const EMPTY_BPMN_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                       xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                       xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
@@ -30,8 +19,32 @@ function initBPMN() {
       </bpmndi:BPMNDiagram>
     </bpmn:definitions>`;
 
-    modeler.importXML(initialBPMN).catch(err => {
+function initBPMN() {
+    const isReadOnly = (typeof MODELING_MODE !== 'undefined' && MODELING_MODE === 'ai_only');
+    modeler = new BpmnJS({
+        container: '#bpmn-canvas',
+        keyboard: isReadOnly ? {} : { bindTo: document }
+    });
+
+    if (isReadOnly) {
+        _lockModelerForAiOnly();
+    }
+
+    modeler.importXML(EMPTY_BPMN_XML).catch(err => {
         console.error('Failed to load BPMN diagram', err);
+    });
+}
+
+/**
+ * Reset the BPMN canvas to an empty state.
+ * Does not affect time, chat history, or session state.
+ */
+function resetBPMNCanvas() {
+    var msg = (typeof t === 'function' ? t('task.reset_canvas_confirm') : null)
+        || 'Canvas zurücksetzen? Alle modellierten Elemente werden entfernt.';
+    if (!confirm(msg)) return;
+    modeler.importXML(EMPTY_BPMN_XML).catch(err => {
+        console.error('Failed to reset BPMN canvas', err);
     });
 }
 

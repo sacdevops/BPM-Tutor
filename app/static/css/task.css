@@ -197,6 +197,21 @@
     background-color: #5a6268;
 }
 
+.reset-canvas-btn {
+    flex: 0 0 auto;
+    padding: 0.6rem 0.55rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    min-width: unset;
+    background-color: #6c757d;
+    opacity: 0.75;
+}
+
+.reset-canvas-btn:hover {
+    background-color: #c0392b;
+    opacity: 1;
+}
+
 .completion-btn {
     flex: 1;
     padding: 0.6rem 0.5rem;

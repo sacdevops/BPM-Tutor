@@ -67,6 +67,9 @@
                     &#10003; Confirm &amp; Start
                 </button>
                 {% endif %}
+                <button id="resetCanvasBtn" class="export-btn reset-canvas-btn" onclick="resetBPMNCanvas()"{% if is_custom %} style="display:none;"{% endif %} title="{{ _t('task.reset_canvas_title', 'Canvas zurücksetzen') }}" data-i18n-title="task.reset_canvas_title">
+                    &#8635;
+                </button>
                 <button id="exportBtn" class="export-btn" onclick="exportBPMN()"{% if is_custom %} style="display:none;"{% endif %}>
                     <span data-i18n="task.export">&#128229; Export BPMN</span>
                 </button>
