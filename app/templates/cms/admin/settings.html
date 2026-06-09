@@ -267,6 +267,26 @@
 
               <div class="form-check form-switch">
 
+                <input type="checkbox" class="form-check-input" id="custom_mode_enabled"
+
+                       name="custom_mode_enabled"
+
+                       {% if s.get('custom_mode_enabled', True) %}checked{% endif %}>
+
+                <label class="form-check-label" for="custom_mode_enabled">
+
+                  <strong>{{ _t('admin.settings_custom_mode_label', 'Custom Task Mode') }}</strong>
+
+                  <div class="text-muted small">Wenn aktiviert, können Studierende auf der Startseite eigene Aufgaben definieren (Custom Task Karte).</div>
+
+                </label>
+
+              </div>
+
+              <hr class="my-3">
+
+              <div class="form-check form-switch">
+
                 <input type="checkbox" class="form-check-input" id="maintenance_mode"
 
                        name="maintenance_mode"

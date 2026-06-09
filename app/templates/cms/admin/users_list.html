@@ -95,8 +95,8 @@
             <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
             {% endif %}
           </td>
-          <td class="text-muted small">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
-          <td class="text-muted small">{{ user.last_login.strftime('%d.%m.%Y %H:%M') if user.last_login else '—' }}</td>
+          <td class="text-muted small"><span class="utc-time" data-utc="{{ user.created_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ user.created_at.strftime('%d.%m.%Y') }}</span></td>
+          <td class="text-muted small">{% if user.last_login %}<span class="utc-time" data-utc="{{ user.last_login.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ user.last_login.strftime('%d.%m.%Y %H:%M') }}</span>{% else %}—{% endif %}</td>
           <td class="text-end">
             <a href="{{ url_for('admin.user_detail', user_id=user.id) }}"
                class="btn btn-sm btn-outline-primary me-1">
@@ -162,6 +162,21 @@
 
 {% block extra_js %}
 <script>
+// Convert UTC timestamps to local time
+(function() {
+  function fmtLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return null;
+    var p = function(n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  document.querySelectorAll('span.utc-time[data-utc]').forEach(function(el) {
+    var local = fmtLocal(el.dataset.utc);
+    if (local) el.textContent = local;
+  });
+})();
+
 function confirmDelete(url, name) {
   document.getElementById('deleteUsername').textContent = name;
   document.getElementById('deleteForm').action = url;

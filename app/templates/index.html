@@ -65,11 +65,13 @@
 
     <div class="tasks-grid">
         <!-- Custom Task Card -->
+        {% if custom_mode_enabled %}
         <div class="task-card custom-task-card" onclick="startTask('custom')">
             <h3 data-i18n="index.custom_title">&#9997;&#65039; Custom Task</h3>
             <p data-i18n="index.custom_desc">Define your own process. Type a description or upload a document (TXT, PDF, DOCX) &mdash; then model it yourself with Mentor guidance.</p>
             <span class="start-btn start-btn-custom" data-i18n="index.start_custom">Start Custom &rarr;</span>
         </div>
+        {% endif %}
         {% for task in tasks %}
         <div class="task-card" onclick="startTask('{{ task.id }}')">
             <h3>

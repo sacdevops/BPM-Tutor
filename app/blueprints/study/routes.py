@@ -139,6 +139,8 @@ def study_index(study_id: int):
 
     if not study.is_active or study.is_archived:
         flash('Diese Studie ist nicht verfuegbar.', 'warning')
+        if study.research_id:
+            return redirect(url_for('study.research_home', research_id=study.research_id))
         return redirect('/')
 
     # ── Research sub-Study: check Research enrollment instead of Study enrollment
@@ -514,17 +516,23 @@ def research_home(research_id: int):
             from app.models.research import ResearchParticipant
             rp = ResearchParticipant(research_id=research_id, user_id=current_user.id)
             # Do NOT persist — admins preview without appearing in the participant list
-        else:
+        elif research.enrollment_open:
+            # Enrollment is open → redirect to the enrollment form
             return redirect(url_for('study.research_enroll', research_id=research_id))
+        else:
+            # Enrollment is not currently open; show the page in read-only mode
+            # (participant is None — template handles it with a notice)
+            pass
 
-    if rp.is_dropped_out:
-        flash('Du bist nicht mehr Teilnehmer dieses Research-Programms.', 'info')
-        return redirect('/')
+    if rp and rp.is_dropped_out:
+        # Show the research page with a dropout notice instead of redirecting to index.
+        # Still build the study list so the participant can see the overview.
+        pass  # fall through to build study_status
 
-    # Auto-dropout check
-    if _auto_dropout_check(research, rp):
+    # Auto-dropout check (only meaningful if not already dropped out)
+    elif rp and _auto_dropout_check(research, rp):
         flash('Du wurdest automatisch ausgeschlossen, da eine Studien-Frist versäumt wurde.', 'warning')
-        return redirect('/')
+        # Don't redirect — fall through and show the page with the dropout status
 
     # Build study status list
     # Use naive local datetime to match how datetime-local inputs store times (no timezone)
@@ -565,7 +573,7 @@ def research_home(research_id: int):
         })
 
     return render_template('research_studies.html', research=research, rp=rp,
-                           study_status=study_status)
+                           study_status=study_status, now=now)
 
 
 @study_bp.route('/research/<int:research_id>/enroll', methods=['GET', 'POST'])

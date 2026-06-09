@@ -114,7 +114,11 @@
             <strong>{{ tasks[sub.task_id].title }}</strong>
             {% else %}<code>{{ sub.task_id }}</code>{% endif %}
           </td>
-          <td class="text-muted small">{{ sub.started_at or '—' }}</td>
+          <td class="text-muted small">
+            {% if sub.started_at_utc %}
+            <span class="utc-time" data-utc="{{ sub.started_at_utc }}">{{ sub.started_at or '—' }}</span>
+            {% else %}{{ sub.started_at or '—' }}{% endif %}
+          </td>
           <td class="text-muted small">
             {% set m = (sub.duration_seconds // 60)|int %}{{ '%d:%02d'|format(m, (sub.duration_seconds % 60)|int) }} min
           </td>
@@ -127,7 +131,12 @@
               {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
             </span>
             {% elif sub.completed_at %}
-            <span class="badge bg-warning text-dark">Ausstehend</span>
+              {% set _task = sub.get('task') or (tasks[sub.task_id] if tasks is defined and sub.task_id in tasks else none) %}
+              {% if _task and _task.grading_type == 'none' %}
+              <span class="badge bg-success">Abgeschlossen</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">Ausstehend</span>
+              {% endif %}
             {% else %}
             <span class="badge bg-secondary">Läuft</span>
             {% endif %}
@@ -148,6 +157,20 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+// Convert UTC timestamps to browser local time
+(function() {
+  function fmtLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return null;
+    var p = function(n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  document.querySelectorAll('.utc-time[data-utc]').forEach(function(el) {
+    var local = fmtLocal(el.getAttribute('data-utc'));
+    if (local) el.textContent = local;
+  });
+})();
 new Chart(document.getElementById('timelineChart'), {
   type: 'line',
   data: {

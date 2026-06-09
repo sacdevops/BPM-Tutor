@@ -96,6 +96,9 @@ class Settings:
     # Research mode
     RESEARCH_MODE_ENABLED = 'research_mode_enabled'
 
+    # Custom task mode (allow students to define their own task on the index page)
+    CUSTOM_MODE_ENABLED = 'custom_mode_enabled'
+
     # Maintenance
     MAINTENANCE_MODE = 'maintenance_mode'
 
@@ -189,6 +192,7 @@ class Settings:
         LEVEL_SYSTEM_ENABLED: (False, 'bool'),
         RESEARCH_MODE_ENABLED: (False, 'bool'),
         COHORTS_ENABLED: (True, 'bool'),
+        CUSTOM_MODE_ENABLED: (True, 'bool'),
         MAINTENANCE_MODE: (False, 'bool'),
         FEEDBACK_EMAIL: ('', 'string'),
         PRIVACY_POLICY: ('', 'string'),

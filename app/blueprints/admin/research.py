@@ -159,11 +159,16 @@ def research_delete(research_id: int):
 def _save_conditions(research) -> None:
     """Rebuild ResearchConditions from POSTed JSON (conditions_json field)."""
     from app.models.research import ResearchCondition
-    raw = request.form.get('conditions_json', '[]')
+    raw = (request.form.get('conditions_json') or '').strip()
+    if not raw:
+        # conditions_json is empty — JS did not run (e.g. template error);
+        # preserve the existing conditions instead of wiping them.
+        return
     try:
         conds_data = json.loads(raw)
     except Exception:
-        conds_data = []
+        # Invalid JSON — preserve existing conditions
+        return
 
     ResearchCondition.query.filter_by(research_id=research.id).delete()
     db.session.flush()

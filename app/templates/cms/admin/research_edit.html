@@ -261,9 +261,9 @@
                   <input type="text" class="form-control form-control-sm cond-name"
                          placeholder="z. B. Mentor" value="{{ c.name }}">
                   <input type="text" class="form-control form-control-sm cond-desc"
-                         placeholder="optional" value="{{ c.description or ' }}">
+                         placeholder="optional" value="{{ c.description or '' }}">
                   <input type="number" class="form-control form-control-sm cond-size"
-                         placeholder="n" value="{{ c.target_size or ' }}" min="1">
+                         placeholder="n" value="{{ c.target_size or '' }}" min="1">
                   <select class="form-select form-select-sm cond-agent">
                     <option value="">Kein Agent (kein KI)</option>
                     {% for a in agents %}

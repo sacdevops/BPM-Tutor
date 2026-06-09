@@ -33,10 +33,14 @@ def grading_list():
                    TaskSubmission.grade_passed.isnot(None))
         )
     elif graded_filter == 'no':
-        query = query.filter(
-            TaskSubmission.grade_value.is_(None),
-            TaskSubmission.grade_passed.is_(None)
-        )
+        # 'no grading' tasks are always considered done — exclude them from the pending queue
+        query = (query
+                 .join(Task, TaskSubmission.task_id == Task.id)
+                 .filter(Task.grading_type != 'none')
+                 .filter(
+                     TaskSubmission.grade_value.is_(None),
+                     TaskSubmission.grade_passed.is_(None)
+                 ))
 
     pagination = query.order_by(TaskSubmission.completed_at.desc()).paginate(
         page=page, per_page=25, error_out=False)

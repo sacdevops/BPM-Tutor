@@ -82,6 +82,7 @@ def settings():
             Settings.LEVEL_SYSTEM_ENABLED: bool(request.form.get('level_system_enabled')),
             Settings.COHORTS_ENABLED: bool(request.form.get('cohorts_enabled')),
             Settings.RESEARCH_MODE_ENABLED: bool(request.form.get('research_mode_enabled')),
+            Settings.CUSTOM_MODE_ENABLED: bool(request.form.get('custom_mode_enabled')),
             Settings.MAINTENANCE_MODE: bool(request.form.get('maintenance_mode')),
             Settings.API_KEY_MODE: request.form.get('api_key_mode', 'per_user'),
             Settings.GLOBAL_API_KEY: request.form.get('global_api_key', '').strip(),

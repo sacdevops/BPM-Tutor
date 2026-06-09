@@ -130,6 +130,7 @@ def index():
 
     return render_template('index.html', tasks=tasks, levels=levels, level_data=level_data,
                            level_system_enabled=level_system_enabled,
+                           custom_mode_enabled=Settings.get(Settings.CUSTOM_MODE_ENABLED, True),
                            in_progress_task_ids=list(in_progress_task_ids),
                            completed_task_ids=list(completed_task_ids))
 
@@ -274,12 +275,12 @@ def save_bpmn():
         return jsonify({'success': False, 'message': 'No data provided'}), 400
 
     task_id = data.get('task_id', '')
-    bpmn_xml = data.get('bpmn_xml', '')
+    bpmn_xml = data.get('bpmn_xml', '') or ''
     sid = data.get('sid', '')
     study_id = data.get('study_id') or None
 
-    if not bpmn_xml:
-        return jsonify({'success': False, 'message': 'No BPMN XML provided'}), 400
+    if not task_id:
+        return jsonify({'success': False, 'message': 'No task_id provided'}), 400
 
     from app.sockets import chat_handler
     submission_id = chat_handler.complete_and_upload(task_id, bpmn_xml, sid=sid)
@@ -299,6 +300,9 @@ def save_bpmn():
             if sub:
                 sub.bpmn_xml = bpmn_xml or sub.bpmn_xml
                 sub.completed_at = _dt.now(_tz.utc)
+                # Auto-mark no-grading tasks as reviewed
+                if sub.task and sub.task.grading_type == 'none':
+                    sub.graded_at = sub.completed_at
                 db.session.commit()
                 submission_id = sub.id
         except Exception:

@@ -93,11 +93,19 @@ def global_stats(since: Optional[datetime] = None) -> dict:
 
 
 def _submission_summary(s: TaskSubmission) -> dict:
+    def _iso_utc(dt):
+        """Return ISO 8601 UTC string with Z suffix, or None."""
+        if dt is None:
+            return None
+        return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
     return {
         'id': s.id,
         'task_id': s.task_id,
         'started_at': s.started_at.strftime('%d.%m.%Y %H:%M') if s.started_at else None,
+        'started_at_utc': _iso_utc(s.started_at),
         'completed_at': s.completed_at.strftime('%d.%m.%Y %H:%M') if s.completed_at else None,
+        'completed_at_utc': _iso_utc(s.completed_at),
         'interactions': s.interactions,
         'tokens': s.tokens_in + s.tokens_out,
         'duration_seconds': s.duration_seconds,

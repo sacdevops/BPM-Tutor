@@ -24,11 +24,11 @@
         </div>
         <div class="list-group-item">
           <span class="text-muted small">Begonnen</span>
-          <div>{{ submission.started_at.strftime('%d.%m.%Y %H:%M') }}</div>
+          <div><span class="utc-time" data-utc="{{ submission.started_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ submission.started_at.strftime('%d.%m.%Y %H:%M') }}</span></div>
         </div>
         <div class="list-group-item">
           <span class="text-muted small">Abgeschlossen</span>
-          <div>{{ submission.completed_at.strftime('%d.%m.%Y %H:%M') if submission.completed_at else '—' }}</div>
+          <div>{% if submission.completed_at %}<span class="utc-time" data-utc="{{ submission.completed_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ submission.completed_at.strftime('%d.%m.%Y %H:%M') }}</span>{% else %}—{% endif %}</div>
         </div>
         {% if submission.duration_seconds %}
         <div class="list-group-item">
@@ -79,7 +79,11 @@
             {% endif %}
           </div>
         {% else %}
+          {% if task and task.grading_type == 'none' %}
+          <p class="text-success mb-0 text-center fw-semibold"><i class="bi bi-check-circle me-1"></i>Abgeschlossen &mdash; keine Bewertung erforderlich</p>
+          {% else %}
           <p class="text-muted mb-0 text-center"><i class="bi bi-hourglass-split me-1"></i>Noch nicht bewertet</p>
+          {% endif %}
         {% endif %}
 
         {% if submission.grade_comment %}
@@ -257,4 +261,20 @@
 })();
 </script>
 {% endif %}
+<script>
+// Convert UTC timestamps to browser local time
+(function() {
+  function fmtLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return null;
+    var p = function(n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  document.querySelectorAll('.utc-time[data-utc]').forEach(function(el) {
+    var local = fmtLocal(el.getAttribute('data-utc'));
+    if (local) el.textContent = local;
+  });
+})();
+</script>
 {% endblock %}

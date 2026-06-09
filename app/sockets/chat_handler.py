@@ -119,7 +119,7 @@ def register_handlers(socketio):
             settings['model'] = current_user.preferred_model
 
         store.create(sid, task_id, session_uuid, settings, agent_id=agent_id)
-        store.get(sid)['agent_type'] = agent_type
+        store.set_field(sid, 'agent_type', agent_type)
         task_tracker.start_task(sid, task_id, session_uuid)
 
         # --- Resume or create TaskSubmission in DB ---
@@ -157,10 +157,13 @@ def register_handlers(socketio):
                         elapsed_seconds = int((datetime.now(timezone.utc) - started).total_seconds())
                     # Restore mentor memory from this submission
                     if existing.mentor_memory_list:
-                        store.get(sid)['mentor_state']['memory'] = existing.mentor_memory_list
+                        store.set_field(sid, 'mentor_state', {
+                            'memory': existing.mentor_memory_list,
+                            'last_issues': [],
+                        })
                     # Restore chat history from this submission
                     if existing.chat_history:
-                        store.get(sid)['chat_history'] = list(existing.chat_history)
+                        store.set_field(sid, 'chat_history', list(existing.chat_history))
                 else:
                     sub = TaskSubmission(
                         task_id=task_id,
@@ -175,8 +178,9 @@ def register_handlers(socketio):
                     )
                     db.session.add(sub)
                     db.session.commit()
-                # Store submission ID in session for later update
-                store.get(sid)['submission_id'] = sub.id
+                # Store submission ID in session for later update — use set_field so
+                # the value is persisted to the Redis backing store (if configured).
+                store.set_field(sid, 'submission_id', sub.id)
         except Exception as e:
             logger.warning('[chat_handler] TaskSubmission create error: %s', e)
 
@@ -184,14 +188,18 @@ def register_handlers(socketio):
         try:
             from app.models.task import TaskSubmission, Task as _Task
             user_id = current_user.id if current_user.is_authenticated else None
-            if user_id and not store.get(sid)['mentor_state']['memory']:
+            current_session = store.get(sid)
+            if user_id and current_session and not current_session['mentor_state']['memory']:
                 prev = (TaskSubmission.query
                         .filter_by(task_id=task_id, user_id=user_id)
                         .filter(TaskSubmission.completed_at.is_(None))
                         .order_by(TaskSubmission.started_at.desc())
                         .first())
                 if prev and prev.mentor_memory_list:
-                    store.get(sid)['mentor_state']['memory'] = prev.mentor_memory_list
+                    store.set_field(sid, 'mentor_state', {
+                        'memory': prev.mentor_memory_list,
+                        'last_issues': [],
+                    })
         except Exception as _me:
             logger.warning('[chat_handler] mentor memory load error: %s', _me)
 
@@ -586,6 +594,9 @@ def _persist_submission(sid: str, session: dict, bpmn_xml: str) -> int | None:
         sub.chat_log = json.dumps(chat_history, ensure_ascii=False)
         sub.completed_at = datetime.now(timezone.utc)
         sub.interactions = len([m for m in chat_history if m.get('sender') == 'user'])
+        # For tasks with no grading, auto-mark as reviewed so they never show as 'pending'
+        if sub.task and sub.task.grading_type == 'none':
+            sub.graded_at = sub.completed_at
         # persist mentor memory and phase counts
         mentor_mem = session.get('mentor_state', {}).get('memory', [])
         phase_counts = session.get('mentor_state', {}).get('phase_counts', {})
@@ -603,4 +614,8 @@ def _persist_submission(sid: str, session: dict, bpmn_xml: str) -> int | None:
         return sub_id
     except Exception as e:
         logger.error('[chat_handler] TaskSubmission persist error: %s', e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return None

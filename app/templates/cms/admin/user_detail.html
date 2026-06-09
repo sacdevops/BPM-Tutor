@@ -182,7 +182,11 @@
                   {% if sub.grade_passed %}{{ _t('admin.grading_passed', 'Passed') }}{% else %}{{ _t('admin.grading_failed', 'Failed') }}{% endif %}
                 </span>
                 {% elif sub.completed_at %}
-                <span class="badge bg-warning text-dark">{{ _t('admin.status_pending', 'Open') }}</span>
+                  {% if sub.task and sub.task.grading_type == 'none' %}
+                  <span class="badge bg-success">{{ _t('admin.status_no_grading', 'Abgeschlossen') }}</span>
+                  {% else %}
+                  <span class="badge bg-warning text-dark">{{ _t('admin.status_pending', 'Open') }}</span>
+                  {% endif %}
                 {% else %}
                 <span class="badge bg-secondary">{{ _t('admin.status_in_progress', 'Running') }}</span>
                 {% endif %}

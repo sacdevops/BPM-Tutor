@@ -145,6 +145,22 @@ class _RedisSessionStore:
                 result.append(key.removeprefix(self._NAMESPACE))
         return result
 
+    def set_field(self, sid: str, key: str, value) -> bool:
+        """Update a single field in the session and persist back to Redis."""
+        rkey = self._key(sid)
+        raw = self._r.get(rkey)
+        if raw is None:
+            return False
+        try:
+            data = json.loads(raw, object_hook=_revive)
+        except (ValueError, TypeError):
+            return False
+        data[key] = value
+        data['last_activity'] = datetime.now(timezone.utc)
+        payload = json.dumps(data, default=_default, ensure_ascii=False)
+        self._r.setex(rkey, _REDIS_TTL, payload)
+        return True
+
 
 # ── In-memory fallback ───────────────────────────────────────────────────────
 
@@ -202,6 +218,15 @@ class _InMemorySessionStore:
         with self._lock:
             return [sid for sid, s in self._sessions.items()
                     if s.get('task_id') == task_id]
+
+    def set_field(self, sid: str, key: str, value) -> bool:
+        """Update a single field in the session (in-memory, always a direct ref)."""
+        with self._lock:
+            s = self._sessions.get(sid)
+            if s is None:
+                return False
+            s[key] = value
+            return True
 
     def evict_stale(self, max_age_seconds: int = _STALE_SECONDS) -> int:
         """Remove sessions that have been idle longer than *max_age_seconds*.
@@ -265,6 +290,10 @@ class SessionStore:
 
     def find_by_task(self, task_id: str) -> List[str]:
         return self._backend.find_by_task(task_id)
+
+    def set_field(self, sid: str, key: str, value) -> bool:
+        """Persist a single-key update back to the backing store (Redis or in-memory)."""
+        return self._backend.set_field(sid, key, value)
 
     def evict_stale(self, max_age_seconds: int = _STALE_SECONDS) -> int:
         if hasattr(self._backend, 'evict_stale'):

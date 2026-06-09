@@ -118,8 +118,8 @@
             {% else %}<span class="text-muted">{{ _t('common.anonymous', 'Anonymous') }}</span>{% endif %}
           </td>
           <td><code>{{ sub.task_id }}</code></td>
-          <td>{{ sub.started_at.strftime('%d.%m.%y %H:%M') }}</td>
-          <td>{{ sub.completed_at.strftime('%d.%m.%y %H:%M') if sub.completed_at else '—' }}</td>
+          <td><span class="utc-time" data-utc="{{ sub.started_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ sub.started_at.strftime('%d.%m.%y %H:%M') }}</span></td>
+          <td>{% if sub.completed_at %}<span class="utc-time" data-utc="{{ sub.completed_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">{{ sub.completed_at.strftime('%d.%m.%y %H:%M') }}</span>{% else %}—{% endif %}</td>
           <td>
             {% if sub.grade_value is not none or sub.grade_passed is not none %}
             <span class="badge bg-success">{{ _t('admin.status_graded', 'Graded') }}</span>
@@ -181,6 +181,21 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+// Convert UTC timestamps to local time
+(function() {
+  function fmtLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return null;
+    var p = function(n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + String(d.getFullYear()).slice(-2)
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  document.querySelectorAll('span.utc-time[data-utc]').forEach(function(el) {
+    var local = fmtLocal(el.dataset.utc);
+    if (local) el.textContent = local;
+  });
+})();
+
 let chart = null;
 const chartCtx = document.getElementById('timelineChart');
 

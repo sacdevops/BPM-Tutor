@@ -26,8 +26,18 @@
             <strong>{{ sub.task.title }}</strong>
             {% else %}<code>{{ sub.task_id }}</code>{% endif %}
           </td>
-          <td class="text-muted small">{{ sub.started_at.strftime('%d.%m.%Y %H:%M') }}</td>
-          <td class="text-muted small">{{ sub.completed_at.strftime('%d.%m.%Y %H:%M') if sub.completed_at else '—' }}</td>
+          <td class="text-muted small">
+            <span class="utc-time" data-utc="{{ sub.started_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">
+              {{ sub.started_at.strftime('%d.%m.%Y %H:%M') }}
+            </span>
+          </td>
+          <td class="text-muted small">
+            {% if sub.completed_at %}
+            <span class="utc-time" data-utc="{{ sub.completed_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">
+              {{ sub.completed_at.strftime('%d.%m.%Y %H:%M') }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
           <td class="text-muted small">
             {% if sub.duration_seconds %}
             {% set m = (sub.duration_seconds // 60)|int %}{{ '%d:%02d'|format(m, (sub.duration_seconds % 60)|int) }} min
@@ -42,7 +52,11 @@
               {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
             </span>
             {% elif sub.completed_at %}
-            <span class="badge bg-warning text-dark">Ausstehend</span>
+              {% if sub.task and sub.task.grading_type == 'none' %}
+              <span class="badge bg-success">Abgeschlossen</span>
+              {% else %}
+              <span class="badge bg-warning text-dark">Ausstehend</span>
+              {% endif %}
             {% else %}
             <span class="badge bg-secondary">In Bearbeitung</span>
             {% endif %}
@@ -97,6 +111,20 @@
 
 {% block extra_js %}
 <script>
+// Convert UTC timestamps to browser local time
+(function() {
+  function fmtLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return null;
+    var p = function(n) { return String(n).padStart(2, '0'); };
+    return p(d.getDate()) + '.' + p(d.getMonth()+1) + '.' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  document.querySelectorAll('.utc-time[data-utc]').forEach(function(el) {
+    var local = fmtLocal(el.getAttribute('data-utc'));
+    if (local) el.textContent = local;
+  });
+})();
 // Initialize Bootstrap tooltips
 document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
   new bootstrap.Tooltip(el);
