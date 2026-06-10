@@ -44,8 +44,9 @@ def export_page():
 @admin_bp.route('/export/generate', methods=['POST'])
 @admin_required
 def export_generate():
-    import csv
     import hashlib
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
     export_format = request.form.get('export_format', 'zip')
     timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')
 
@@ -86,48 +87,63 @@ def export_generate():
             download_name=f'research_export_{timestamp}.json',
         )
 
+    def _ws_header(ws, headers):
+        ws.append(headers)
+        hdr_fill = PatternFill('solid', fgColor='BDD7EE')
+        bold = Font(bold=True)
+        for cell in ws[1]:
+            cell.font = bold
+            cell.fill = hdr_fill
+
     folder = f'export_{timestamp}'
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        sub_csv = io.StringIO()
-        w = csv.writer(sub_csv)
-        w.writerow(['id', 'user_id', 'username', 'task_id', 'task_title',
-                    'started_at', 'completed_at', 'interactions', 'tokens_in',
-                    'tokens_out', 'grade_value', 'grade_passed', 'grade_comment',
-                    'ai_grade_value', 'ai_grade_passed'])
-        for s in (TaskSubmission.query
-                  .outerjoin(User, TaskSubmission.user_id == User.id)
-                  .outerjoin(Task, TaskSubmission.task_id == Task.id)
-                  .all()):
-            w.writerow([
-                s.id, s.user_id,
-                s.user.username if s.user else '',
-                s.task_id,
-                s.task.title if s.task else s.task_id,
-                s.started_at.isoformat() if s.started_at else '',
-                s.completed_at.isoformat() if s.completed_at else '',
-                s.interactions or 0, s.tokens_in or 0, s.tokens_out or 0,
-                s.grade_value, s.grade_passed, s.grade_comment or '',
-                s.ai_grade_value, s.ai_grade_passed,
-            ])
-        zf.writestr(f'{folder}/submissions.csv', sub_csv.getvalue())
+    wb = Workbook()
+    wb.remove(wb.active)
 
-        user_csv = io.StringIO()
-        w = csv.writer(user_csv)
-        w.writerow(['id', 'username', 'email', 'role', 'created_at', 'is_active'])
-        for u in User.query.order_by(User.id).all():
-            w.writerow([u.id, u.username, u.email, u.role,
-                        u.created_at.isoformat() if u.created_at else '',
-                        u.is_active])
-        zf.writestr(f'{folder}/users.csv', user_csv.getvalue())
+    # Submissions sheet
+    ws_sub = wb.create_sheet('Submissions')
+    _ws_header(ws_sub, ['id', 'user_id', 'username', 'task_id', 'task_title',
+                         'started_at', 'completed_at', 'interactions', 'tokens_in',
+                         'tokens_out', 'grade_value', 'grade_passed', 'grade_comment',
+                         'ai_grade_value', 'ai_grade_passed'])
+    for s in (TaskSubmission.query
+              .outerjoin(User, TaskSubmission.user_id == User.id)
+              .outerjoin(Task, TaskSubmission.task_id == Task.id)
+              .all()):
+        ws_sub.append([
+            s.id, s.user_id,
+            s.user.username if s.user else '',
+            s.task_id,
+            s.task.title if s.task else s.task_id,
+            s.started_at.isoformat() if s.started_at else '',
+            s.completed_at.isoformat() if s.completed_at else '',
+            s.interactions or 0, s.tokens_in or 0, s.tokens_out or 0,
+            s.grade_value, s.grade_passed, s.grade_comment or '',
+            s.ai_grade_value, s.ai_grade_passed,
+        ])
 
-        task_csv = io.StringIO()
-        w = csv.writer(task_csv)
-        w.writerow(['id', 'title', 'grading_type', 'max_points', 'is_active', 'sort_order'])
-        for t in Task.query.order_by(Task.sort_order).all():
-            w.writerow([t.id, t.title, t.grading_type, t.max_points,
-                        t.is_active, t.sort_order])
-        zf.writestr(f'{folder}/tasks.csv', task_csv.getvalue())
+    # Users sheet
+    ws_usr = wb.create_sheet('Users')
+    _ws_header(ws_usr, ['id', 'username', 'email', 'role', 'created_at', 'is_active'])
+    for u in User.query.order_by(User.id).all():
+        ws_usr.append([u.id, u.username, u.email, u.role,
+                       u.created_at.isoformat() if u.created_at else '',
+                       u.is_active])
+
+    # Tasks sheet
+    ws_tsk = wb.create_sheet('Tasks')
+    _ws_header(ws_tsk, ['id', 'title', 'grading_type', 'max_points', 'is_active', 'sort_order'])
+    for t in Task.query.order_by(Task.sort_order).all():
+        ws_tsk.append([t.id, t.title, t.grading_type, t.max_points,
+                       t.is_active, t.sort_order])
+
+    # Build ZIP with xlsx + bpmn + chat_logs
+    xl_buf = io.BytesIO()
+    wb.save(xl_buf)
+    xl_buf.seek(0)
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f'{folder}/data.xlsx', xl_buf.read())
 
         for s in TaskSubmission.query.filter(TaskSubmission.bpmn_xml.isnot(None)).all():
             username = s.user.username if s.user else 'unknown'
@@ -138,10 +154,10 @@ def export_generate():
             fname = f'submission_{s.id}.json'
             zf.writestr(f'{folder}/chat_logs/{fname}', s.chat_log or '[]')
 
-    buf.seek(0)
+    zip_buf.seek(0)
     log_action('export_research_data', 'System', None, {'timestamp': timestamp})
     return send_file(
-        buf,
+        zip_buf,
         mimetype='application/zip',
         as_attachment=True,
         download_name=f'{folder}.zip',

@@ -101,7 +101,7 @@ def _build_tracking_config() -> str:
 
     Three UI groups map to underlying event types:
       tracking_cursor -> mousemove, click, chat_focus
-      tracking_bpmn   -> bpmn_add, bpmn_remove, bpmn_move
+      tracking_bpmn   -> bpmn_add, bpmn_remove, bpmn_move, bpmn_connect, bpmn_disconnect, bpmn_rename, ai_action
       tracking_chat   -> chat_message, ai_action, llm_prompt
     """
     enabled = bool(request.form.get('tracking_enabled'))
@@ -109,10 +109,17 @@ def _build_tracking_config() -> str:
     if request.form.get('tracking_cursor'):
         events += ['mousemove', 'click', 'chat_focus']
     if request.form.get('tracking_bpmn'):
-        events += ['bpmn_add', 'bpmn_remove', 'bpmn_move']
+        events += ['bpmn_add', 'bpmn_remove', 'bpmn_move', 'bpmn_connect', 'bpmn_disconnect', 'bpmn_rename', 'ai_action']
     if request.form.get('tracking_chat'):
         events += ['chat_message', 'ai_action', 'llm_prompt']
-    return json.dumps({'enabled': enabled, 'events': events})
+    # Deduplicate while preserving order (ai_action may appear in both bpmn+chat groups)
+    seen = set()
+    unique_events = []
+    for e in events:
+        if e not in seen:
+            seen.add(e)
+            unique_events.append(e)
+    return json.dumps({'enabled': enabled, 'events': unique_events})
 
 
 # ── Studies CRUD ──────────────────────────────────────────────────────────────
@@ -612,6 +619,8 @@ def study_export(study_id: int):
 @admin_bp.route('/studies/<int:study_id>/export/zip')
 @admin_required
 def study_export_zip(study_id: int):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
     from app.models.study import Study, StudyParticipant, StudyStepCompletion
     from app.models.survey import SurveyResponse, SurveyQuestion, SurveyPage
 
@@ -622,25 +631,32 @@ def study_export_zip(study_id: int):
     def _ident(p):
         return f'P{p.id:04d}' if anon else (p.user.username if p.user else str(p.user_id))
 
-    def _csv_bytes(rows: list) -> bytes:
-        buf = io.StringIO()
-        w = csv.writer(buf, quoting=csv.QUOTE_ALL)
-        for r in rows:
-            w.writerow(r)
-        return buf.getvalue().encode('utf-8-sig')
-
     def _sanitize(val) -> str:
-        """Replace literal newlines in text fields so each record stays on one CSV row."""
         if val is None:
             return ''
-        return str(val).replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
+        return str(val).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
 
+    def _ws_header(ws, headers):
+        """Write a bold header row with light-blue fill to a worksheet."""
+        ws.append(headers)
+        hdr_fill = PatternFill('solid', fgColor='BDD7EE')
+        bold = Font(bold=True)
+        for cell in ws[1]:
+            cell.font = bold
+            cell.fill = hdr_fill
+            cell.alignment = Alignment(wrap_text=False)
+
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default empty sheet
+
+    # ── Sheet 1: Participants ──────────────────────────────────────────────────
+    ws_p = wb.create_sheet('Participants')
     p_header = ['participant_id', 'user_identifier']
     if not anon:
         p_header += ['user_id', 'email']
     p_header += ['condition', 'enrolled_at', 'completed_at', 'dropped_out',
                  'dropout_reason', 'consent_given_at', 'current_step', 'total_steps', 'progress_pct']
-    p_rows = [p_header]
+    _ws_header(ws_p, p_header)
     for p in participants:
         row = [p.id, _ident(p)]
         if not anon:
@@ -656,71 +672,45 @@ def study_export_zip(study_id: int):
             study.get_step_count_for_participant(p),
             p.progress_pct,
         ]
-        p_rows.append(row)
+        ws_p.append(row)
 
-    t_header = ['participant_id', 'user_identifier',
-                'step_number', 'step_label', 'step_type', 'wave_number',
-                'condition', 'started_at', 'completed_at',
-                'time_spent_seconds', 'is_late']
-    t_rows = [t_header]
-    for p in participants:
-        for step in study.steps:
-            comp = StudyStepCompletion.query.filter_by(
-                participant_id=p.id, step_id=step.id).first()
-            if comp:
-                t_rows.append([
-                    p.id, _ident(p),
-                    step.step_order + 1, step.display_label, step.step_type, step.wave_number,
-                    p.condition.name if p.condition else '',
-                    comp.started_at.isoformat() if comp.started_at else '',
-                    comp.completed_at.isoformat() if comp.completed_at else '',
-                    comp.time_spent_seconds or '',
-                    'yes' if comp.is_late else 'no',
-                ])
-
-    sub_header = ['participant_id', 'user_identifier', 'condition',
-                  'task_id', 'task_title', 'step_number', 'wave_number',
-                  'agent_id', 'agent_name',
-                  'started_at', 'completed_at', 'time_spent_seconds',
-                  'interactions', 'tokens_in', 'tokens_out',
-                  'grade_value', 'grade_passed', 'grade_comment', 'submission_id']
-    sub_rows = [sub_header]
-    task_step_map = {s.task_id: s for s in study.steps if s.step_type == 'task' and s.task_id}
-    for p in participants:
-        subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
-        for sub in subs:
-            step = task_step_map.get(sub.task_id)
-            duration = ''
-            if sub.started_at and sub.completed_at:
-                duration = int((sub.completed_at - sub.started_at).total_seconds())
-            sub_rows.append([
-                p.id, _ident(p), p.condition.name if p.condition else '',
-                sub.task_id,
-                sub.task.title if sub.task else sub.task_id,
-                (step.step_order + 1) if step else '',
-                step.wave_number if step else '',
-                sub.agent_id or '',
-                sub.agent_name or '',
-                sub.started_at.isoformat() if sub.started_at else '',
-                sub.completed_at.isoformat() if sub.completed_at else '',
-                duration,
-                sub.interactions or 0,
-                sub.tokens_in or 0,
-                sub.tokens_out or 0,
-                sub.grade_value if sub.grade_value is not None else '',
-                'pass' if sub.grade_passed else ('fail' if sub.grade_passed is False else ''),
-                sub.grade_comment or '',
-                sub.id,
-            ])
-
+    # ── Sheet 2: Enrollment Survey ──────────────────────────────────────────────
+    # Responses for the pre-study enrollment survey (study.enrollment_survey_id)
     from app.models.survey import Survey as SurveyModel
-    from app.models.tracking import TaskSessionTracking
+    if study.enrollment_survey_id:
+        enroll_srv = db.session.get(SurveyModel, study.enrollment_survey_id)
+        if enroll_srv:
+            ws_es = wb.create_sheet('Enrollment_Survey')
+            # Build question list
+            enroll_qs = []
+            for page in enroll_srv.pages:
+                for q in page.questions:
+                    if q.question_type != 'info':
+                        enroll_qs.append(q)
+            es_header = ['participant_id', 'user_identifier', 'condition',
+                         'response_id', 'completed_at']
+            for q in enroll_qs:
+                es_header.append(f'q{q.id}_{q.label[:40].replace(chr(10), " ")}')
+            _ws_header(ws_es, es_header)
+            for p in participants:
+                # Find the enrollment survey response submitted after enrollment
+                resp = SurveyResponse.query.filter_by(
+                    survey_id=study.enrollment_survey_id,
+                    user_id=p.user_id,
+                ).filter(SurveyResponse.completed_at.isnot(None)).order_by(
+                    SurveyResponse.id.desc()
+                ).first()
+                row = [p.id, _ident(p), p.condition.name if p.condition else '',
+                       resp.id if resp else '',
+                       resp.completed_at.isoformat() if (resp and resp.completed_at) else '']
+                answers = resp.answers if resp else {}
+                for q in enroll_qs:
+                    row.append(answers.get(str(q.id), ''))
+                ws_es.append(row)
 
-    # ── Survey responses — step-aware (one column-group per step, not per survey)
-    # This ensures two steps using the same survey template get SEPARATE columns
-    # and separate response lookups, so they never overwrite each other.
-    step_surveys = []  # (step_id, srv_id, srv_name, step_num)
-    all_questions = []  # (step_id, srv_id, srv_name, step_num, q_id, q_label)
+    # ── Sheet 3: Survey Responses (step-based) ─────────────────────────────────
+    step_surveys = []
+    all_questions = []
     for step in study.steps:
         if step.step_type != 'survey' or not step.survey_id:
             continue
@@ -736,44 +726,34 @@ def study_export_zip(study_id: int):
                 all_questions.append((step.id, srv.id, safe_name, step.step_order + 1,
                                       q.id, q.label[:60].replace('\n', ' ')))
 
-    # Build header: meta cols + one col per (step × question)
-    # Each step block starts with a response_id and completed_at col for traceability
+    ws_sr = wb.create_sheet('Survey_Responses')
     sr_header = ['participant_id', 'user_identifier', 'condition']
-    q_cols = []  # (step_id, srv_id, q_id)
+    q_cols = []
     emitted_step_meta = set()
     for step_id, srv_id, srv_name, step_num, q_id, q_label in all_questions:
         if (step_id, srv_id) not in emitted_step_meta:
             sr_header.append(f's{step_num}_{srv_name}_response_id')
             sr_header.append(f's{step_num}_{srv_name}_completed_at')
             emitted_step_meta.add((step_id, srv_id))
-        col_name = f's{step_num}_{srv_name}_{q_id}_{q_label[:30]}'
-        col_name = col_name.replace(',', ';').replace('\n', ' ')
+        col_name = f's{step_num}_{srv_name}_{q_id}_{q_label[:30]}'.replace(',', ';').replace('\n', ' ')
         sr_header.append(col_name)
         q_cols.append((step_id, srv_id, q_id))
-
-    sr_rows = [sr_header]
+    _ws_header(ws_sr, sr_header)
     for p in participants:
         row = [p.id, _ident(p), p.condition.name if p.condition else '']
-
-        # Lookup responses keyed by (step_id, srv_id) for exact match
-        responses_by_step = {}   # (step_id, srv_id) -> SurveyResponse or None
+        responses_by_step = {}
         for step_id, srv_id, _, _ in step_surveys:
             resp = SurveyResponse.query.filter_by(
                 survey_id=srv_id, user_id=p.user_id, step_id=step_id
             ).order_by(SurveyResponse.id.desc()).first()
             if resp is None:
-                # Fallback for legacy data: use the single response only if unambiguous
                 all_resps = SurveyResponse.query.filter_by(
                     survey_id=srv_id, user_id=p.user_id
                 ).all()
                 if len(all_resps) == 1:
                     resp = all_resps[0]
             responses_by_step[(step_id, srv_id)] = resp
-
-        # Emit meta cols + answer cols, tracking which (step_id, srv_id) we've emitted meta for
         emitted_meta = set()
-        col_idx = 0
-        prev_step_key = None
         for step_id, srv_id, q_id in q_cols:
             step_key = (step_id, srv_id)
             if step_key not in emitted_meta:
@@ -783,13 +763,74 @@ def study_export_zip(study_id: int):
                 emitted_meta.add(step_key)
             answers = responses_by_step.get(step_key)
             row.append((answers.answers if answers else {}).get(str(q_id), ''))
-        sr_rows.append(row)
+        ws_sr.append(row)
 
-    # ── Tracking events ─────────────────────────────────────────────────────────
+    # ── Sheet 4: Task Submissions ──────────────────────────────────────────────
+    ws_sub = wb.create_sheet('Task_Submissions')
+    sub_header = ['participant_id', 'user_identifier', 'condition',
+                  'task_id', 'task_title', 'step_number', 'wave_number',
+                  'agent_id', 'agent_name',
+                  'started_at', 'completed_at', 'time_spent_seconds',
+                  'interactions', 'tokens_in', 'tokens_out',
+                  'grade_value', 'grade_passed', 'grade_comment', 'submission_id']
+    _ws_header(ws_sub, sub_header)
+    task_step_map = {s.task_id: s for s in study.steps if s.step_type == 'task' and s.task_id}
+    for p in participants:
+        subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
+        for sub in subs:
+            step = task_step_map.get(sub.task_id)
+            duration = ''
+            if sub.started_at and sub.completed_at:
+                duration = int((sub.completed_at - sub.started_at).total_seconds())
+            ws_sub.append([
+                p.id, _ident(p), p.condition.name if p.condition else '',
+                sub.task_id,
+                sub.task.title if sub.task else sub.task_id,
+                (step.step_order + 1) if step else '',
+                step.wave_number if step else '',
+                sub.agent_id or '',
+                sub.agent_name or '',
+                sub.started_at.isoformat() if sub.started_at else '',
+                sub.completed_at.isoformat() if sub.completed_at else '',
+                duration,
+                sub.interactions or 0,
+                sub.tokens_in or 0,
+                sub.tokens_out or 0,
+                sub.grade_value if sub.grade_value is not None else '',
+                'pass' if sub.grade_passed else ('fail' if sub.grade_passed is False else ''),
+                _sanitize(sub.grade_comment or ''),
+                sub.id,
+            ])
+
+    # ── Sheet 5: Step Timings ──────────────────────────────────────────────────
+    ws_t = wb.create_sheet('Step_Timings')
+    t_header = ['participant_id', 'user_identifier',
+                'step_number', 'step_label', 'step_type', 'wave_number',
+                'condition', 'started_at', 'completed_at',
+                'time_spent_seconds', 'is_late']
+    _ws_header(ws_t, t_header)
+    for p in participants:
+        for step in study.steps:
+            comp = StudyStepCompletion.query.filter_by(
+                participant_id=p.id, step_id=step.id).first()
+            if comp:
+                ws_t.append([
+                    p.id, _ident(p),
+                    step.step_order + 1, step.display_label, step.step_type, step.wave_number,
+                    p.condition.name if p.condition else '',
+                    comp.started_at.isoformat() if comp.started_at else '',
+                    comp.completed_at.isoformat() if comp.completed_at else '',
+                    comp.time_spent_seconds or '',
+                    'yes' if comp.is_late else 'no',
+                ])
+
+    # ── Sheet 6: Tracking Events (raw batches) ────────────────────────────────
+    from app.models.tracking import TaskSessionTracking
+    ws_tr = wb.create_sheet('Tracking_Events')
     tr_header = ['participant_id', 'user_identifier', 'condition',
                  'task_id', 'submission_id', 'session_start',
                  'batch_seq', 'event_count', 'events_json']
-    tr_rows = [tr_header]
+    _ws_header(ws_tr, tr_header)
     for p in participants:
         trackings = (TaskSessionTracking.query
                      .filter_by(study_id=study_id, user_id=p.user_id)
@@ -801,21 +842,70 @@ def study_export_zip(study_id: int):
                 ev_count = len(evts) if isinstance(evts, list) else 0
             except Exception:
                 ev_count = 0
-            tr_rows.append([
+            ws_tr.append([
                 p.id, _ident(p), p.condition.name if p.condition else '',
                 tr.task_id, tr.submission_id or '',
-                tr.session_start or '',
+                str(tr.session_start or ''),
                 tr.batch_seq,
                 ev_count,
                 tr.events_data or '[]',
             ])
 
-    # ── Full LLM interaction log ─────────────────────────────────────────────────
+    # ── Sheet 7: BPMN Element Events (flattened) ──────────────────────────────
+    # One row per BPMN diagram change (add/remove/connect/rename/move).
+    # Combines both user and AI actions; 'source' column distinguishes them.
+    _BPMN_ETYPES = {'bpmn_add', 'bpmn_remove', 'bpmn_connect',
+                    'bpmn_disconnect', 'bpmn_rename', 'bpmn_move'}
+    ws_bpmn = wb.create_sheet('BPMN_Element_Events')
+    _ws_header(ws_bpmn, [
+        'participant_id', 'user_identifier', 'condition', 'task_id',
+        'timestamp', 'event_type', 'source',
+        'element_id', 'element_type', 'element_name',
+        'source_element_id', 'source_element_name',
+        'target_element_id', 'target_element_name',
+        'x', 'y',
+    ])
+    for p in participants:
+        trackings = (TaskSessionTracking.query
+                     .filter_by(study_id=study_id, user_id=p.user_id)
+                     .order_by(TaskSessionTracking.task_id, TaskSessionTracking.batch_seq)
+                     .all())
+        for tr in trackings:
+            try:
+                evts = json.loads(tr.events_data) if tr.events_data else []
+            except Exception:
+                evts = []
+            for ev in evts:
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get('type') not in _BPMN_ETYPES:
+                    continue
+                ws_bpmn.append([
+                    p.id,
+                    _ident(p),
+                    p.condition.name if p.condition else '',
+                    tr.task_id,
+                    ev.get('ts', ''),
+                    ev.get('type', ''),
+                    ev.get('source', ''),
+                    ev.get('element_id', ''),
+                    ev.get('element_type', ''),
+                    ev.get('element_name', ''),
+                    ev.get('source_element_id', ''),
+                    ev.get('source_element_name', ''),
+                    ev.get('target_element_id', ''),
+                    ev.get('target_element_name', ''),
+                    ev.get('x', ''),
+                    ev.get('y', ''),
+                ])
+
+    # ── Sheet 8: LLM Interactions ──────────────────────────────────────────────
+    ws_llm = wb.create_sheet('LLM_Interactions')
     llm_header = ['participant_id', 'user_identifier', 'condition',
                   'task_id', 'submission_id', 'submission_started_at',
                   'call_index', 'timestamp', 'phase_label',
                   'message_count', 'system_prompt', 'full_messages_json', 'response']
-    llm_rows = [llm_header]
+    _ws_header(ws_llm, llm_header)
     for p in participants:
         subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
         for sub in subs:
@@ -829,13 +919,12 @@ def study_export_zip(study_id: int):
                 continue
             for idx, call in enumerate(calls):
                 messages = call.get('messages', [])
-                # Extract the first SYSTEM message as a dedicated column for easy reading
                 system_prompt = ''
                 for m in messages:
                     if m.get('role') == 'system':
                         system_prompt = m.get('content', '')
                         break
-                llm_rows.append([
+                ws_llm.append([
                     p.id, _ident(p), p.condition.name if p.condition else '',
                     sub.task_id, sub.id,
                     sub.started_at.isoformat() if sub.started_at else '',
@@ -848,12 +937,13 @@ def study_export_zip(study_id: int):
                     _sanitize(call.get('response', '')),
                 ])
 
-    # ── Agent switch history ─────────────────────────────────────────────────────
+    # ── Sheet 8: Agent Choices ─────────────────────────────────────────────────
     from app.models.study import AgentSwitchHistory
+    ws_ac = wb.create_sheet('Agent_Choices')
     ac_header = ['participant_id', 'user_identifier', 'condition',
                  'wave_number', 'step_label', 'chosen_agent_id', 'chosen_agent_name',
                  'previous_agent_id', 'previous_agent_name', 'chosen_at']
-    ac_rows = [ac_header]
+    _ws_header(ws_ac, ac_header)
     for p in participants:
         switches = (AgentSwitchHistory.query
                     .join(AgentSwitchHistory.participant)
@@ -862,10 +952,9 @@ def study_export_zip(study_id: int):
                     .all())
         for sw in switches:
             step_lbl = sw.step.display_label if sw.step else ''
-            ac_rows.append([
+            ws_ac.append([
                 p.id, _ident(p), p.condition.name if p.condition else '',
-                sw.wave_number,
-                step_lbl,
+                sw.wave_number, step_lbl,
                 sw.agent_id or '',
                 sw.agent.name if sw.agent else '',
                 sw.previous_agent_id or '',
@@ -873,42 +962,19 @@ def study_export_zip(study_id: int):
                 sw.chosen_at.isoformat() if sw.chosen_at else '',
             ])
 
-    readme = (
-        f"BPM-Tutor Study Export\n"
-        f"Study: {study.title} (ID {study_id})\n"
-        f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')} UTC\n"
-        f"Anonymized: {'yes' if anon else 'no'}\n"
-        f"Design: {study.study_design}\n\n"
-        f"Files:\n"
-        f"  00_participants.csv        - One row per participant\n"
-        f"  01_survey_responses.csv    - Wide format: one row per participant per step\n"
-        f"  02_task_submissions.csv    - One row per task submission (incl. agent, grades, tokens)\n"
-        f"  03_step_timings.csv        - Step-level start/end/duration\n"
-        f"  04_tracking_events.csv     - Cursor/BPMN interaction events (JSON per batch)\n"
-        f"  05_llm_interactions.csv    - Full LLM prompt log per submission\n"
-        f"  06_agent_choices.csv       - Agent selections per participant per wave\n"
-        f"                               chosen_agent, previous_agent, chosen_at\n"
-        f"  bpmn/                      - Raw BPMN XML files per submission\n"
-        f"                               Filename: participant_taskid_subNNN.xml\n"
-    ).encode('utf-8')
+    # ── Build ZIP with Excel + BPMN files ─────────────────────────────────────
+    wb_buf = io.BytesIO()
+    wb.save(wb_buf)
+    wb_buf.seek(0)
 
-    zip_buf = io.BytesIO()
     ts = datetime.now().strftime('%Y%m%d_%H%M')
+    zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr('README.txt', readme)
-        zf.writestr('00_participants.csv', _csv_bytes(p_rows))
-        zf.writestr('01_survey_responses.csv', _csv_bytes(sr_rows))
-        zf.writestr('02_task_submissions.csv', _csv_bytes(sub_rows))
-        zf.writestr('03_step_timings.csv', _csv_bytes(t_rows))
-        zf.writestr('04_tracking_events.csv', _csv_bytes(tr_rows))
-        zf.writestr('05_llm_interactions.csv', _csv_bytes(llm_rows))
-        zf.writestr('06_agent_choices.csv', _csv_bytes(ac_rows))
+        zf.writestr(f'study_{study_id}_data.xlsx', wb_buf.read())
         for p in participants:
             subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
             for sub in subs:
                 if sub.bpmn_xml:
-                    # Include submission ID in filename so multiple submissions for the
-                    # same task never overwrite each other
                     fname = f'bpmn/{_ident(p)}_{sub.task_id}_sub{sub.id}.xml'
                     zf.writestr(fname, sub.bpmn_xml.encode('utf-8'))
 

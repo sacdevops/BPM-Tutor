@@ -1,5 +1,4 @@
 """Admin — Research management routes."""
-import csv
 import io
 import json
 import zipfile
@@ -267,22 +266,9 @@ def research_participant_dropout(research_id: int, participant_id: int):
 @admin_bp.route('/research/<int:research_id>/export/zip')
 @admin_required
 def research_export_zip(research_id: int):
-    """Export all Research data as a ZIP.
-
-    Structure:
-      README.txt
-      participants.csv          — Research-level enrollment list
-      studies/
-        <study_slug>/
-          00_participants.csv   — Step-completions per participant
-          01_survey_responses.csv
-          02_task_submissions.csv
-          03_step_timings.csv
-          04_tracking_events.csv
-          05_llm_interactions.csv
-          06_agent_choices.csv
-          bpmn/<ident>_<task>_sub<id>.xml
-    """
+    """Export all Research data as a ZIP with Excel workbooks per study."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
     from app.models.research import Research, ResearchParticipant
     from app.models.study import Study, StudyParticipant, StudyStepCompletion, AgentSwitchHistory
     from app.models.task import TaskSubmission
@@ -292,23 +278,24 @@ def research_export_zip(research_id: int):
     research = Research.query.get_or_404(research_id)
     anon = research.anonymize_export
 
-    def _csv_bytes(rows: list) -> bytes:
-        buf = io.StringIO()
-        w = csv.writer(buf, quoting=csv.QUOTE_ALL)
-        for r in rows:
-            w.writerow(r)
-        return buf.getvalue().encode('utf-8-sig')
-
     def _sanitize(val) -> str:
         if val is None:
             return ''
-        return str(val).replace('\r\n', '\\n').replace('\r', '\\n').replace('\n', '\\n')
+        return str(val).replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
 
     def _slug(text: str, max_len: int = 30) -> str:
         import re
         s = re.sub(r'[^\w\s-]', '', text.lower())
         s = re.sub(r'[\s_-]+', '_', s).strip('_')
         return s[:max_len] or 'study'
+
+    def _ws_header(ws, headers):
+        ws.append(headers)
+        hdr_fill = PatternFill('solid', fgColor='BDD7EE')
+        bold = Font(bold=True)
+        for cell in ws[1]:
+            cell.font = bold
+            cell.fill = hdr_fill
 
     # ── Research-level participants ───────────────────────────────────────────
     rp_all = (ResearchParticipant.query
@@ -319,12 +306,21 @@ def research_export_zip(research_id: int):
     def _rident(rp):
         return f'P{rp.id:04d}' if anon else (rp.user.username if rp.user else str(rp.user_id))
 
+    # Build user_id → rident lookup
+    rident_map = {rp.user_id: _rident(rp) for rp in rp_all}
+
+    # Top-level workbook with participants + enrollment survey
+    top_wb = Workbook()
+    top_wb.remove(top_wb.active)
+
+    # Participants sheet
+    ws_rp = top_wb.create_sheet('Participants')
     rp_header = ['participant_id', 'user_identifier']
     if not anon:
         rp_header += ['user_id', 'email']
     rp_header += ['condition', 'enrolled_at', 'consent_given_at',
                   'dropped_out', 'dropout_reason']
-    rp_rows = [rp_header]
+    _ws_header(ws_rp, rp_header)
     for rp in rp_all:
         row = [rp.id, _rident(rp)]
         if not anon:
@@ -336,39 +332,48 @@ def research_export_zip(research_id: int):
             'yes' if rp.is_dropped_out else 'no',
             rp.dropout_reason or '',
         ]
-        rp_rows.append(row)
+        ws_rp.append(row)
+
+    # Research enrollment survey (if configured)
+    if research.enrollment_survey_id:
+        enroll_srv = db.session.get(SurveyModel, research.enrollment_survey_id)
+        if enroll_srv:
+            ws_es = top_wb.create_sheet('Enrollment_Survey')
+            enroll_qs = []
+            for page in enroll_srv.pages:
+                for q in page.questions:
+                    if q.question_type != 'info':
+                        enroll_qs.append(q)
+            es_header = ['participant_id', 'user_identifier', 'condition',
+                         'response_id', 'completed_at']
+            for q in enroll_qs:
+                es_header.append(f'q{q.id}_{q.label[:40].replace(chr(10), " ")}')
+            _ws_header(ws_es, es_header)
+            for rp in rp_all:
+                resp = SurveyResponse.query.filter_by(
+                    survey_id=research.enrollment_survey_id,
+                    user_id=rp.user_id,
+                ).filter(SurveyResponse.completed_at.isnot(None)).order_by(
+                    SurveyResponse.id.desc()
+                ).first()
+                row = [rp.id, _rident(rp),
+                       rp.condition.name if rp.condition else '',
+                       resp.id if resp else '',
+                       resp.completed_at.isoformat() if (resp and resp.completed_at) else '']
+                answers = resp.answers if resp else {}
+                for q in enroll_qs:
+                    row.append(answers.get(str(q.id), ''))
+                ws_es.append(row)
 
     # ── Per-study data ────────────────────────────────────────────────────────
     zip_buf = io.BytesIO()
     ts = datetime.now().strftime('%Y%m%d_%H%M')
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Top-level README
-        study_lines = '\n'.join(
-            f'  studies/{_slug(s.title)}/' for s in research.studies
-        )
-        readme = (
-            f"BPM-Tutor Research Export\n"
-            f"Research: {research.title} (ID {research_id})\n"
-            f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')} UTC\n"
-            f"Anonymized: {'yes' if anon else 'no'}\n\n"
-            f"Top-level files:\n"
-            f"  participants.csv    — Research enrollment list\n\n"
-            f"Per-study folders (studies/<slug>/):\n"
-            f"  00_participants.csv   — Step-completion progress\n"
-            f"  01_survey_responses.csv\n"
-            f"  02_task_submissions.csv\n"
-            f"  03_step_timings.csv\n"
-            f"  04_tracking_events.csv\n"
-            f"  05_llm_interactions.csv\n"
-            f"  06_agent_choices.csv\n"
-            f"  bpmn/               — Raw BPMN XML per submission\n\n"
-            f"Studies in this export:\n{study_lines}\n"
-        ).encode('utf-8')
-        zf.writestr('README.txt', readme)
-        zf.writestr('participants.csv', _csv_bytes(rp_rows))
-
-        # Build user_id → rident lookup from Research participants
-        rident_map = {rp.user_id: _rident(rp) for rp in rp_all}
+        # Save top-level workbook
+        top_buf = io.BytesIO()
+        top_wb.save(top_buf)
+        top_buf.seek(0)
+        zf.writestr('research_participants.xlsx', top_buf.read())
 
         for study in sorted(research.studies, key=lambda s: (s.created_at or datetime.min)):
             if study.is_archived:
@@ -381,7 +386,6 @@ def research_export_zip(research_id: int):
                             .all())
 
             def _ident(sp):
-                # Prefer Research participant identifier for consistency
                 rid = rident_map.get(sp.user_id)
                 if rid:
                     return rid
@@ -389,41 +393,52 @@ def research_export_zip(research_id: int):
                     return f'P{sp.id:04d}'
                 return sp.user.username if sp.user else str(sp.user_id)
 
-            # 00 step-completion progress
-            p_header = ['participant_id', 'study', 'enrolled_at', 'completed_at',
-                        'dropped_out', 'current_step', 'progress_pct']
-            p_rows = [p_header]
+            wb = Workbook()
+            wb.remove(wb.active)
+
+            # Sheet: Participants / progress
+            ws_p = wb.create_sheet('Participants')
+            _ws_header(ws_p, ['participant_id', 'study', 'enrolled_at', 'completed_at',
+                               'dropped_out', 'current_step', 'progress_pct'])
             for sp in participants:
-                p_rows.append([
+                ws_p.append([
                     _ident(sp), study.title,
                     sp.enrolled_at.isoformat() if sp.enrolled_at else '',
                     sp.completed_at.isoformat() if sp.completed_at else '',
                     'yes' if sp.is_dropped_out else 'no',
-                    sp.current_step,
-                    sp.progress_pct,
+                    sp.current_step, sp.progress_pct,
                 ])
-            zf.writestr(prefix + '00_participants.csv', _csv_bytes(p_rows))
 
-            # 03 step timings
-            t_header = ['participant_id', 'step_number', 'step_label', 'step_type',
-                        'started_at', 'completed_at', 'time_spent_seconds', 'is_late']
-            t_rows = [t_header]
-            for sp in participants:
-                for step in study.steps:
-                    comp = StudyStepCompletion.query.filter_by(
-                        participant_id=sp.id, step_id=step.id).first()
-                    if comp:
-                        t_rows.append([
-                            _ident(sp),
-                            step.step_order + 1, step.display_label, step.step_type,
-                            comp.started_at.isoformat() if comp.started_at else '',
-                            comp.completed_at.isoformat() if comp.completed_at else '',
-                            comp.time_spent_seconds or '',
-                            'yes' if comp.is_late else 'no',
-                        ])
-            zf.writestr(prefix + '03_step_timings.csv', _csv_bytes(t_rows))
+            # Sheet: Enrollment Survey (study-level if different from research-level)
+            if study.enrollment_survey_id and study.enrollment_survey_id != getattr(research, 'enrollment_survey_id', None):
+                srv_enroll = db.session.get(SurveyModel, study.enrollment_survey_id)
+                if srv_enroll:
+                    ws_se = wb.create_sheet('Study_Enrollment_Survey')
+                    se_qs = []
+                    for page in srv_enroll.pages:
+                        for q in page.questions:
+                            if q.question_type != 'info':
+                                se_qs.append(q)
+                    se_header = ['participant_id', 'response_id', 'completed_at']
+                    for q in se_qs:
+                        se_header.append(f'q{q.id}_{q.label[:40].replace(chr(10), " ")}')
+                    _ws_header(ws_se, se_header)
+                    for sp in participants:
+                        resp = SurveyResponse.query.filter_by(
+                            survey_id=study.enrollment_survey_id,
+                            user_id=sp.user_id,
+                        ).filter(SurveyResponse.completed_at.isnot(None)).order_by(
+                            SurveyResponse.id.desc()
+                        ).first()
+                        row = [_ident(sp),
+                               resp.id if resp else '',
+                               resp.completed_at.isoformat() if (resp and resp.completed_at) else '']
+                        answers = resp.answers if resp else {}
+                        for q in se_qs:
+                            row.append(answers.get(str(q.id), ''))
+                        ws_se.append(row)
 
-            # 01 survey responses
+            # Sheet: Survey Responses (step-based)
             step_surveys = []
             all_questions = []
             for step in study.steps:
@@ -441,6 +456,7 @@ def research_export_zip(research_id: int):
                         all_questions.append((step.id, srv.id, safe_name,
                                               step.step_order + 1, q.id,
                                               q.label[:60].replace('\n', ' ')))
+            ws_sr = wb.create_sheet('Survey_Responses')
             sr_header = ['participant_id', 'condition']
             q_cols = []
             emitted_step_meta = set()
@@ -452,7 +468,7 @@ def research_export_zip(research_id: int):
                 col_name = f's{step_num}_{srv_name}_{q_id}_{q_label[:30]}'.replace(',', ';').replace('\n', ' ')
                 sr_header.append(col_name)
                 q_cols.append((step_id, srv_id, q_id))
-            sr_rows = [sr_header]
+            _ws_header(ws_sr, sr_header)
             for sp in participants:
                 row = [_ident(sp), sp.condition.name if sp.condition else '']
                 responses_by_step = {}
@@ -476,16 +492,16 @@ def research_export_zip(research_id: int):
                         emitted_meta.add(step_key)
                     answers = responses_by_step.get(step_key)
                     row.append((answers.answers if answers else {}).get(str(q_id), ''))
-                sr_rows.append(row)
-            zf.writestr(prefix + '01_survey_responses.csv', _csv_bytes(sr_rows))
+                ws_sr.append(row)
 
-            # 02 task submissions
+            # Sheet: Task Submissions
+            ws_sub = wb.create_sheet('Task_Submissions')
             sub_header = ['participant_id', 'condition', 'task_id', 'task_title',
                           'step_number', 'agent_id', 'agent_name',
                           'started_at', 'completed_at', 'time_spent_seconds',
                           'interactions', 'tokens_in', 'tokens_out',
                           'grade_value', 'grade_passed', 'grade_comment', 'submission_id']
-            sub_rows = [sub_header]
+            _ws_header(ws_sub, sub_header)
             task_step_map = {s.task_id: s for s in study.steps if s.step_type == 'task' and s.task_id}
             for sp in participants:
                 subs = TaskSubmission.query.filter_by(study_id=study.id, user_id=sp.user_id).all()
@@ -494,7 +510,7 @@ def research_export_zip(research_id: int):
                     dur = ''
                     if sub.started_at and sub.completed_at:
                         dur = int((sub.completed_at - sub.started_at).total_seconds())
-                    sub_rows.append([
+                    ws_sub.append([
                         _ident(sp), sp.condition.name if sp.condition else '',
                         sub.task_id, sub.task.title if sub.task else sub.task_id,
                         (step.step_order + 1) if step else '',
@@ -505,14 +521,31 @@ def research_export_zip(research_id: int):
                         sub.tokens_in or 0, sub.tokens_out or 0,
                         sub.grade_value if sub.grade_value is not None else '',
                         'pass' if sub.grade_passed else ('fail' if sub.grade_passed is False else ''),
-                        sub.grade_comment or '', sub.id,
+                        _sanitize(sub.grade_comment or ''), sub.id,
                     ])
-            zf.writestr(prefix + '02_task_submissions.csv', _csv_bytes(sub_rows))
 
-            # 04 tracking events
-            tr_header = ['participant_id', 'task_id', 'submission_id',
-                         'session_start', 'batch_seq', 'event_count', 'events_json']
-            tr_rows = [tr_header]
+            # Sheet: Step Timings
+            ws_t = wb.create_sheet('Step_Timings')
+            _ws_header(ws_t, ['participant_id', 'step_number', 'step_label', 'step_type',
+                               'started_at', 'completed_at', 'time_spent_seconds', 'is_late'])
+            for sp in participants:
+                for step in study.steps:
+                    comp = StudyStepCompletion.query.filter_by(
+                        participant_id=sp.id, step_id=step.id).first()
+                    if comp:
+                        ws_t.append([
+                            _ident(sp),
+                            step.step_order + 1, step.display_label, step.step_type,
+                            comp.started_at.isoformat() if comp.started_at else '',
+                            comp.completed_at.isoformat() if comp.completed_at else '',
+                            comp.time_spent_seconds or '',
+                            'yes' if comp.is_late else 'no',
+                        ])
+
+            # Sheet: Tracking Events (raw batches)
+            ws_tr = wb.create_sheet('Tracking_Events')
+            _ws_header(ws_tr, ['participant_id', 'task_id', 'submission_id',
+                                'session_start', 'batch_seq', 'event_count', 'events_json'])
             for sp in participants:
                 trackings = (TaskSessionTracking.query
                              .filter_by(study_id=study.id, user_id=sp.user_id)
@@ -524,18 +557,60 @@ def research_export_zip(research_id: int):
                         ev_count = len(evts) if isinstance(evts, list) else 0
                     except Exception:
                         ev_count = 0
-                    tr_rows.append([
+                    ws_tr.append([
                         _ident(sp), tr.task_id, tr.submission_id or '',
-                        tr.session_start or '', tr.batch_seq, ev_count,
+                        str(tr.session_start or ''), tr.batch_seq, ev_count,
                         tr.events_data or '[]',
                     ])
-            zf.writestr(prefix + '04_tracking_events.csv', _csv_bytes(tr_rows))
 
-            # 05 LLM interactions
-            llm_header = ['participant_id', 'task_id', 'submission_id',
-                          'call_index', 'timestamp', 'phase_label',
-                          'message_count', 'system_prompt', 'full_messages_json', 'response']
-            llm_rows = [llm_header]
+            # Sheet: BPMN Element Events (flattened)
+            _BPMN_ETYPES = {'bpmn_add', 'bpmn_remove', 'bpmn_connect',
+                            'bpmn_disconnect', 'bpmn_rename', 'bpmn_move'}
+            ws_bpmn = wb.create_sheet('BPMN_Element_Events')
+            _ws_header(ws_bpmn, [
+                'participant_id', 'task_id', 'timestamp', 'event_type', 'source',
+                'element_id', 'element_type', 'element_name',
+                'source_element_id', 'source_element_name',
+                'target_element_id', 'target_element_name',
+                'x', 'y',
+            ])
+            for sp in participants:
+                trackings = (TaskSessionTracking.query
+                             .filter_by(study_id=study.id, user_id=sp.user_id)
+                             .order_by(TaskSessionTracking.task_id, TaskSessionTracking.batch_seq)
+                             .all())
+                for tr in trackings:
+                    try:
+                        evts = json.loads(tr.events_data) if tr.events_data else []
+                    except Exception:
+                        evts = []
+                    for ev in evts:
+                        if not isinstance(ev, dict):
+                            continue
+                        if ev.get('type') not in _BPMN_ETYPES:
+                            continue
+                        ws_bpmn.append([
+                            _ident(sp),
+                            tr.task_id,
+                            ev.get('ts', ''),
+                            ev.get('type', ''),
+                            ev.get('source', ''),
+                            ev.get('element_id', ''),
+                            ev.get('element_type', ''),
+                            ev.get('element_name', ''),
+                            ev.get('source_element_id', ''),
+                            ev.get('source_element_name', ''),
+                            ev.get('target_element_id', ''),
+                            ev.get('target_element_name', ''),
+                            ev.get('x', ''),
+                            ev.get('y', ''),
+                        ])
+
+            # Sheet: LLM Interactions
+            ws_llm = wb.create_sheet('LLM_Interactions')
+            _ws_header(ws_llm, ['participant_id', 'task_id', 'submission_id',
+                                 'call_index', 'timestamp', 'phase_label',
+                                 'message_count', 'system_prompt', 'full_messages_json', 'response'])
             for sp in participants:
                 subs = TaskSubmission.query.filter_by(study_id=study.id, user_id=sp.user_id).all()
                 for sub in subs:
@@ -550,7 +625,7 @@ def research_export_zip(research_id: int):
                     for idx, call in enumerate(calls):
                         messages = call.get('messages', [])
                         sys_prompt = next((m.get('content', '') for m in messages if m.get('role') == 'system'), '')
-                        llm_rows.append([
+                        ws_llm.append([
                             _ident(sp), sub.task_id, sub.id,
                             idx + 1, call.get('ts', ''), call.get('label', ''),
                             len(messages),
@@ -558,26 +633,30 @@ def research_export_zip(research_id: int):
                             _sanitize(json.dumps(messages, ensure_ascii=False)),
                             _sanitize(call.get('response', '')),
                         ])
-            zf.writestr(prefix + '05_llm_interactions.csv', _csv_bytes(llm_rows))
 
-            # 06 agent choices
-            ac_header = ['participant_id', 'wave_number', 'step_label',
-                         'chosen_agent_id', 'chosen_agent_name', 'chosen_at']
-            ac_rows = [ac_header]
+            # Sheet: Agent Choices
+            ws_ac = wb.create_sheet('Agent_Choices')
+            _ws_header(ws_ac, ['participant_id', 'wave_number', 'step_label',
+                                'chosen_agent_id', 'chosen_agent_name', 'chosen_at'])
             for sp in participants:
                 switches = (AgentSwitchHistory.query
                             .filter_by(participant_id=sp.id)
                             .order_by(AgentSwitchHistory.chosen_at)
                             .all())
                 for sw in switches:
-                    ac_rows.append([
+                    ws_ac.append([
                         _ident(sp), sw.wave_number,
                         sw.step.display_label if sw.step else '',
                         sw.agent_id or '',
                         sw.agent.name if sw.agent else '',
                         sw.chosen_at.isoformat() if sw.chosen_at else '',
                     ])
-            zf.writestr(prefix + '06_agent_choices.csv', _csv_bytes(ac_rows))
+
+            # Save study workbook to ZIP
+            wb_buf = io.BytesIO()
+            wb.save(wb_buf)
+            wb_buf.seek(0)
+            zf.writestr(prefix + f'{slug}_data.xlsx', wb_buf.read())
 
             # BPMN files
             for sp in participants:

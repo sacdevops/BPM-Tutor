@@ -69,10 +69,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modeler) {
             const eventBus = modeler.get('eventBus');
             eventBus.on('commandStack.changed', () => {
-                if (currentIssues.length > 0) {
-                    clearIssues();
-                }
                 _bpmnDirty = true;
+            });
+            // Clear issue markers only for elements that are actually removed
+            eventBus.on('shape.remove', (event) => {
+                if (event.element && event.element.id) {
+                    clearIssueForElement(event.element.id);
+                }
+            });
+            eventBus.on('connection.remove', (event) => {
+                if (event.element && event.element.id) {
+                    clearIssueForElement(event.element.id);
+                }
+            });
+            // Clear marker when a label/property is edited on a specific element
+            eventBus.on('commandStack.executed', (event) => {
+                const cmd = event.command;
+                const ctx = event.context || {};
+                const el = ctx.shape || ctx.connection || ctx.element;
+                const elId = el && el.id;
+                if (elId && (cmd === 'label.edit' || cmd === 'element.updateLabel')) {
+                    clearIssueForElement(elId);
+                }
             });
         }
     }, MODELER_INIT_DELAY_MS);
@@ -150,25 +168,111 @@ function _initTracking(cfg) {
         }
     }
 
-    // ── BPMN events (shape.added / removed / moved) ──────────────────────────
+    // ── BPMN events ──────────────────────────────────────────────────────────
+    // Listeners are registered after a short delay to ensure the modeler is
+    // fully initialised.  All events check window._aiIsModeling (set by
+    // bpmn.js while executeBpmnOps runs) to stamp source = 'ai' or 'user'.
     setTimeout(() => {
         if (!modeler) return;
         const eventBus = modeler.get('eventBus');
+
+        // Helper: current source (ai when bpmn.js is modeling, otherwise user)
+        const _src = () => window._aiIsModeling ? 'ai' : 'user';
+
+        // Helper: element display name from businessObject
+        const _name = (el) =>
+            (el && el.businessObject && el.businessObject.name) || '';
+
+        // ── Shape added (task, gateway, event, pool, lane, …) ────────────
         if (allowed.has('bpmn_add')) {
             eventBus.on('shape.added', (event) => {
-                push('bpmn_add', { element_id: event.element.id, type: event.element.type, source: 'user' });
+                const el = event.element;
+                if (!el || el.type === 'label') return; // skip internal label shapes
+                push('bpmn_add', {
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: _name(el),
+                    x: el.x,
+                    y: el.y,
+                    source: _src(),
+                });
             });
         }
+
+        // ── Connection added (SequenceFlow, MessageFlow) ──────────────────
+        if (allowed.has('bpmn_connect')) {
+            eventBus.on('connection.added', (event) => {
+                const el = event.element;
+                push('bpmn_connect', {
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: _name(el),
+                    source_element_id: el.source ? el.source.id : '',
+                    source_element_type: el.source ? el.source.type : '',
+                    source_element_name: el.source ? _name(el.source) : '',
+                    target_element_id: el.target ? el.target.id : '',
+                    target_element_type: el.target ? el.target.type : '',
+                    target_element_name: el.target ? _name(el.target) : '',
+                    source: _src(),
+                });
+            });
+        }
+
+        // ── Shape removed ────────────────────────────────────────────────
         if (allowed.has('bpmn_remove')) {
             eventBus.on('shape.removed', (event) => {
-                push('bpmn_remove', { element_id: event.element.id, type: event.element.type, source: 'user' });
+                const el = event.element;
+                if (!el || el.type === 'label') return;
+                push('bpmn_remove', {
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: _name(el),
+                    source: _src(),
+                });
             });
         }
+
+        // ── Connection removed ────────────────────────────────────────────
+        if (allowed.has('bpmn_disconnect')) {
+            eventBus.on('connection.removed', (event) => {
+                const el = event.element;
+                push('bpmn_disconnect', {
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: _name(el),
+                    source_element_id: el.source ? el.source.id : '',
+                    target_element_id: el.target ? el.target.id : '',
+                    source: _src(),
+                });
+            });
+        }
+
+        // ── Shape moved ──────────────────────────────────────────────────
         if (allowed.has('bpmn_move')) {
             eventBus.on('shape.move.end', (event) => {
+                const el = event.shape;
+                if (!el || el.type === 'label') return;
                 push('bpmn_move', {
-                    element_id: event.shape.id, type: event.shape.type,
-                    x: event.shape.x, y: event.shape.y, source: 'user'
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: _name(el),
+                    x: el.x,
+                    y: el.y,
+                    source: _src(),
+                });
+            });
+        }
+
+        // ── Element label renamed ────────────────────────────────────────
+        if (allowed.has('bpmn_rename')) {
+            eventBus.on('commandStack.element.updateLabel.executed', (event) => {
+                const el = event.context && event.context.element;
+                if (!el || el.type === 'label') return;
+                push('bpmn_rename', {
+                    element_id: el.id,
+                    element_type: el.type,
+                    element_name: (el.businessObject && el.businessObject.name) || '',
+                    source: _src(),
                 });
             });
         }

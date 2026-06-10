@@ -109,8 +109,13 @@ function getBPMNXML() {
  *
  * draw.connectTo[] is auto-expanded to separate connect ops executed after all shapes are placed.
  */
+// Set to true while AI is executing modeling operations so eventBus listeners
+// in task.js can distinguish AI-sourced events from user-sourced events.
+window._aiIsModeling = false;
+
 function executeBpmnOps(ops) {
     if (!modeler || !ops) return;
+    window._aiIsModeling = true;
 
     // ── Normalise grouped-object format → flat array ───────────────────────
     // Supports both formats:
@@ -387,9 +392,14 @@ function executeBpmnOps(ops) {
                     const src = elementRegistry.get(String(op.source || ''));
                     const tgt = elementRegistry.get(String(op.target || ''));
                     if (src && tgt) {
+                        if ((src.outgoing || []).some(c => c.target === tgt)) {
+                            console.warn('[AI] Skipping duplicate connection:', src.id, '->', tgt.id);
+                            return;
+                        }
                         const conn = modeling.connect(src, tgt);
                         if (op.id)              modeling.updateProperties(conn, { id: op.id });
                         if (op.name || op.label) modeling.updateLabel(conn, op.name || op.label);
+                        try { if (typeof trackEvent === 'function') trackEvent('ai_action', { op: 'connect', source_id: src.id, target_id: tgt.id }); } catch (_) {}
                     }
                     return;
                 }
@@ -415,6 +425,7 @@ function executeBpmnOps(ops) {
                 if (op.name || op.label) modeling.updateLabel(created, op.name || op.label);
                 if (op.id)              modeling.updateProperties(created, { id: op.id });
                 console.log('[AI] Drew:', drawType, eventDefinitionType || '', op.id || created.id, 'in', op.parentId || 'root');
+                try { if (typeof trackEvent === 'function') trackEvent('ai_action', { op: 'draw', type: drawType, element_id: op.id || created.id, label: op.name || op.label || '' }); } catch (_) {}
                 return;
             }
 
@@ -423,6 +434,7 @@ function executeBpmnOps(ops) {
                 const el = elementRegistry.get(String(op.id || ''));
                 if (el && (op.name !== undefined || op.label !== undefined)) {
                     modeling.updateLabel(el, op.name !== undefined ? op.name : op.label);
+                    try { if (typeof trackEvent === 'function') trackEvent('ai_action', { op: 'rename', element_id: String(op.id || ''), label: op.name !== undefined ? String(op.name) : String(op.label || '') }); } catch (_) {}
                 }
                 return;
             }
@@ -444,6 +456,7 @@ function executeBpmnOps(ops) {
                 if (el) {
                     if (el.waypoints) modeling.removeConnection(el);
                     else              modeling.removeShape(el);
+                    try { if (typeof trackEvent === 'function') trackEvent('ai_action', { op: 'delete', element_id: String(op.id || ''), type: el.type }); } catch (_) {}
                 }
                 return;
             }
@@ -453,9 +466,14 @@ function executeBpmnOps(ops) {
                 const src = elementRegistry.get(String(op.source || ''));
                 const tgt = elementRegistry.get(String(op.target || ''));
                 if (src && tgt) {
+                    if ((src.outgoing || []).some(c => c.target === tgt)) {
+                        console.warn('[AI] Skipping duplicate connection:', op.source, '->', op.target);
+                        return;
+                    }
                     const conn = modeling.connect(src, tgt);
                     if (op.id)              modeling.updateProperties(conn, { id: op.id });
                     if (op.name || op.label) modeling.updateLabel(conn, op.name || op.label);
+                    try { if (typeof trackEvent === 'function') trackEvent('ai_action', { op: 'connect', source_id: src.id, target_id: tgt.id }); } catch (_) {}
                 } else {
                     console.warn('[AI] connect: element not found —',
                         op.source, '->', op.target);
@@ -496,13 +514,6 @@ function executeBpmnOps(ops) {
         } catch (err) {
             console.warn('[AI Modeling] op failed:', op, err);
         }
-
-        // Emit ai_action tracking event (best-effort — trackEvent is defined in task.js)
-        try {
-            if (typeof trackEvent === 'function') {
-                trackEvent('ai_action', { op: op.op, id: op.id || '', label: op.name || op.label || '' });
-            }
-        } catch (_) {}
     }
 
     // ── Expand connectTo, split into immediate (shapes) and deferred ──────
@@ -521,9 +532,17 @@ function executeBpmnOps(ops) {
             o.op !== 'participate' && o.op !== 'draw' && o.op !== 'create');
         for (const op of shapeOps) execOne(op);
         if (afterOps.length) {
+            const lastIdx = afterOps.length - 1;
             afterOps.forEach((op, i) => {
-                setTimeout(() => execOne(op), 300 + i * 150);
+                setTimeout(() => {
+                    execOne(op);
+                    if (i === lastIdx) {
+                        setTimeout(() => { window._aiIsModeling = false; }, 150);
+                    }
+                }, 300 + i * 150);
             });
+        } else {
+            setTimeout(() => { window._aiIsModeling = false; }, 150);
         }
         return;
     }
@@ -572,8 +591,11 @@ function executeBpmnOps(ops) {
         delay += ACTION_INTERVAL;
     });
 
-    // Hide cursor after all ops complete
-    setTimeout(() => aiCursorEl.classList.remove('active'), delay + 1000);
+    // Hide cursor and clear AI flag after all ops complete
+    setTimeout(() => {
+        aiCursorEl.classList.remove('active');
+        window._aiIsModeling = false;
+    }, delay + 1000);
 }
 
 // ── Animate AI cursor to a BPMN canvas position ───────────────────────────────
@@ -935,6 +957,30 @@ function clearIssues() {
 
     const summary = document.getElementById('issueSummary');
     if (summary) summary.remove();
+}
+
+function clearIssueForElement(elementId) {
+    if (modeler) {
+        try {
+            const overlays = modeler.get('overlays');
+            issueOverlays = issueOverlays.filter(overlay => {
+                if (overlay.elementId === elementId) {
+                    try { overlays.remove(overlay.id); } catch (e) {}
+                    return false;
+                }
+                return true;
+            });
+        } catch (e) {}
+    }
+    currentIssues = currentIssues.filter(issue => issue.elementId !== elementId);
+    if (currentIssues.length === 0) {
+        closeIssueDetailPopup();
+        hideIssueHoverTooltip();
+        const summary = document.getElementById('issueSummary');
+        if (summary) summary.remove();
+    } else {
+        createIssueSummary(currentIssues);
+    }
 }
 
 function highlightElement(elementId) {

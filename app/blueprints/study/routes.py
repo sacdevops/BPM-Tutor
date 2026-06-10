@@ -420,6 +420,17 @@ def step_done(study_id: int):
                                         survey_id=step.survey_id,
                                         step_id=step.id,
                                         next=_next))
+        if step.step_type == 'task' and step.task_id:
+            from app.models.task import TaskSubmission as _TS
+            _task_done = _TS.query.filter_by(
+                task_id=step.task_id,
+                user_id=current_user.id,
+                study_id=study_id,
+            ).filter(_TS.completed_at.isnot(None)).first()
+            if not _task_done:
+                return redirect(url_for('study.task_step',
+                                        study_id=study_id,
+                                        task_id=step.task_id))
         _record_step_done(participant, step, study)
 
     participant.current_step += 1

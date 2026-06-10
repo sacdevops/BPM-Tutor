@@ -322,8 +322,10 @@ def register_handlers(socketio):
             emit('ai_typing', {'typing': False})
             from datetime import datetime, timezone as _tz
             _ts = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-            chat_history.append({'sender': 'ai', 'message': greeting, 'ts': _ts})
+            chat_history.append({'sender': 'ai', 'message': greeting, 'ts': _ts, 'phase': 'GREETING'})
             state['memory'].append({'role': 'assistant', 'content': greeting})
+            # Persist greeting immediately so it's visible in admin view even without further messages
+            persist_chat_log(session.get('submission_id'), chat_history)
             return
 
 
@@ -332,8 +334,16 @@ def register_handlers(socketio):
         if not is_completion_review:
             from datetime import datetime, timezone as _tz
             _ts_user = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-            chat_history.append({'sender': 'user', 'message': message, 'ts': _ts_user})
+            chat_history.append({'sender': 'user', 'message': message, 'ts': _ts_user, 'phase': 'REACTION'})
             state['memory'].append({'role': 'user', 'content': message})
+        else:
+            # Log the completion request as a visible system event so admins see it
+            from datetime import datetime, timezone as _tz
+            _ts_cr = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            _cr_text = ('Aufgabe abschließen (Completion angefragt)'
+                        if lang == 'de' else 'Complete task (completion requested)')
+            chat_history.append({'sender': 'system', 'message': _cr_text,
+                                 'ts': _ts_cr, 'phase': 'COMPLETION'})
 
         # Use a natural-language equivalent when the signal is a special internal signal
         _effective_message = message
@@ -374,7 +384,8 @@ def register_handlers(socketio):
                     from datetime import datetime, timezone as _tz
                     _ts_ai = datetime.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                     state['memory'].append({'role': 'assistant', 'content': resp_message})
-                    chat_history.append({'sender': 'ai', 'message': resp_message, 'ts': _ts_ai})
+                    chat_history.append({'sender': 'ai', 'message': resp_message,
+                                         'ts': _ts_ai, 'phase': resp_phase})
                     _loop_memory = list(state['memory'])
 
                 if issues:
@@ -484,7 +495,10 @@ def register_handlers(socketio):
 
             if message:
                 state['memory'].append({'role': 'assistant', 'content': message})
-                session['chat_history'].append({'sender': 'ai', 'message': message})
+                from datetime import datetime, timezone as _tz_a
+                _ts_a = datetime.now(_tz_a.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                session['chat_history'].append({'sender': 'ai', 'message': message,
+                                                'ts': _ts_a, 'phase': 'ANALYSIS'})
 
             state['last_issues'] = issues
 

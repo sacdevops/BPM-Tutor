@@ -161,14 +161,21 @@
     <div class="card shadow-sm mb-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h6 class="mb-0"><i class="bi bi-diagram-3"></i> {{ _t('admin.grading_bpmn_diagram', 'BPMN Diagram with Annotations') }}</h6>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+          <!-- Zoom controls (same design as task page) -->
+          <div class="d-flex align-items-center gap-1">
+            <button class="btn btn-sm btn-outline-secondary px-2 py-0" id="gradingZoomOutBtn" onclick="gradingZoomOut()" title="Zoom Out">&#8722;</button>
+            <span class="small text-muted" id="gradingZoomLevel" style="min-width:44px;text-align:center">100%</span>
+            <button class="btn btn-sm btn-outline-secondary px-2 py-0" id="gradingZoomInBtn" onclick="gradingZoomIn()" title="Zoom In">+</button>
+            <button class="btn btn-sm btn-outline-secondary px-2 py-0" onclick="gradingFitViewport()" title="Fit to viewport"><i class="bi bi-fullscreen"></i></button>
+          </div>
           <button class="btn btn-sm btn-outline-secondary" onclick="toggleAnnotationMode()">
             <i class="bi bi-pencil me-1"></i><span id="annotModeLabel">{{ _t('admin.grading_annot_add', 'Add annotation') }}</span>
           </button>
         </div>
       </div>
       <div class="card-body p-0" style="position:relative">
-        <div id="bpmn-preview" style="height:400px; background:#f8f8f8"></div>
+        <div id="bpmn-preview" style="height:480px; background:#f8f8f8; cursor:grab"></div>
         <!-- Annotation overlay panel -->
         <div id="annotPanel" class="card" style="display:none; position:absolute; top:8px; right:8px; width:280px; z-index:100;">
           <div class="card-header small fw-semibold py-2">{{ _t('admin.grading_annot_header', 'Annotation') }}</div>
@@ -203,6 +210,16 @@
         <div class="chat-log-viewer" style="max-height:480px;overflow-y:auto;padding:1rem">
           {% for msg in submission.chat_history %}
           {% set sender = msg.get('sender', msg.get('role', '?')) %}
+          {% set phase = msg.get('phase', '') %}
+          {% if sender == 'system' %}
+          {# Completion / system event — shown as a centered pill #}
+          <div class="text-center mb-3">
+            <span class="badge bg-warning text-dark px-3 py-1" style="font-size:.75rem">
+              <i class="bi bi-flag me-1"></i>{{ msg.get('message', '') }}
+              {% if msg.get('ts') %}<span class="ms-2 opacity-75">{{ msg.ts }}</span>{% endif %}
+            </span>
+          </div>
+          {% else %}
           <div class="d-flex gap-2 mb-3 {% if sender == 'user' %}flex-row-reverse{% endif %}">
             <div class="flex-shrink-0">
               <span class="badge {% if sender == 'ai' or sender == 'assistant' %}bg-success{% else %}bg-primary{% endif %}"
@@ -211,6 +228,11 @@
               </span>
             </div>
             <div style="max-width:82%">
+              {% if phase and phase not in ('REACTION', '') %}
+              <div class="mb-1">
+                <span class="badge bg-secondary" style="font-size:.65rem;opacity:.7">{{ phase }}</span>
+              </div>
+              {% endif %}
               <div class="p-2 rounded-3 {% if sender == 'ai' or sender == 'assistant' %}bg-light border{% else %}text-white{% endif %}"
                    style="{% if sender != 'ai' and sender != 'assistant' %}background:var(--brand-primary,#84BD00){% endif %};white-space:pre-wrap;font-size:.85rem;line-height:1.5">
                 {{ msg.get('message', msg.get('content', '')) }}
@@ -222,6 +244,7 @@
               {% endif %}
             </div>
           </div>
+          {% endif %}
           {% else %}
           <p class="text-muted">{{ _t('admin.grading_no_chat', 'No chat history available.') }}</p>
           {% endfor %}
@@ -394,11 +417,56 @@ try {
 let annotMode = false;
 let pendingElementId = null;
 
+// ── Zoom state ────────────────────────────────────────────────────────────────
+let _gradingZoom = 1.0;
+const _ZOOM_STEP = 0.15;
+const _MIN_ZOOM = 0.2;
+const _MAX_ZOOM = 4.0;
+
+function _updateGradingZoomUI() {
+  const pct = Math.round(_gradingZoom * 100);
+  const lvl = document.getElementById('gradingZoomLevel');
+  const zi = document.getElementById('gradingZoomInBtn');
+  const zo = document.getElementById('gradingZoomOutBtn');
+  if (lvl) lvl.textContent = pct + '%';
+  if (zi) zi.disabled = _gradingZoom >= _MAX_ZOOM;
+  if (zo) zo.disabled = _gradingZoom <= _MIN_ZOOM;
+}
+
+function gradingZoomIn() {
+  if (!bpmnViewer) return;
+  _gradingZoom = Math.min(_gradingZoom + _ZOOM_STEP, _MAX_ZOOM);
+  bpmnViewer.get('canvas').zoom(_gradingZoom, 'auto');
+  _updateGradingZoomUI();
+}
+
+function gradingZoomOut() {
+  if (!bpmnViewer) return;
+  _gradingZoom = Math.max(_gradingZoom - _ZOOM_STEP, _MIN_ZOOM);
+  bpmnViewer.get('canvas').zoom(_gradingZoom, 'auto');
+  _updateGradingZoomUI();
+}
+
+function gradingFitViewport() {
+  if (!bpmnViewer) return;
+  bpmnViewer.get('canvas').zoom('fit-viewport');
+  _gradingZoom = bpmnViewer.get('canvas').zoom();
+  _updateGradingZoomUI();
+}
+
 function initBpmnViewer() {
   if (typeof BpmnJS === 'undefined') return;
   bpmnViewer = new BpmnJS({ container: '#bpmn-preview' });
   bpmnViewer.importXML(BPMN_XML).then(() => {
+    bpmnViewer.get('canvas').zoom('fit-viewport');
+    _gradingZoom = bpmnViewer.get('canvas').zoom();
+    _updateGradingZoomUI();
     renderAnnotationOverlays();
+    // Update zoom level display when user scroll-zooms
+    bpmnViewer.get('eventBus').on('canvas.viewbox.changed', () => {
+      _gradingZoom = bpmnViewer.get('canvas').zoom();
+      _updateGradingZoomUI();
+    });
     bpmnViewer.get('eventBus').on('element.click', (event) => {
       if (!annotMode) return;
       const el = event.element;
@@ -474,10 +542,21 @@ function removeAnnotation(elementId) {
   renderAnnotationOverlays();
 }
 
-// Load bpmn-js from CDN then init
+// Load bpmn-js navigated viewer from CDN then init (supports pan + scroll-zoom)
 (function() {
-  const s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-viewer.production.min.js';
+  // First load the CSS assets
+  var cssFiles = [
+    'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/diagram-js.css',
+    'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-js.css',
+    'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/assets/bpmn-font/css/bpmn-embedded.css',
+  ];
+  cssFiles.forEach(function(href) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet'; link.href = href;
+    document.head.appendChild(link);
+  });
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/bpmn-js@17/dist/bpmn-navigated-viewer.production.min.js';
   s.onload = initBpmnViewer;
   document.head.appendChild(s);
 })();
