@@ -192,7 +192,7 @@
                 {% endif %}
               </td>
               <td>
-                <a href="{{ url_for('admin.grading_detail', sub_id=sub.id) }}"
+                <a href="{{ url_for('admin.grading_detail', sub_id=sub.id, back=request.url) }}"
                    class="btn btn-xs btn-outline-secondary">
                   <i class="bi bi-pencil-square"></i>
                 </a>

@@ -170,6 +170,30 @@ def study_index(study_id: int):
             return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
+    # For standalone studies with an enrollment survey, ensure it was completed before
+    # the participant can access any step.  Tie the check to the current enrollment
+    # (completed_at >= enrolled_at) to avoid false positives from prior test runs.
+    if not study.research_id and study.enrollment_survey_id:
+        from app.models.survey import SurveyResponse
+        _enrolled_at = (
+            participant.enrolled_at.replace(tzinfo=None)
+            if participant.enrolled_at and participant.enrolled_at.tzinfo
+            else participant.enrolled_at
+        )
+        _sf = [
+            SurveyResponse.user_id == current_user.id,
+            SurveyResponse.survey_id == study.enrollment_survey_id,
+            SurveyResponse.completed_at.isnot(None),
+        ]
+        if _enrolled_at:
+            _sf.append(SurveyResponse.completed_at >= _enrolled_at)
+        _enrollment_done = SurveyResponse.query.filter(*_sf).first()
+        if not _enrollment_done:
+            _next = url_for('study.study_index', study_id=study_id)
+            return redirect(url_for('survey_bp.take',
+                                    survey_id=study.enrollment_survey_id,
+                                    next=_next))
+
     step = study.get_step_for_participant(participant)
     if step is None:
         participant.completed_at = datetime.now(timezone.utc)
@@ -380,6 +404,22 @@ def step_done(study_id: int):
 
     step = study.get_step_for_participant(participant)
     if step:
+        # For survey steps, verify the survey was actually submitted before advancing.
+        # This prevents step advancement when the user navigates to /step-done directly
+        # or returns via browser history without completing the survey.
+        if step.step_type == 'survey' and step.survey_id:
+            from app.models.survey import SurveyResponse
+            _survey_done = SurveyResponse.query.filter_by(
+                user_id=current_user.id,
+                survey_id=step.survey_id,
+                step_id=step.id,
+            ).filter(SurveyResponse.completed_at.isnot(None)).first()
+            if not _survey_done:
+                _next = url_for('study.step_done', study_id=study_id)
+                return redirect(url_for('survey_bp.take',
+                                        survey_id=step.survey_id,
+                                        step_id=step.id,
+                                        next=_next))
         _record_step_done(participant, step, study)
 
     participant.current_step += 1
@@ -533,6 +573,30 @@ def research_home(research_id: int):
     elif rp and _auto_dropout_check(research, rp):
         flash('Du wurdest automatisch ausgeschlossen, da eine Studien-Frist versäumt wurde.', 'warning')
         # Don't redirect — fall through and show the page with the dropout status
+
+    # If this is a real (persisted) participant who hasn't completed the enrollment
+    # survey yet, send them back to it.  Transient admin-preview objects have id=None
+    # and are deliberately excluded so admins can still browse the research overview.
+    if rp and rp.id is not None and not rp.is_dropped_out and research.enrollment_survey_id:
+        from app.models.survey import SurveyResponse
+        # Strip tz-info for safe comparison — SQLite returns naive datetimes
+        _enrolled_at = (
+            rp.enrolled_at.replace(tzinfo=None)
+            if rp.enrolled_at and rp.enrolled_at.tzinfo else rp.enrolled_at
+        )
+        _sf = [
+            SurveyResponse.user_id == current_user.id,
+            SurveyResponse.survey_id == research.enrollment_survey_id,
+            SurveyResponse.completed_at.isnot(None),
+        ]
+        if _enrolled_at:
+            _sf.append(SurveyResponse.completed_at >= _enrolled_at)
+        _enrollment_done = SurveyResponse.query.filter(*_sf).first()
+        if not _enrollment_done:
+            _next = url_for('study.research_home', research_id=research_id)
+            return redirect(url_for('survey_bp.take',
+                                    survey_id=research.enrollment_survey_id,
+                                    next=_next))
 
     # Build study status list
     # Use naive local datetime to match how datetime-local inputs store times (no timezone)

@@ -3,12 +3,13 @@
 {% block page_title %}{{ _t('admin.grading_detail_heading', 'Grade Submission') }}{% endblock %}
 
 {% block topbar_actions %}
-<a href="{{ url_for('admin.grading_list') }}" class="btn btn-outline-secondary btn-sm">
-  <i class="bi bi-arrow-left"></i> {{ _t('admin.grading_back', 'Back to List') }}
+<a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left"></i> {{ _t('admin.grading_back', 'Back') }}
 </a>
 <form method="post" action="{{ url_for('admin.submission_delete', sub_id=submission.id) }}"
       class="d-inline ms-1" onsubmit="return confirm('{{ _t('admin.grading_delete_confirm', 'Really delete submission? This action cannot be undone.') }}')">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="back_url" value="{{ back_url }}">
   <button type="submit" class="btn btn-outline-danger btn-sm">
     <i class="bi bi-trash"></i> {{ _t('admin.grading_delete_btn', 'Delete Submission') }}
   </button>
@@ -98,6 +99,7 @@
       <div class="card-body">
         <form method="post" id="gradingForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="back_url" value="{{ back_url }}">
           <input type="hidden" name="grade_annotations" id="gradeAnnotationsInput"
             value="{{ submission.grade_annotations or '[]' }}">
 

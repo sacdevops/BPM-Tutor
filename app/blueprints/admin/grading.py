@@ -58,6 +58,27 @@ def grading_detail(sub_id: int):
     submission = TaskSubmission.query.get_or_404(sub_id)
     task = db.session.get(Task, submission.task_id)
 
+    # Determine where to return after save/delete.
+    # Priority: explicit ?back= param (GET) → hidden back field (POST) → referrer → grading list.
+    _safe_hosts = {'localhost', '127.0.0.1'}
+    def _is_local(url: str) -> bool:
+        from urllib.parse import urlparse
+        try:
+            p = urlparse(url)
+            return not p.netloc or p.netloc.split(':')[0] in _safe_hosts or p.scheme == ''
+        except Exception:
+            return False
+
+    if request.method == 'POST':
+        back_url = request.form.get('back_url', '').strip() or url_for('admin.grading_list')
+        if not _is_local(back_url):
+            back_url = url_for('admin.grading_list')
+    else:
+        back_url = request.args.get('back', '').strip()
+        if not back_url or not _is_local(back_url):
+            ref = request.referrer or ''
+            back_url = ref if _is_local(ref) and '/grading/' not in ref else url_for('admin.grading_list')
+
     if request.method == 'POST':
         grading_type = request.form.get('grading_type', 'none')
         comment = request.form.get('comment', '').strip()
@@ -128,7 +149,7 @@ def grading_detail(sub_id: int):
                 send_grade_notification_email(submission.user, task.title, grade_info)
 
         flash('Bewertung gespeichert.', 'success')
-        return redirect(url_for('admin.grading_list'))
+        return redirect(back_url)
 
     from app.models.task import TaskBPMNSnapshot
     snapshots = (TaskBPMNSnapshot.query
@@ -136,7 +157,8 @@ def grading_detail(sub_id: int):
                  .order_by(TaskBPMNSnapshot.created_at.desc())
                  .limit(20).all())
     return render_template('cms/admin/grading_detail.html',
-                           submission=submission, task=task, snapshots=snapshots)
+                           submission=submission, task=task, snapshots=snapshots,
+                           back_url=back_url)
 
 
 @admin_bp.route('/grading/<int:sub_id>/delete', methods=['POST'])
@@ -147,7 +169,16 @@ def submission_delete(sub_id: int):
     db.session.commit()
     log_action('delete_submission', 'TaskSubmission', sub_id, {})
     flash('Einreichung gelöscht.', 'success')
-    return redirect(url_for('admin.grading_list'))
+    back_url = request.form.get('back_url', '').strip() or url_for('admin.grading_list')
+    # Basic open-redirect guard: only allow relative URLs or same-host
+    from urllib.parse import urlparse
+    try:
+        _p = urlparse(back_url)
+        if _p.netloc and _p.netloc.split(':')[0] not in {'localhost', '127.0.0.1'}:
+            back_url = url_for('admin.grading_list')
+    except Exception:
+        back_url = url_for('admin.grading_list')
+    return redirect(back_url)
 
 
 # ── AI grading suggestion ─────────────────────────────────────────────────────
