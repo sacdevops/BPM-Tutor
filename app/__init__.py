@@ -182,7 +182,6 @@ def _init_extensions(app: Flask) -> None:
     from app.extensions import db, login_manager, mail, csrf
     db.init_app(app)
     login_manager.init_app(app)
-    mail.init_app(app)
     csrf.init_app(app)
 
     from app.models.user import User
@@ -194,23 +193,31 @@ def _init_extensions(app: Flask) -> None:
     with app.app_context():
         _create_tables_and_seed(app)
 
+    # Initialize Flask-Mail AFTER _create_tables_and_seed has applied DB mail
+    # settings into app.config via _apply_mail_settings.  Calling init_app here
+    # (outside the app-context block) ensures the final, DB-backed config is
+    # used even when the in-context call inside _apply_mail_settings fails.
+    mail.init_app(app)
 
-def _create_tables_and_seed(app: Flask) -> None:
+
+def _create_tables_and_seed(flask_app: Flask) -> None:
     # Import ALL models before db.create_all() so every table is registered
     # in db.metadata — otherwise tables added in newer code would be missed.
+    # NOTE: 'import app.models' would shadow the local 'flask_app' parameter if
+    # that parameter were named 'app', so we use 'flask_app' throughout.
     import app.models  # noqa: F401 — side-effect import registers all ORM classes
     from app.extensions import db
     db.create_all()
     _run_column_migrations(db)
     from app.models.settings import Settings
     Settings.ensure_defaults()
-    _apply_mail_settings(app)
+    _apply_mail_settings(flask_app)
     try:
         from app.utils.i18n_helper import seed_languages, warm_cache
         seed_languages()
         warm_cache()
     except Exception as exc:
-        app.logger.warning('[App] i18n seed failed: %s', exc)
+        flask_app.logger.warning('[App] i18n seed failed: %s', exc)
 
     try:
         from deploy.seed import step_tasks, step_admin, step_system_agents
@@ -218,7 +225,7 @@ def _create_tables_and_seed(app: Flask) -> None:
         step_admin()
         step_system_agents()
     except Exception as exc:
-        app.logger.warning('[App] Deployment seed failed: %s', exc)
+        flask_app.logger.warning('[App] Deployment seed failed: %s', exc)
 
 
 def _configure_rate_limiting(app: Flask) -> None:
@@ -286,47 +293,87 @@ def _configure_security(app: Flask) -> None:
 
 
 def _apply_mail_settings(app: Flask) -> None:
-    """Load SMTP settings: DB value takes precedence, env variable is fallback."""
-    from app.models.settings import Settings
+    """Load SMTP settings from DB into app.config (DB takes precedence over env).
 
-    def _db_or_env(db_key, env_key, default=''):
-        try:
-            val = Settings.get(db_key, '')
-            return val if val else os.environ.get(env_key, default)
-        except Exception:
-            return os.environ.get(env_key, default)
+    Each setting is read individually with a safe fallback so that a transient
+    DB error on one value never prevents the rest from being applied.
+    Flask-Mail is then (re-)initialized with the resulting config.
+    """
+    import logging
+    _log = logging.getLogger('bpmtutor')
 
     try:
-        server = _db_or_env(Settings.MAIL_SERVER, 'MAIL_SERVER')
-        if server:
-            app.config['MAIL_SERVER'] = server
-            app.config['MAIL_PORT'] = int(_db_or_env(Settings.MAIL_PORT, 'MAIL_PORT', 587) or 587)
-            enc = os.environ.get('MAIL_ENCRYPTION', '').lower()
-            use_tls = bool(Settings.get(Settings.MAIL_USE_TLS, ''))
-            use_ssl = bool(Settings.get(Settings.MAIL_USE_SSL, ''))
-            if enc == 'ssl':
-                use_tls, use_ssl = False, True
-            elif enc == 'starttls':
-                use_tls, use_ssl = True, False
-            elif enc == 'none':
-                use_tls, use_ssl = False, False
-            elif not Settings.get(Settings.MAIL_SERVER, ''):
-                use_tls = os.environ.get('MAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
-                use_ssl = os.environ.get('MAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes')
-            app.config['MAIL_USE_TLS'] = use_tls
-            app.config['MAIL_USE_SSL'] = use_ssl
-            app.config['MAIL_USERNAME'] = _db_or_env(Settings.MAIL_USERNAME, 'MAIL_USERNAME')
-            from app.utils.crypto import decrypt_value as _dec_pw
-            app.config['MAIL_PASSWORD'] = _dec_pw(_db_or_env(Settings.MAIL_PASSWORD, 'MAIL_PASSWORD'))
-            app.config['MAIL_DEFAULT_SENDER'] = _db_or_env(
-                Settings.MAIL_DEFAULT_SENDER, 'MAIL_DEFAULT_SENDER'
-            )
-            from app.extensions import mail
-            mail.init_app(app)
-            if not Settings.get(Settings.MAIL_SERVER, ''):
-                _persist_env_mail_settings(server, app.config)
-    except Exception:
-        pass
+        from app.models.settings import Settings
+    except Exception as exc:  # noqa: BLE001
+        _log.warning('[App] mail setup skipped — import error: %s', exc)
+        return
+
+    def _safe(key, fallback):
+        """Read one setting from DB; return *fallback* on any error."""
+        try:
+            v = Settings.get(key, fallback)
+            return v if v is not None else fallback
+        except Exception:  # noqa: BLE001
+            return fallback
+
+    def _db_or_env(db_key, env_key, default=''):
+        val = _safe(db_key, '')
+        return val if val else os.environ.get(env_key, default)
+
+    # Read every value independently so one failure never blocks the others.
+    server   = _db_or_env(Settings.MAIL_SERVER,         'MAIL_SERVER')
+    if not server:
+        return  # No mail server configured — nothing to apply.
+
+    try:
+        port = int(_db_or_env(Settings.MAIL_PORT, 'MAIL_PORT', 587) or 587)
+    except (ValueError, TypeError):
+        port = 587
+
+    enc     = os.environ.get('MAIL_ENCRYPTION', '').lower()
+    use_tls = bool(_safe(Settings.MAIL_USE_TLS, True))
+    use_ssl = bool(_safe(Settings.MAIL_USE_SSL, False))
+
+    if enc == 'ssl':
+        use_tls, use_ssl = False, True
+    elif enc == 'starttls':
+        use_tls, use_ssl = True, False
+    elif enc == 'none':
+        use_tls, use_ssl = False, False
+    elif not _safe(Settings.MAIL_SERVER, ''):  # server came from env, not DB
+        use_tls = os.environ.get('MAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
+        use_ssl = os.environ.get('MAIL_USE_SSL', 'false').lower() in ('1', 'true', 'yes')
+
+    username = _db_or_env(Settings.MAIL_USERNAME,        'MAIL_USERNAME')
+    sender   = _db_or_env(Settings.MAIL_DEFAULT_SENDER, 'MAIL_DEFAULT_SENDER')
+
+    try:
+        from app.utils.crypto import decrypt_value as _dec_pw
+        password = _dec_pw(_db_or_env(Settings.MAIL_PASSWORD, 'MAIL_PASSWORD'))
+    except Exception:  # noqa: BLE001
+        password = os.environ.get('MAIL_PASSWORD', '')
+
+    app.config['MAIL_SERVER']         = server
+    app.config['MAIL_PORT']           = port
+    app.config['MAIL_USE_TLS']        = use_tls
+    app.config['MAIL_USE_SSL']        = use_ssl
+    app.config['MAIL_USERNAME']       = username
+    app.config['MAIL_PASSWORD']       = password
+    app.config['MAIL_DEFAULT_SENDER'] = sender
+
+    try:
+        from app.extensions import mail
+        mail.init_app(app)
+        _log.info('[App] Mail settings applied from DB: server=%s port=%s tls=%s ssl=%s',
+                  server, port, use_tls, use_ssl)
+    except Exception as exc:  # noqa: BLE001
+        _log.warning('[App] Failed to (re-)initialize Flask-Mail: %s', exc)
+
+    if not _safe(Settings.MAIL_SERVER, ''):
+        try:
+            _persist_env_mail_settings(server, app.config)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _persist_env_mail_settings(server: str, cfg) -> None:
