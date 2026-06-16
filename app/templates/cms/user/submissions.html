@@ -1,6 +1,6 @@
 {% extends "cms/base.html" %}
-{% block title %}Meine Einreichungen{% endblock %}
-{% block page_title %}Meine Einreichungen{% endblock %}
+{% block title %}{{ _t('user.submissions_title', 'My Submissions') }}{% endblock %}
+{% block page_title %}{{ _t('user.submissions_title', 'My Submissions') }}{% endblock %}
 
 {% block content %}
 <div class="card shadow-sm">
@@ -8,13 +8,13 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Aufgabe</th>
-          <th>Begonnen</th>
-          <th>Abgeschlossen</th>
-          <th>Dauer</th>
-          <th>Interakt.</th>
-          <th>Bewertung</th>
-          <th>Feedback</th>
+          <th>{{ _t('user.submissions_col_task', 'Task') }}</th>
+          <th>{{ _t('user.submissions_col_started', 'Started') }}</th>
+          <th>{{ _t('user.submissions_col_completed', 'Completed') }}</th>
+          <th>{{ _t('user.submissions_col_duration', 'Duration') }}</th>
+          <th>{{ _t('user.submissions_col_interactions', 'Interact.') }}</th>
+          <th>{{ _t('user.submissions_col_grade', 'Grade') }}</th>
+          <th>{{ _t('user.submissions_col_feedback', 'Feedback') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -46,25 +46,25 @@
           <td>{{ sub.interactions }}</td>
           <td>
             {% if sub.grade_value is not none %}
-            <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+            <span class="badge bg-success">{{ sub.grade_value }} {{ _t('user.stats_col_grade', 'pts.') }}</span>
             {% elif sub.grade_passed is not none %}
             <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
-              {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+              {% if sub.grade_passed %}{{ _t('user.submissions_pass', 'Passed') }}{% else %}{{ _t('user.submissions_fail', 'Not passed') }}{% endif %}
             </span>
             {% elif sub.completed_at %}
               {% if sub.task and sub.task.grading_type == 'none' %}
-              <span class="badge bg-success">Abgeschlossen</span>
+              <span class="badge bg-success">{{ _t('user.submissions_completed_badge', 'Completed') }}</span>
               {% else %}
-              <span class="badge bg-warning text-dark">Ausstehend</span>
+              <span class="badge bg-warning text-dark">{{ _t('user.submissions_pending', 'Pending') }}</span>
               {% endif %}
             {% else %}
-            <span class="badge bg-secondary">In Bearbeitung</span>
+            <span class="badge bg-secondary">{{ _t('user.submissions_in_progress', 'In Progress') }}</span>
             {% endif %}
           </td>
           <td class="text-muted small">
             {% if sub.grade_comment %}
             <span data-bs-toggle="tooltip" title="{{ sub.grade_comment }}">
-              <i class="bi bi-chat-quote"></i> Kommentar
+              <i class="bi bi-chat-quote"></i> {{ _t('user.submissions_comment', 'Comment') }}
             </span>
             {% else %}—{% endif %}
           </td>
@@ -72,7 +72,7 @@
             {% if sub.grade_value is not none or sub.grade_passed is not none %}
             <a href="{{ url_for('user_bp.submission_detail', sub_id=sub.id) }}"
                class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-eye"></i> Details
+              <i class="bi bi-eye"></i> {{ _t('user.submissions_details', 'Details') }}
             </a>
             {% endif %}
           </td>
@@ -81,7 +81,7 @@
         <tr>
           <td colspan="7" class="text-center text-muted py-5">
             <i class="bi bi-journal-x fs-2 d-block mb-2"></i>
-            Noch keine Einreichungen vorhanden.
+            {{ _t('user.submissions_empty', 'No submissions yet.') }}
           </td>
         </tr>
         {% endfor %}

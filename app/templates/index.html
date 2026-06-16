@@ -100,7 +100,9 @@
 
 <script>
     function startTask(taskId) {
-        window.location.href = taskId === 'custom' ? '/task/custom' : '/task/' + taskId;
+        checkApiKey(function() {
+            window.location.href = taskId === 'custom' ? '/task/custom' : '/task/' + taskId;
+        });
     }
     // Set progress bar widths from data-pct (avoids Jinja2 inside CSS inline styles)
     document.querySelectorAll('.lp-progress-fill[data-pct]').forEach(function(el) {

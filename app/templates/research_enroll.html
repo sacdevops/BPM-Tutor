@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ research.title }} – Anmeldung{% endblock %}
+{% block title %}{{ research.title }} – {{ _t('research.enroll_title_suffix', 'Registration') }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -35,15 +35,15 @@
     </div>
 
     <div class="enroll-meta">
-      <span class="enroll-meta-chip"><i class="bi bi-list-ol"></i> {{ research.studies | length }} Studie(n)</span>
+      <span class="enroll-meta-chip"><i class="bi bi-list-ol"></i> {{ _t('research.enroll_studies_count', '{n} Study(ies)').format(n=research.studies | length) }}</span>
       {% if research.one_time_only %}
-      <span class="enroll-meta-chip"><i class="bi bi-lock"></i> Einmalige Teilnahme</span>
+      <span class="enroll-meta-chip"><i class="bi bi-lock"></i> {{ _t('research.enroll_one_time', 'Single participation only') }}</span>
       {% endif %}
       {% if research.enrollment_end %}
-      <span class="enroll-meta-chip"><i class="bi bi-calendar-x"></i> Anmeldung bis {{ research.enrollment_end.strftime('%d.%m.%Y') }}</span>
+      <span class="enroll-meta-chip"><i class="bi bi-calendar-x"></i> {{ _t('research.enroll_until', 'Registration until {date}').format(date=research.enrollment_end.strftime('%d.%m.%Y')) }}</span>
       {% endif %}
       {% if research.max_participants %}
-      <span class="enroll-meta-chip"><i class="bi bi-people"></i> Max. {{ research.max_participants }} Teilnehmer</span>
+      <span class="enroll-meta-chip"><i class="bi bi-people"></i> {{ _t('research.enroll_max', 'Max. {n} participants').format(n=research.max_participants) }}</span>
       {% endif %}
     </div>
 
@@ -56,29 +56,29 @@
 
       <p class="enroll-hint">
         <i class="bi bi-info-circle me-1"></i>
-        Du wirst durch alle Studien dieses Research-Programms geführt. Die Anmeldung gilt für das gesamte Programm.
+        {{ _t('research.enroll_hint', 'You will be guided through all studies of this research program. Registration applies to the entire program.') }}
       </p>
 
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if research.require_consent and research.consent_text %}
         <div class="mb-3">
-          <label class="form-label fw-semibold small">Datenschutz &amp; Einwilligung</label>
+          <label class="form-label fw-semibold small">{{ _t('research.enroll_consent_label', 'Privacy &amp; Consent') }}</label>
           <div class="enroll-consent-box">{{ research.consent_text }}</div>
           <div class="form-check mt-2">
             <input class="form-check-input" type="checkbox" id="consent_checkbox" name="consent_checkbox" required>
             <label class="form-check-label small" for="consent_checkbox">
-              Ich habe die Datenschutzhinweise gelesen und stimme der Verarbeitung meiner Daten zu.
+              {{ _t('research.enroll_consent_agree', 'I have read the privacy notice and consent to the processing of my data.') }}
             </label>
           </div>
         </div>
         {% endif %}
         <button type="submit" class="enroll-btn">
-          <i class="bi bi-person-check-fill"></i> Jetzt anmelden &amp; starten
+          <i class="bi bi-person-check-fill"></i> {{ _t('research.enroll_btn', 'Register now &amp; start') }}
         </button>
       </form>
 
-      <a href="/" class="enroll-cancel">Abbrechen</a>
+      <a href="/" class="enroll-cancel">{{ _t('research.enroll_cancel', 'Cancel') }}</a>
     </div>
   </div>
 </div>

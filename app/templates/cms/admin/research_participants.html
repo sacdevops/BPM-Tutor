@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}Teilnehmer – {{ research.title }}{% endblock %}
-{% block page_title %}Teilnehmer: {{ research.title }}{% endblock %}
+{% block title %}{{ _t('admin.research_participants_title', 'Participants') }} – {{ research.title }}{% endblock %}
+{% block page_title %}{{ _t('admin.research_participants_title', 'Participants') }}: {{ research.title }}{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('admin.research_edit', research_id=research.id) }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-arrow-left me-1"></i>Zurück
+  <i class="bi bi-arrow-left me-1"></i>{{ _t('common.back', 'Back') }}
 </a>
 {% endblock %}
 
@@ -19,21 +19,21 @@
 
 <!-- Add participant manually -->
 <div class="card shadow-sm mb-4">
-  <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-plus me-2"></i>Teilnehmer manuell hinzufügen</h6></div>
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-person-plus me-2"></i>{{ _t('admin.research_participants_add_header', 'Add Participant Manually') }}</h6></div>
   <div class="card-body">
     <form method="post" action="{{ url_for('admin.research_participant_add', research_id=research.id) }}"
           class="d-flex gap-2 flex-wrap align-items-end">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div style="min-width:260px;flex:1">
-        <label class="form-label small fw-semibold mb-1">Benutzer</label>
+        <label class="form-label small fw-semibold mb-1">{{ _t('common.user', 'User') }}</label>
         <select name="user_id" class="form-select form-select-sm">
-          <option value="">— Benutzer wählen —</option>
+          <option value="">{{ _t('admin.research_participants_add_user_ph', '— Select user —') }}</option>
           {% for u in all_users %}
           <option value="{{ u.id }}">{{ u.display_name or u.username }} ({{ u.email }})</option>
           {% endfor %}
         </select>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Hinzufügen</button>
+      <button type="submit" class="btn btn-primary btn-sm">{{ _t('common.add', 'Add') }}</button>
     </form>
   </div>
 </div>
@@ -43,11 +43,11 @@
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th>Benutzer</th>
-          <th>Angemeldet am</th>
-          <th>Condition</th>
-          <th>Status</th>
-          <th class="text-end">Aktionen</th>
+          <th>{{ _t('common.user', 'User') }}</th>
+          <th>{{ _t('admin.research_participants_col_enrolled', 'Enrolled on') }}</th>
+          <th>{{ _t('common.condition', 'Condition') }}</th>
+          <th>{{ _t('common.status', 'Status') }}</th>
+          <th class="text-end">{{ _t('common.actions', 'Actions') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -61,22 +61,22 @@
         <td>{{ p.condition.name if p.condition else '<span class="text-muted">—</span>' | safe }}</td>
         <td>
           {% if p.is_dropped_out %}
-          <span class="badge bg-danger">Ausgeschlossen</span>
+          <span class="badge bg-danger">{{ _t('admin.research_participants_status_dropped', 'Excluded') }}</span>
           {% if p.dropout_reason %}<div class="text-muted small mt-1">{{ p.dropout_reason }}</div>{% endif %}
           {% else %}
-          <span class="badge bg-success">Aktiv</span>
+          <span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
           {% endif %}
         </td>
         <td class="text-end">
           {% if not p.is_dropped_out %}
           <form method="post" action="{{ url_for('admin.research_participant_dropout', research_id=research.id, participant_id=p.id) }}"
-                style="display:inline" onsubmit="return confirm('Teilnehmer ausschließen?')">
+                style="display:inline" onsubmit="return confirm('{{ _t("admin.research_participants_dropout_confirm", "Exclude participant?") }}')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-sm btn-outline-warning">Ausschließen</button>
+            <button type="submit" class="btn btn-sm btn-outline-warning">{{ _t('admin.research_participants_dropout_btn', 'Exclude') }}</button>
           </form>
           {% endif %}
           <form method="post" action="{{ url_for('admin.research_participant_remove', research_id=research.id, participant_id=p.id) }}"
-                style="display:inline" onsubmit="return confirm('Teilnehmer wirklich entfernen?')">
+                style="display:inline" onsubmit="return confirm('{{ _t("admin.research_participants_remove_confirm", "Really remove participant?") }}')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
           </form>
@@ -84,7 +84,7 @@
       </tr>
       {% endfor %}
       {% if not participants %}
-      <tr><td colspan="5" class="text-center text-muted py-4">Noch keine Teilnehmer angemeldet.</td></tr>
+      <tr><td colspan="5" class="text-center text-muted py-4">{{ _t('admin.research_participants_empty', 'No participants enrolled yet.') }}</td></tr>
       {% endif %}
       </tbody>
     </table>

@@ -25,8 +25,8 @@
               {{ s.pages | map(attribute='questions') | map('list') | map('length') | sum }} {{ _t('admin.survey_questions_label', 'Questions') }}
             </span>
           </td>
-          <td>{% if s.is_active %}<span class="badge bg-success">Aktiv</span>
-          {% else %}<span class="badge bg-secondary">Inaktiv</span>{% endif %}</td>
+          <td>{% if s.is_active %}<span class="badge bg-success">{{ _t('common.active', 'Active') }}</span>
+          {% else %}<span class="badge bg-secondary">{{ _t('common.inactive', 'Inactive') }}</span>{% endif %}</td>
           <td><span class="badge bg-light text-dark">{{ s.responses.count() }}</span></td>
           <td class="text-end">
             <a href="{{ url_for('admin.survey_edit', survey_id=s.id) }}" class="btn btn-sm btn-outline-primary me-1">

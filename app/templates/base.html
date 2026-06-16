@@ -117,6 +117,92 @@
     </main>
 
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+
+    {% if needs_api_key %}
+    <!-- ── API Key Required Modal ── -->
+    <div id="apiKeyModal" role="dialog" aria-modal="true" aria-labelledby="apiKeyModalTitle"
+         style="display:none;position:fixed;inset:0;z-index:2000;
+                background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+      <div style="background:var(--card-bg,#fff);border-radius:14px;
+                  width:min(440px,92vw);box-shadow:0 8px 40px rgba(0,0,0,.3);
+                  padding:0;overflow:hidden">
+        <!-- Header -->
+        <div style="background:var(--brand-primary,#84BD00);padding:1.1rem 1.4rem;
+                    display:flex;align-items:center;justify-content:space-between">
+          <span id="apiKeyModalTitle"
+                style="color:#fff;font-weight:700;font-size:1.05rem;display:flex;align-items:center;gap:.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10H7.465A4 4 0 0 1 0 8zm4-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/>
+              <path d="M3.5 8a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/>
+            </svg>
+            <span data-i18n="apikey.modal_title">API Key Required</span>
+          </span>
+          <button onclick="closeApiKeyModal()"
+                  style="background:none;border:none;cursor:pointer;color:#fff;font-size:1.4rem;
+                         line-height:1;padding:0;opacity:.85"
+                  aria-label="{{ _t('common.close', 'Close') }}">&times;</button>
+        </div>
+        <!-- Body -->
+        <div style="padding:1.5rem 1.4rem">
+          <p style="margin:0 0 .75rem;font-size:.95rem;line-height:1.5;color:var(--text-primary,#222)">
+            <span data-i18n="apikey.modal_body">To use this feature you need to add your personal API key.</span>
+          </p>
+          <p style="margin:0 0 1.4rem;font-size:.88rem;color:var(--text-secondary,#666);line-height:1.5">
+            <span data-i18n="apikey.modal_hint">You can add your API key in your</span>
+            <a href="{{ url_for('user_bp.profile') }}"
+               style="color:var(--brand-primary,#84BD00);font-weight:600;text-decoration:none">
+              <span data-i18n="apikey.modal_profile_link">profile</span></a>.
+          </p>
+          <div style="display:flex;gap:.75rem;justify-content:flex-end">
+            <button onclick="closeApiKeyModal()"
+                    style="padding:.45rem 1.1rem;border:1.5px solid #dee2e6;background:transparent;
+                           border-radius:8px;cursor:pointer;font-size:.9rem;color:var(--text-primary,#222)">
+              <span data-i18n="apikey.modal_close">Close</span>
+            </button>
+            <a href="{{ url_for('user_bp.profile') }}"
+               style="padding:.45rem 1.2rem;background:var(--brand-primary,#84BD00);color:#fff;
+                      border-radius:8px;text-decoration:none;font-weight:600;font-size:.9rem;
+                      display:inline-flex;align-items:center;gap:.4rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4z"/>
+              </svg>
+              <span data-i18n="apikey.modal_go_profile">Go to Profile</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    var _needsApiKey = true;
+    function checkApiKey(proceedFn) {
+      if (_needsApiKey) {
+        var m = document.getElementById('apiKeyModal');
+        m.style.display = 'flex';
+        m._pendingFn = null; // don't auto-proceed; user must go to profile
+        return false;
+      }
+      if (proceedFn) proceedFn();
+      return true;
+    }
+    function closeApiKeyModal() {
+      document.getElementById('apiKeyModal').style.display = 'none';
+    }
+    // Close on backdrop click
+    document.getElementById('apiKeyModal').addEventListener('click', function(e) {
+      if (e.target === this) closeApiKeyModal();
+    });
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeApiKeyModal();
+    });
+    </script>
+    {% else %}
+    <script>
+    var _needsApiKey = false;
+    function checkApiKey(proceedFn) { if (proceedFn) proceedFn(); return true; }
+    </script>
+    {% endif %}
+
     {% block extra_js %}{% endblock %}
     {% if current_user is defined and current_user.is_authenticated %}
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>

@@ -1,13 +1,13 @@
 {% extends "cms/base.html" %}
-{% block title %}Meine Statistik{% endblock %}
-{% block page_title %}Meine Statistik{% endblock %}
+{% block title %}{{ _t('user.stats_title', 'My Statistics') }}{% endblock %}
+{% block page_title %}{{ _t('user.stats_title', 'My Statistics') }}{% endblock %}
 
 {% block topbar_actions %}
 <div class="d-flex gap-1">
-  {% for p, label in [('24h','24h'), ('7d','7T'), ('30d','30T'), ('90d','90T'), ('1y','1J'), ('all','Alle')] %}
+  {% for p, key, fallback in [('24h','admin.period_24h','24h'), ('7d','admin.period_7d','7d'), ('30d','admin.period_30d','30d'), ('90d','admin.period_90d','90d'), ('1y','admin.period_1y','1y'), ('all','admin.period_all','All')] %}
   <a href="?period={{ p }}"
      class="btn btn-sm {% if period == p %}btn-primary{% else %}btn-outline-secondary{% endif %}">
-    {{ label }}
+    {{ _t(key, fallback) }}
   </a>
   {% endfor %}
 </div>
@@ -19,7 +19,7 @@
 <div class="card shadow-sm mb-4">
   <div class="card-header d-flex align-items-center gap-2">
     <i class="bi bi-layers-fill" style="color: var(--cms-primary);"></i>
-    <h6 class="mb-0 fw-semibold">Lernpfad-Fortschritt</h6>
+    <h6 class="mb-0 fw-semibold">{{ _t('user.stats_learning_path', 'Learning Path Progress') }}</h6>
   </div>
   <div class="card-body">
     <div class="d-flex gap-3 overflow-auto pb-1 align-items-stretch flex-nowrap">
@@ -39,7 +39,7 @@
           <div class="mt-1" style="background:#e5e7eb;border-radius:99px;height:5px;">
             <div style="background:var(--cms-primary);height:100%;width:{{ pct }}%;border-radius:99px;"></div>
           </div>
-          {% if not unlocked %}<div class="text-muted mt-1" style="font-size:.65rem;"><i class="bi bi-lock-fill"></i> Gesperrt</div>{% endif %}
+          {% if not unlocked %}<div class="text-muted mt-1" style="font-size:.65rem;"><i class="bi bi-lock-fill"></i> {{ _t('user.stats_locked', 'Locked') }}</div>{% endif %}
         </div>
         {% if not loop.last %}
         <div class="align-self-center text-muted" style="font-size:1.2rem;flex-shrink:0;"><i class="bi bi-chevron-right"></i></div>
@@ -57,7 +57,7 @@
       <div class="kpi-icon bg-primary"><i class="bi bi-journal-plus"></i></div>
       <div class="kpi-body">
         <span class="kpi-value">{{ stats.total_submissions }}</span>
-        <span class="kpi-label">Einreichungen</span>
+        <span class="kpi-label">{{ _t('user.stats_total_submissions', 'Submissions') }}</span>
       </div>
     </div>
   </div>
@@ -66,7 +66,7 @@
       <div class="kpi-icon bg-success"><i class="bi bi-check-circle"></i></div>
       <div class="kpi-body">
         <span class="kpi-value">{{ stats.completed }}</span>
-        <span class="kpi-label">Abgeschlossen</span>
+        <span class="kpi-label">{{ _t('user.stats_completed', 'Completed') }}</span>
       </div>
     </div>
   </div>
@@ -75,7 +75,7 @@
       <div class="kpi-icon bg-info"><i class="bi bi-chat-dots"></i></div>
       <div class="kpi-body">
         <span class="kpi-value">{{ stats.total_interactions }}</span>
-        <span class="kpi-label">KI-Interaktionen</span>
+        <span class="kpi-label">{{ _t('user.stats_ai_interactions', 'AI Interactions') }}</span>
       </div>
     </div>
   </div>
@@ -84,7 +84,7 @@
       <div class="kpi-icon bg-warning"><i class="bi bi-star-half"></i></div>
       <div class="kpi-body">
         <span class="kpi-value">{{ stats.graded }}</span>
-        <span class="kpi-label">Bewertet</span>
+        <span class="kpi-label">{{ _t('user.stats_graded', 'Graded') }}</span>
       </div>
     </div>
   </div>
@@ -92,7 +92,7 @@
 
 <!-- Timeline Chart -->
 <div class="card shadow-sm mb-4">
-  <div class="card-header"><h6 class="mb-0"><i class="bi bi-graph-up"></i> Aktivitätsverlauf</h6></div>
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-graph-up"></i> {{ _t('user.stats_activity_chart', 'Activity History') }}</h6></div>
   <div class="card-body">
     <canvas id="timelineChart" height="180"></canvas>
   </div>
@@ -100,11 +100,18 @@
 
 <!-- Submissions -->
 <div class="card shadow-sm">
-  <div class="card-header"><h6 class="mb-0"><i class="bi bi-journal-text"></i> Meine Einreichungen</h6></div>
+  <div class="card-header"><h6 class="mb-0"><i class="bi bi-journal-text"></i> {{ _t('user.stats_my_submissions', 'My Submissions') }}</h6></div>
   <div class="table-responsive">
     <table class="table table-hover table-sm mb-0 align-middle">
       <thead class="table-light">
-        <tr><th>Aufgabe</th><th>Gestartet</th><th>Dauer</th><th>Interakt.</th><th>Bewertung</th><th>Kommentar</th></tr>
+        <tr>
+          <th>{{ _t('user.stats_col_task', 'Task') }}</th>
+          <th>{{ _t('user.stats_col_started', 'Started') }}</th>
+          <th>{{ _t('user.stats_col_duration', 'Duration') }}</th>
+          <th>{{ _t('user.stats_col_interactions', 'Interact.') }}</th>
+          <th>{{ _t('user.stats_col_grade', 'Grade') }}</th>
+          <th>{{ _t('user.stats_col_comment', 'Comment') }}</th>
+        </tr>
       </thead>
       <tbody>
         {% for sub in stats.submissions %}
@@ -125,27 +132,27 @@
           <td>{{ sub.interactions }}</td>
           <td>
             {% if sub.grade_value is not none %}
-            <span class="badge bg-success">{{ sub.grade_value }} Pkt.</span>
+            <span class="badge bg-success">{{ sub.grade_value }} {{ _t('user.stats_col_grade', 'Grade') }}</span>
             {% elif sub.grade_passed is not none %}
             <span class="badge bg-{% if sub.grade_passed %}success{% else %}danger{% endif %}">
-              {% if sub.grade_passed %}Bestanden{% else %}Nicht best.{% endif %}
+              {% if sub.grade_passed %}{{ _t('user.stats_pass', 'Passed') }}{% else %}{{ _t('user.stats_fail', 'Not passed') }}{% endif %}
             </span>
             {% elif sub.completed_at %}
               {% set _task = sub.get('task') or (tasks[sub.task_id] if tasks is defined and sub.task_id in tasks else none) %}
               {% if _task and _task.grading_type == 'none' %}
-              <span class="badge bg-success">Abgeschlossen</span>
+              <span class="badge bg-success">{{ _t('user.stats_completed_badge', 'Completed') }}</span>
               {% else %}
-              <span class="badge bg-warning text-dark">Ausstehend</span>
+              <span class="badge bg-warning text-dark">{{ _t('user.stats_pending', 'Pending') }}</span>
               {% endif %}
             {% else %}
-            <span class="badge bg-secondary">Läuft</span>
+            <span class="badge bg-secondary">{{ _t('user.stats_in_progress', 'In Progress') }}</span>
             {% endif %}
           </td>
           <td class="text-muted small">{{ sub.grade_comment or '—' }}</td>
         </tr>
         {% else %}
         <tr><td colspan="6" class="text-center text-muted py-4">
-          Noch keine Einreichungen im gewählten Zeitraum.
+          {{ _t('user.stats_no_submissions', 'No submissions in the selected period.') }}
         </td></tr>
         {% endfor %}
       </tbody>
@@ -176,7 +183,7 @@ new Chart(document.getElementById('timelineChart'), {
   data: {
     labels: {{ chart.labels | tojson }},
     datasets: [{
-      label: 'Einreichungen',
+      label: '{{ _t("user.stats_submissions_label", "Submissions") }}',
       data: {{ chart.data | tojson }},
       borderColor: '#4f46e5',
       backgroundColor: 'rgba(79,70,229,0.08)',

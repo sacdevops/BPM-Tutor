@@ -163,7 +163,7 @@
 
                   <strong>{{ _t('admin.settings_auth_required_label', 'Login required') }}</strong>
 
-                  <div class="text-muted small">Wenn aktiviert, müssen sich Nutzer anmelden, um das Tool zu verwenden.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_auth_required_hint', 'When enabled, users must log in to use the tool.') }}</div>
 
                 </label>
 
@@ -197,7 +197,7 @@
 
                   <strong>{{ _t('admin.settings_email_verify_label', 'E-Mail verification required') }}</strong>
 
-                  <div class="text-muted small">Nutzer müssen E-Mail bestätigen, bevor sie sich anmelden können.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_email_verify_hint', 'Users must confirm their e-mail address.') }}</div>
 
                 </label>
 
@@ -217,7 +217,7 @@
 
                   <strong>{{ _t('admin.settings_level_system_label', 'Enable Level System') }}</strong>
 
-                  <div class="text-muted small">Stufenweiser Lernpfad. Konfigurierbar unter <a href="{{ url_for('admin.levels_list') }}">Level-System</a>.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_level_system_hint', 'Gamification points and levels for users.') }} <a href="{{ url_for('admin.levels_list') }}">{{ _t('admin.settings_tab_regfields', 'Level System') }}</a>.</div>
 
                 </label>
 
@@ -257,7 +257,7 @@
 
                   <strong>{{ _t('admin.settings_research_mode_label', 'Enable Research Mode') }}</strong>
 
-                  <div class="text-muted small">Schaltet den Forschungsmodus frei: Research Studies, Surveys und alle dazugehörigen Funktionen. Surveys sind ausschliesslich im Research Mode verfügbar.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_research_mode_hint', 'Enable extended research data collection.') }}</div>
 
                 </label>
 
@@ -277,7 +277,7 @@
 
                   <strong>{{ _t('admin.settings_custom_mode_label', 'Custom Task Mode') }}</strong>
 
-                  <div class="text-muted small">Wenn aktiviert, können Studierende auf der Startseite eigene Aufgaben definieren (Custom Task Karte).</div>
+                  <div class="text-muted small">{{ _t('admin.settings_custom_mode_hint', 'When enabled, students can define their own tasks on the home page (Custom Task card).') }}</div>
 
                 </label>
 
@@ -297,7 +297,7 @@
 
                   <strong>{{ _t('admin.settings_maintenance_label', 'Maintenance Mode') }}</strong>
 
-                  <div class="text-muted small">Nur Admins haben Zugriff. Alle anderen sehen eine Wartungsseite.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_maintenance_hint', 'Lock site for regular users.') }}</div>
 
                 </label>
 
@@ -477,7 +477,7 @@
 
                   <strong>{{ _t('admin.settings_mail_separate_incoming_label', 'Separate incoming server configuration') }}</strong>
 
-                  <div class="text-muted small">Eingangsserver (IMAP/POP3) und Ausgangsserver (SMTP) unterschiedlich konfigurieren.</div>
+                  <div class="text-muted small">{{ _t('admin.settings_mail_separate_incoming_hint', 'Configure incoming (IMAP/POP3) and outgoing (SMTP) servers separately.') }}</div>
 
                 </label>
 
@@ -523,7 +523,7 @@
 
                     <div class="form-text text-warning" id="mail_enc_warning" style="display:none;">
 
-                      <i class="bi bi-exclamation-triangle"></i> Port 25 ist bei vielen ISPs und Firewalls blockiert. Verwende möglichst STARTTLS (587) oder SSL (465).
+                      <i class="bi bi-exclamation-triangle"></i> {{ _t('admin.settings_port25_warning', 'Port 25 is blocked by many ISPs and firewalls. Use STARTTLS (587) or SSL (465) if possible.') }}
 
                     </div>
 
@@ -639,7 +639,7 @@
 
             <div class="card-body">
 
-              <p class="text-muted small mb-3">Testet die aktuell <strong>gespeicherten</strong> {{ _t('admin.settings_mail_test_hint', 'SMTP settings. Save first, then test.') }}</p>
+              <p class="text-muted small mb-3">{{ _t('admin.settings_mail_test_saved_prefix', 'Tests the currently') }} <strong>{{ _t('admin.settings_mail_test_saved_word', 'saved') }}</strong> {{ _t('admin.settings_mail_test_hint', 'SMTP settings. Save first, then test.') }}</p>
 
               <button type="button" class="btn btn-outline-info w-100" onclick="testMailConnection()">
 
@@ -675,9 +675,7 @@
 
         {{ _t('admin.settings_mail_tpl_hint', 'Leave a field empty to use the built-in default template.') }}
 
-        Platzhalter: <code>{verify_url}</code> (Verifikations-Link), <code>{reset_url}</code> (Reset-Link).
-
-        Der Inhalt wird als <strong>HTML</strong> gesendet.
+        {{ _t('admin.settings_mail_tpl_placeholder_info', 'Placeholders: {verify_url} (verification link), {reset_url} (reset link). Content is sent as HTML.') }}
 
       </div>
 
@@ -709,9 +707,9 @@
 
                 <textarea name="mail_verify_body" class="form-control font-monospace" rows="10"
 
-                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {verify_url}">{{ s.get('mail_verify_body', '') }}</textarea>
+                          placeholder="{{ _t('admin.settings_mail_verify_body_ph', 'Leave empty = default template.\nPlaceholder: {verify_url}') }}">{{ s.get('mail_verify_body', '') }}</textarea>
 
-                <div class="form-text">Platzhalter: <code>{verify_url}</code></div>
+                <div class="form-text">{{ _t('admin.settings_mail_verify_form_text', 'Placeholder: {verify_url}') }}</div>
 
               </div>
 
@@ -747,9 +745,9 @@
 
                 <textarea name="mail_reset_body" class="form-control font-monospace" rows="10"
 
-                          placeholder="Leer lassen = Standard-Vorlage.&#10;Platzhalter: {reset_url}">{{ s.get('mail_reset_body', '') }}</textarea>
+                          placeholder="{{ _t('admin.settings_mail_reset_body_ph', 'Leave empty = default template.\nPlaceholder: {reset_url}') }}">{{ s.get('mail_reset_body', '') }}</textarea>
 
-                <div class="form-text">Platzhalter: <code>{reset_url}</code></div>
+                <div class="form-text">{{ _t('admin.settings_mail_reset_form_text', 'Placeholder: {reset_url}') }}</div>
 
               </div>
 
@@ -799,7 +797,7 @@
 
               </div>
 
-              <div class="form-text">Hauptfarbe für Buttons, Links, aktive Elemente (hex).</div>
+              <div class="form-text">{{ _t('admin.settings_brand_primary_hint', 'Main color for buttons, links, active elements (hex).') }}</div>
 
             </div>
 
@@ -897,7 +895,7 @@
 
               <div class="d-flex align-items-center gap-3 p-2 border rounded mt-1">
 
-                <span class="text-muted small">Vorschau:</span>
+                <span class="text-muted small">{{ _t('admin.settings_brand_preview_label', 'Preview:') }}</span>
 
                 <span id="colorPreview" class="badge px-3 py-2"
 
@@ -985,7 +983,7 @@
 
                 <button type="submit" class="btn btn-danger" form="db-import-form">
 
-                  <i class="bi bi-upload"></i> {{ _t('admin.settings_db_import_header', 'Import') }}ieren
+                  <i class="bi bi-upload"></i> {{ _t('admin.settings_db_import_btn', 'Import') }}
 
                 </button>
 

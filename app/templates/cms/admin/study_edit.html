@@ -95,22 +95,22 @@
               <i class="bi bi-diagram-2 me-1"></i>Research
             </label>
             <select name="research_id" id="research_id" class="form-select form-select-sm">
-              <option value="">— kein Research (standalone) —</option>
+              <option value="">{{ _t('admin.study_no_research', '— no research (standalone) —') }}</option>
               {% for r in researches %}
               <option value="{{ r.id }}" {% if study and study.research_id == r.id %}selected{% endif %}>{{ r.title }}</option>
               {% endfor %}
             </select>
-            <div class="form-text">Weist diese Studie einem Research zu.</div>
+              <div class="form-text">{{ _t('admin.study_research_assign_hint', 'Assigns this study to a research program.') }}</div>
           </div>
           <div class="mb-0">
             <label for="agent_display_name" class="form-label small fw-semibold mb-1">
-              {{ _t('admin.study_agent_display_name', 'KI-Anzeigename (optional)') }}
+              {{ _t('admin.study_agent_display_name', 'AI display name (optional)') }}
             </label>
             <input type="text" name="agent_display_name" id="agent_display_name"
                    class="form-control form-control-sm"
-                   placeholder='z. B. „Study Assistant"'
+                   placeholder='{{ _t("admin.study_agent_display_name_ph", "e.g. \"Study Assistant\"") }}'
                    value="{{ study.agent_display_name or '' if study else '' }}">
-            <div class="form-text">{{ _t('admin.study_agent_display_name_hint', 'Überschreibt den Agenten-Namen für diese Studie.') }}</div>
+            <div class="form-text">{{ _t('admin.study_agent_display_name_hint', 'Overrides the agent name for this study.') }}</div>
           </div>
         </div>
       </div>
@@ -130,7 +130,7 @@
                    {% if tc.get('enabled') %}checked{% endif %}
                    onchange="document.getElementById('tracking_enabled').value=this.checked?'1':''">
             <label class="form-check-label" for="tracking_enabled_cb">
-              <strong>{{ _t('admin.tracking_enabled', 'Tracking aktiviert') }}</strong>
+              <strong>{{ _t('admin.tracking_enabled', 'Tracking enabled') }}</strong>
             </label>
           </div>
           <!-- Hidden inputs that get set by JS click handlers -->
@@ -144,7 +144,7 @@
                 <i class="bi bi-cursor"></i>
                 <div>
                   <strong>Cursor</strong>
-                  <div class="trk-desc">Mausbewegung, Klicks, Chat-Fokus</div>
+                  <div class="trk-desc">{{ _t('admin.tracking_cursor_desc', 'Mouse movement, clicks, chat focus') }}</div>
                 </div>
               </div>
             </div>
@@ -153,7 +153,7 @@
                 <i class="bi bi-diagram-3"></i>
                 <div>
                   <strong>BPMN</strong>
-                  <div class="trk-desc">Element hinzugefügt, gelöscht, verschoben</div>
+                  <div class="trk-desc">{{ _t('admin.tracking_bpmn_desc', 'Element added, deleted, moved') }}</div>
                 </div>
               </div>
             </div>
@@ -162,7 +162,7 @@
                 <i class="bi bi-chat-square-text"></i>
                 <div>
                   <strong>Chat</strong>
-                  <div class="trk-desc">Nachrichten, KI-Aktionen, LLM-Prompts</div>
+                  <div class="trk-desc">{{ _t('admin.tracking_chat_desc', 'Messages, AI actions, LLM prompts') }}</div>
                 </div>
               </div>
             </div>
@@ -220,13 +220,13 @@
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="tab-steps-btn" data-bs-toggle="tab"
               data-bs-target="#tab-steps" type="button" role="tab">
-        <i class="bi bi-list-ol me-1"></i>{{ _t('admin.study_tab_steps', 'Schritte & Ablauf') }}
+        <i class="bi bi-list-ol me-1"></i>{{ _t('admin.study_tab_steps', 'Steps &amp; Flow') }}
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="tab-window-btn" data-bs-toggle="tab"
               data-bs-target="#tab-window" type="button" role="tab">
-        <i class="bi bi-calendar-range me-1"></i>{{ _t('admin.study_tab_window', 'Zeitfenster') }}
+        <i class="bi bi-calendar-range me-1"></i>{{ _t('admin.study_tab_time', 'Time Window') }}
       </button>
     </li>
   </ul>
@@ -250,7 +250,7 @@
                     onchange="onAddTypeChange()">
               <option value="survey">{{ _t('admin.study_step_survey', 'Survey') }}</option>
               <option value="task">{{ _t('admin.study_step_task', 'Task') }}</option>
-              <option value="agent_choice">&#129302; Agenten-Auswahl</option>
+              <option value="agent_choice">&#129302; {{ _t('admin.study_step_agent_choice', 'Agent Choice') }}</option>
             </select>
             <select class="form-select form-select-sm" id="addStepSurvey" style="max-width:260px">
               <option value="">{{ _t('admin.study_step_select_survey', '— Select survey —') }}</option>
@@ -307,7 +307,7 @@
               </div>
               <div class="form-text mt-2">
                 <i class="bi bi-info-circle me-1"></i>
-                {{ _t('admin.study_window_hint', 'Wenn kein Zeitfenster gesetzt ist, ist die Studie unbegrenzt verfügbar. "Verfügbar bis" ist die Abgabefrist. Wenn der Research-Mode Auto-Ausschluss aktiviert hat, werden Studierende, die bis zu diesem Datum nicht abgegeben haben, aus dem Research ausgeschlossen.') }}
+                {{ _t('admin.study_window_hint', 'If no dates are set, the study is available indefinitely. "Available until" is the submission deadline. If Research Auto-Exclusion is enabled, students who have not submitted by this date will be excluded from the research.') }}
               </div>
             </div>
           </div>
@@ -466,7 +466,7 @@ function agentChoiceHtml(stepIdx) {
   let agentIds = [];
   try { agentIds = JSON.parse(s.available_agents || '[]'); } catch(e) {}
   let html = '<div class="mt-2 pt-2 border-top">';
-  html += '<small class="text-muted d-block mb-1 fw-semibold">&#129302; Agenten-Auswahl — w&#228;hlbare Agenten</small>';
+  html += '<small class="text-muted d-block mb-1 fw-semibold">&#129302; {{ _t("admin.study_step_agent_choice", "Agent Choice") }} — {{ _t("admin.study_agent_choice_selectable", "selectable agents") }}</small>';
   AGENTS_ALL.forEach(a => {
     const checked = agentIds.includes(a.id) || agentIds.includes(String(a.id));
     html += `<div class="form-check form-check-inline">
@@ -477,7 +477,7 @@ function agentChoiceHtml(stepIdx) {
     </div>`;
   });
   html += `<div class="mt-2">
-    <label class="form-label small mb-0">Einleitungstext (optional)</label>
+    <label class="form-label small mb-0">{{ _t('admin.study_agent_choice_intro_label', 'Intro text (optional)') }}</label>
     <textarea class="form-control form-control-sm" rows="2"
       onchange="steps[${stepIdx}].agent_choice_intro=this.value">${escHtml(s.agent_choice_intro || '')}</textarea>
   </div></div>`;
@@ -571,7 +571,7 @@ function renderSteps() {
 
     li.innerHTML = `
       <div class="d-flex align-items-center w-100 gap-2 flex-wrap">
-        <span class="step-badge ${s.type}">${s.type==='survey'?'&#128203; {{ _t('admin.study_step_survey', 'Survey') }}':s.type==='agent_choice'?'&#129302; Agenten-Auswahl':'&#128196; {{ _t('admin.study_step_task', 'Task') }}'}</span>
+        <span class="step-badge ${s.type}">${s.type==='survey'?'&#128203; {{ _t("admin.study_step_survey", "Survey") }}':s.type==='agent_choice'?'&#129302; {{ _t("admin.study_step_agent_choice", "Agent Choice") }}':'&#128196; {{ _t("admin.study_step_task", "Task") }}'}</span>
         <span class="flex-grow-1 small">${escHtml(s.label)}</span>
         <div class="d-flex gap-1 align-items-center">${condPills}</div>
         <button class="btn btn-sm btn-link text-secondary p-0" type="button"
@@ -637,10 +637,10 @@ function addStep() {
   } else if (type === 'agent_choice') {
     const checks = document.querySelectorAll('#addStepAgents input[type=checkbox]:checked');
     available_agents = JSON.stringify(Array.from(checks).map(c => c.value));
-    label = 'Agenten-Auswahl';
+    label = '{{ _t("admin.study_step_agent_choice", "Agent Choice") }}';
     id = 'ok'; // agent_choice doesn't need a survey/task id
   }
-  if (!id) { alert('{{ _t("common.please_select", "Bitte eine Auswahl treffen.") }}'); return; }
+  if (!id) { alert('{{ _t("common.please_select", "Please make a selection.") }}'); return; }
   steps.push({ type, survey_id: type==='survey'?id:'', task_id: type==='task'?id:'',
                available_agents, agent_choice_intro: '',
                label, available_from:'', available_until:'',

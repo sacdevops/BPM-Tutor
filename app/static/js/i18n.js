@@ -111,6 +111,14 @@ const TRANSLATIONS = {
         'settings.no_key_warning': '\u26a0\ufe0f Please configure your API key in Settings before starting a task.',
         'settings.dark_mode': 'Dark Mode',
 
+        // API Key gate modal
+        'apikey.modal_title': 'API Key Required',
+        'apikey.modal_body': 'To use this feature you first need to add your personal API key.',
+        'apikey.modal_hint': 'You can add your API key in your',
+        'apikey.modal_profile_link': 'profile settings',
+        'apikey.modal_close': 'Close',
+        'apikey.modal_go_profile': 'Go to Profile',
+
         // Navigation
         'nav.admin': 'Admin',
         'nav.stats': 'Statistics',
@@ -299,6 +307,14 @@ const TRANSLATIONS = {
         'settings.key_saved': 'API-Schl\u00fcssel gespeichert.',
         'settings.no_key_warning': '\u26a0\ufe0f Bitte konfiguriere deinen API-Schl\u00fcssel in den Einstellungen, bevor du eine Aufgabe startest.',
         'settings.dark_mode': 'Dunkelmodus',
+
+        // API Key gate modal
+        'apikey.modal_title': 'API-Schl\u00fcssel erforderlich',
+        'apikey.modal_body': 'Um diese Funktion zu nutzen, musst du zuerst einen pers\u00f6nlichen API-Schl\u00fcssel hinterlegen.',
+        'apikey.modal_hint': 'Du kannst deinen API-Schl\u00fcssel in deinen',
+        'apikey.modal_profile_link': 'Profileinstellungen',
+        'apikey.modal_close': 'Schlie\u00dfen',
+        'apikey.modal_go_profile': 'Zum Profil',
 
         // Navigation
         'nav.admin': 'Admin',

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Agenten-Auswahl: {{ study.title }}{% endblock %}
+{% block title %}{{ _t('study.agent_choice_title', 'Choose your AI Assistant') }}: {{ study.title }}{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -48,7 +48,7 @@
 
   <div class="ac-header">
     <span class="ac-header-icon">🤖</span>
-    <p class="ac-header-title">Wähle deinen KI-Assistenten</p>
+    <p class="ac-header-title">{{ _t('study.agent_choice_title', 'Choose your AI Assistant') }}</p>
     <p class="ac-header-desc">{{ study.title }}</p>
   </div>
 
@@ -65,8 +65,7 @@
     <p class="ac-intro">{{ step.agent_choice_intro }}</p>
     {% else %}
     <p class="ac-intro">
-      Wähle den KI-Assistenten aus, mit dem du in den folgenden Aufgaben arbeiten möchtest.
-      Deine Wahl bestimmt, wie der Assistent auf deine Eingaben reagiert.
+      {{ _t('study.agent_choice_intro', 'Choose the AI assistant you want to work with in the following tasks. Your choice determines how the assistant responds.') }}
     </p>
     {% endif %}
 
@@ -89,7 +88,7 @@
       </div>
 
       <button type="submit" class="ac-submit-btn">
-        <i class="bi bi-check2-circle me-1"></i> Auswahl bestätigen
+        <i class="bi bi-check2-circle me-1"></i> {{ _t('study.agent_choice_confirm', 'Confirm Selection') }}
       </button>
     </form>
   </div>

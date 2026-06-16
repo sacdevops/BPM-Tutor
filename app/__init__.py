@@ -818,6 +818,14 @@ def _register_context_processors(app: Flask) -> None:
         research_mode_enabled = Settings.get(Settings.RESEARCH_MODE_ENABLED, False)
         cohorts_enabled = Settings.get(Settings.COHORTS_ENABLED, True)
 
+        # API key gate: True when mode=per_user AND authenticated user has no key
+        api_key_mode = Settings.get(Settings.API_KEY_MODE, 'per_user')
+        needs_api_key = (
+            api_key_mode == 'per_user'
+            and current_user.is_authenticated
+            and not getattr(current_user, 'personal_api_key', None)
+        )
+
         return {
             'cms_auth_required': auth_required, 'cms_site_name': site_name,
             'cms_unread_count': unread_count, 'cms_active_languages': active_languages,
@@ -831,6 +839,7 @@ def _register_context_processors(app: Flask) -> None:
             'research_mode_enabled': research_mode_enabled,
             'cohorts_enabled': cohorts_enabled,
             'research_pending_badge': _compute_research_badge(current_user, research_mode_enabled),
+            'needs_api_key': needs_api_key,
         }
 
 

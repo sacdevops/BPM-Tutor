@@ -96,7 +96,7 @@
         </tr>
         {% else %}
         <tr><td colspan="8" class="text-center text-muted py-4">
-          Noch keine Aufgaben. <a href="{{ url_for('admin.task_create') }}">{{ _t('admin.task_create_first', 'Create first task') }}</a>
+          {{ _t('admin.task_no_tasks_yet', 'No tasks yet.') }} <a href="{{ url_for('admin.task_create') }}">{{ _t('admin.task_create_first', 'Create first task') }}</a>
         </td></tr>
         {% endfor %}
       </tbody>

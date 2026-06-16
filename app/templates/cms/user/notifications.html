@@ -1,10 +1,10 @@
 {% extends "cms/base.html" %}
-{% block title %}Benachrichtigungen{% endblock %}
-{% block page_title %}Benachrichtigungen{% endblock %}
+{% block title %}{{ _t('user.notifications_title', 'Notifications') }}{% endblock %}
+{% block page_title %}{{ _t('user.notifications_title', 'Notifications') }}{% endblock %}
 
 {% block topbar_actions %}
 <button class="btn btn-outline-secondary btn-sm" onclick="markAllRead()">
-  <i class="bi bi-check-all"></i> Alle als gelesen markieren
+  <i class="bi bi-check-all"></i> {{ _t('user.notifications_mark_all_read', 'Mark all as read') }}
 </button>
 {% endblock %}
 
@@ -13,7 +13,7 @@
   {% if not pagination.items %}
   <div class="card-body text-center text-muted py-5">
     <i class="bi bi-bell-slash fs-1"></i>
-    <p class="mt-2">Keine Benachrichtigungen vorhanden.</p>
+    <p class="mt-2">{{ _t('user.notifications_empty', 'No notifications.') }}</p>
   </div>
   {% else %}
   <ul class="list-group list-group-flush">
@@ -39,12 +39,12 @@
           <p class="mb-1 text-muted small">{{ notif.message }}</p>
           {% endif %}
           {% if notif.link %}
-          <a href="{{ notif.link }}" class="small">Details anzeigen →</a>
+          <a href="{{ notif.link }}" class="small">{{ _t('user.notifications_show_details', 'Show details →') }}</a>
           {% endif %}
         </div>
         {% if not notif.is_read %}
         <button class="btn btn-sm btn-link text-muted p-0"
-                onclick="markRead({{ notif.id }})" title="Als gelesen markieren">
+                onclick="markRead({{ notif.id }})" title="{{ _t('user.notifications_mark_read_title', 'Mark as read') }}">
           <i class="bi bi-check-lg"></i>
         </button>
         {% endif %}

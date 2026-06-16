@@ -106,19 +106,27 @@
     </div>
     {% endif %}
     <div class="d-flex gap-2 align-items-center flex-wrap mt-1">
-      <a href="{{ url_for('study.study_index', study_id=study.id) }}" class="study-btn continue">
+      <button onclick="startStudy('{{ url_for('study.study_index', study_id=study.id) }}')" class="study-btn continue">
         <i class="bi bi-play-fill me-1"></i>{{ _t('study.continue_btn', 'Continue →') }}
-      </a>
+      </button>
     </div>
     {% endif %}
     {% elif study.enrollment_open %}
-    <a href="{{ url_for('study.enroll', study_id=study.id) }}" class="study-btn">
+    <button onclick="startStudy('{{ url_for('study.enroll', study_id=study.id) }}')" class="study-btn">
       <i class="bi bi-person-plus me-1"></i>{{ _t('study.enroll_btn_list', 'Register & Start') }}
-    </a>
+    </button>
     {% else %}
     <span class="study-btn" style="background:#6c757d;cursor:default">{{ _t('study.enrollment_closed', 'Enrollment closed') }}</span>
     {% endif %}
   </div>
   {% endfor %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function startStudy(url) {
+    checkApiKey(function() { window.location.href = url; });
+}
+</script>
 {% endblock %}

@@ -7,10 +7,10 @@
   <i class="bi bi-plus-lg"></i> {{ _t('admin.agent_new_btn', 'New Agent') }}
 </a>
 <form method="POST" action="{{ url_for('admin.agents_reset_all_prompts') }}" class="d-inline ms-2"
-      onsubmit="return confirm('Alle System-Agenten auf die aktuellen Standard-Prompts zurücksetzen?');">
+      onsubmit="return confirm('{{ _t("admin.agents_reset_confirm", "Reset all system agents to current default prompts?") }}');">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit" class="btn btn-outline-warning btn-sm">
-    <i class="bi bi-arrow-counterclockwise"></i> Alle Prompts zurücksetzen
+    <i class="bi bi-arrow-counterclockwise"></i> {{ _t('admin.agents_reset_btn', 'Reset all prompts') }}
   </button>
 </form>
 {% endblock %}
@@ -19,7 +19,7 @@
 <div class="card shadow-sm">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-robot me-2"></i>{{ _t('admin.agents_configured', 'Configured AI Agents') }}</span>
-    <span class="text-muted small">{{ agents | length }} Agent(en)</span>
+    <span class="text-muted small">{{ agents | length }} {{ _t('admin.agents_count_label', 'Agent(s)') }}</span>
   </div>
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
@@ -53,11 +53,11 @@
           <td>
             {% if agent.control_mode == 'human' %}
             <span class="badge bg-secondary">
-              <i class="bi bi-person-fill"></i> {{ _t('admin.agent_ctrl_human', 'Mensch') }}
+              <i class="bi bi-person-fill"></i> {{ _t('admin.agent_ctrl_human', 'Human') }}
             </span>
             {% elif agent.control_mode == 'shared' %}
             <span class="badge bg-info text-dark">
-              <i class="bi bi-people-fill"></i> {{ _t('admin.agent_ctrl_shared', 'Geteilt') }}
+              <i class="bi bi-people-fill"></i> {{ _t('admin.agent_ctrl_shared', 'Shared') }}
             </span>
             {% else %}
             <span class="badge bg-warning text-dark">
@@ -67,13 +67,13 @@
           </td>
           <td>
             {% if agent.modeling_mode == 'none' %}
-            <span class="text-muted small"><i class="bi bi-dash"></i> {{ _t('admin.agent_modeling_none', 'Kein Modeling') }}</span>
+            <span class="text-muted small"><i class="bi bi-dash"></i> {{ _t('admin.agent_modeling_none', 'No Modeling') }}</span>
             {% elif agent.modeling_mode == 'collaborative' %}
-            <span class="badge bg-success"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_collab', 'Kollaborativ') }}</span>
+            <span class="badge bg-success"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_collab', 'Collaborative') }}</span>
             {% elif agent.modeling_mode == 'ai_then_human' %}
-            <span class="badge bg-info text-dark"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_aifirst', 'KI zuerst') }}</span>
+            <span class="badge bg-info text-dark"><i class="bi bi-pencil-square"></i> {{ _t('admin.agent_modeling_aifirst', 'AI first') }}</span>
             {% elif agent.modeling_mode == 'ai_only' %}
-            <span class="badge bg-warning text-dark"><i class="bi bi-robot"></i> {{ _t('admin.agent_modeling_aionly', 'Nur KI') }}</span>
+            <span class="badge bg-warning text-dark"><i class="bi bi-robot"></i> {{ _t('admin.agent_modeling_aionly', 'AI only') }}</span>
             {% else %}
             <span class="text-muted small">—</span>
             {% endif %}

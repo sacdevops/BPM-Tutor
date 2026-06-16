@@ -1,24 +1,24 @@
 ﻿{% extends "cms/base.html" %}
-{% block title %}{% if research %}Research bearbeiten{% else %}Neues Research{% endif %}{% endblock %}
-{% block page_title %}{% if research %}{{ research.title }}{% else %}Neues Research-Programm{% endif %}{% endblock %}
+{% block title %}{% if research %}{{ _t('admin.research_edit_title', 'Edit Research') }}{% else %}{{ _t('admin.research_new_title', 'New Research') }}{% endif %}{% endblock %}
+{% block page_title %}{% if research %}{{ research.title }}{% else %}{{ _t('admin.research_new_page_title', 'New Research Program') }}{% endif %}{% endblock %}
 
 {% block topbar_actions %}
 {% if research %}
 <a href="{{ url_for('admin.research_list') }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-arrow-left me-1"></i>Übersicht
+  <i class="bi bi-arrow-left me-1"></i>{{ _t('common.overview', 'Overview') }}
 </a>
 <a href="{{ url_for('admin.research_participants', research_id=research.id) }}" class="btn btn-sm btn-outline-primary">
-  <i class="bi bi-people me-1"></i>Teilnehmer
+  <i class="bi bi-people me-1"></i>{{ _t('common.participants', 'Participants') }}
 </a>
 <a href="{{ url_for('admin.studies_list') }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-list-ul me-1"></i>Studien
+  <i class="bi bi-list-ul me-1"></i>{{ _t('admin.nav_studies', 'Studies') }}
 </a>
 <a href="{{ url_for('admin.research_export_zip', research_id=research.id) }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-download me-1"></i>Export
+  <i class="bi bi-download me-1"></i>{{ _t('common.export', 'Export') }}
 </a>
 {% else %}
 <a href="{{ url_for('admin.research_list') }}" class="btn btn-sm btn-outline-secondary">
-  <i class="bi bi-arrow-left me-1"></i>Übersicht
+  <i class="bi bi-arrow-left me-1"></i>{{ _t('common.overview', 'Overview') }}
 </a>
 {% endif %}
 {% endblock %}
@@ -48,17 +48,17 @@
   <ul class="nav nav-tabs mb-4" id="researchTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-general" type="button">
-        <i class="bi bi-info-circle me-1"></i>Allgemein
+        <i class="bi bi-info-circle me-1"></i>{{ _t('admin.research_tab_general', 'General') }}
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-enroll" type="button">
-        <i class="bi bi-person-plus me-1"></i>Anmeldung
+        <i class="bi bi-person-plus me-1"></i>{{ _t('admin.research_tab_enrollment', 'Enrollment') }}
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-design" type="button">
-        <i class="bi bi-diagram-3 me-1"></i>Studiendesign
+        <i class="bi bi-diagram-3 me-1"></i>{{ _t('admin.research_tab_design', 'Study Design') }}
       </button>
     </li>
   </ul>
@@ -70,18 +70,18 @@
       <div class="row g-3">
         <div class="col-lg-7">
           <div class="card shadow-sm mb-3">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-journals me-2"></i>Grunddaten</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-journals me-2"></i>{{ _t('admin.research_basic_data', 'Basic Data') }}</h6></div>
             <div class="card-body">
               <div class="mb-3">
-                <label class="form-label" for="re_title">Titel <span class="text-danger">*</span></label>
+                <label class="form-label" for="re_title">{{ _t('common.title', 'Title') }} <span class="text-danger">*</span></label>
                 <input type="text" name="title" id="re_title" class="form-control"
                        value="{{ research.title if research else '' }}"
-                       placeholder="z. B. BPM-Modellierungsexperiment SS 2025" required>
+                       placeholder="{{ _t('admin.research_title_ph', 'e.g. BPM Modeling Experiment SS 2025') }}" required>
               </div>
               <div class="mb-0">
-                <label class="form-label" for="re_desc">Beschreibung</label>
+                <label class="form-label" for="re_desc">{{ _t('common.description', 'Description') }}</label>
                 <textarea name="description" id="re_desc" class="form-control" rows="4"
-                          placeholder="Interne Notizen zum Research-Programm…">{{ research.description or '' if research else '' }}</textarea>
+                          placeholder="{{ _t('admin.research_desc_ph', 'Internal notes about the research program…') }}">{{ research.description or '' if research else '' }}</textarea>
               </div>
             </div>
           </div>
@@ -89,46 +89,46 @@
 
         <div class="col-lg-5">
           <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-toggles me-2"></i>Einstellungen</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-toggles me-2"></i>{{ _t('common.options', 'Options') }}</h6></div>
             <div class="card-body">
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="is_active" id="re_active"
                        {% if not research or research.is_active %}checked{% endif %}>
                 <label class="form-check-label" for="re_active">
-                  <strong>Sichtbar für Teilnehmer</strong>
-                  <div class="text-muted small">Research erscheint in der Studien-Liste.</div>
+                  <strong>{{ _t('admin.research_visible_label', 'Visible to Participants') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_visible_hint', 'Research appears in the studies list.') }}</div>
                 </label>
               </div>
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="one_time_only" id="re_one_time"
                        {% if not research or research.one_time_only %}checked{% endif %}>
                 <label class="form-check-label" for="re_one_time">
-                  <strong>Einmalige Teilnahme</strong>
-                  <div class="text-muted small">Jede Person kann nur einmal teilnehmen.</div>
+                  <strong>{{ _t('admin.research_one_time_label', 'One-time participation') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_one_time_hint', 'Each person can participate only once.') }}</div>
                 </label>
               </div>
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="anonymize_export" id="re_anon"
                        {% if not research or research.anonymize_export %}checked{% endif %}>
                 <label class="form-check-label" for="re_anon">
-                  <strong>Export anonymisieren</strong>
-                  <div class="text-muted small">Export verwendet P0001 statt Klarnamen.</div>
+                  <strong>{{ _t('admin.research_anon_export_label', 'Anonymize export') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_anon_export_hint', 'Export uses P0001 instead of real names.') }}</div>
                 </label>
               </div>
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="leaderboard_enabled" id="re_lb"
                        {% if research and research.leaderboard_enabled %}checked{% endif %}>
                 <label class="form-check-label" for="re_lb">
-                  <strong>Leaderboard aktivieren</strong>
-                  <div class="text-muted small">Teilnehmer sehen eine Rangliste der Durchschnittswerte.</div>
+                  <strong>{{ _t('admin.research_leaderboard_label', 'Enable leaderboard') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_leaderboard_hint', 'Participants see a ranking of average scores.') }}</div>
                 </label>
               </div>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" name="auto_dropout_on_miss" id="re_dropout"
                        {% if research and research.auto_dropout_on_miss %}checked{% endif %}>
                 <label class="form-check-label" for="re_dropout">
-                  <strong>Auto-Ausschluss bei versäumter Frist</strong>
-                  <div class="text-muted small">Teilnehmer werden automatisch ausgeschlossen, wenn sie die Frist einer Studie versäumen. Daten bleiben erhalten.</div>
+                  <strong>{{ _t('admin.research_auto_dropout_label', 'Auto-exclusion on missed deadline') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_auto_dropout_hint', 'Participants are automatically excluded if they miss a study deadline. Data is retained.') }}</div>
                 </label>
               </div>
             </div>
@@ -142,22 +142,22 @@
       <div class="row g-3">
         <div class="col-lg-6">
           <div class="card shadow-sm mb-3">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar-range me-2"></i>Anmeldezeitraum</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-calendar-range me-2"></i>{{ _t('admin.research_enrollment_period_header', 'Enrollment Period') }}</h6></div>
             <div class="card-body">
               <div class="row g-3 mb-3">
                 <div class="col-sm-6">
-                  <label class="form-label small fw-semibold">Anmeldung ab</label>
+                  <label class="form-label small fw-semibold">{{ _t('admin.research_enrollment_from', 'Enrollment from') }}</label>
                   <input type="datetime-local" name="enrollment_start" class="form-control form-control-sm"
                          value="{{ research.enrollment_start.strftime('%Y-%m-%dT%H:%M') if research and research.enrollment_start else '' }}">
                 </div>
                 <div class="col-sm-6">
-                  <label class="form-label small fw-semibold">Anmeldung bis</label>
+                  <label class="form-label small fw-semibold">{{ _t('admin.research_enrollment_until', 'Enrollment until') }}</label>
                   <input type="datetime-local" name="enrollment_end" class="form-control form-control-sm"
                          value="{{ research.enrollment_end.strftime('%Y-%m-%dT%H:%M') if research and research.enrollment_end else '' }}">
                 </div>
               </div>
               <div class="mb-3">
-                <label class="form-label small fw-semibold" for="re_max_p">Max. Teilnehmeranzahl <span class="text-muted fw-normal">(leer = unbegrenzt)</span></label>
+                <label class="form-label small fw-semibold" for="re_max_p">{{ _t('admin.research_max_participants', 'Max. participants') }} <span class="text-muted fw-normal">({{ _t('admin.research_max_participants_hint', 'empty = unlimited') }})</span></label>
                 <input type="number" name="max_participants" id="re_max_p" class="form-control form-control-sm" min="1"
                        value="{{ research.max_participants or '' if research else '' }}">
               </div>
@@ -165,42 +165,42 @@
                 <input class="form-check-input" type="checkbox" name="allow_self_enrollment" id="re_self_enroll"
                        {% if not research or research.allow_self_enrollment %}checked{% endif %}>
                 <label class="form-check-label" for="re_self_enroll">
-                  <strong>Selbst-Anmeldung erlauben</strong>
-                  <div class="text-muted small">Teilnehmer können sich selbst anmelden.</div>
+                  <strong>{{ _t('admin.research_self_enroll_label', 'Allow self-enrollment') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_self_enroll_hint', 'Participants can register themselves.') }}</div>
                 </label>
               </div>
             </div>
           </div>
           <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-card-checklist me-2"></i>Enrollment-Survey</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-card-checklist me-2"></i>{{ _t('admin.research_enrollment_survey_header', 'Enrollment Survey') }}</h6></div>
             <div class="card-body">
-              <label class="form-label small fw-semibold" for="re_enroll_survey">Survey bei Anmeldung (optional)</label>
+              <label class="form-label small fw-semibold" for="re_enroll_survey">{{ _t('admin.research_enrollment_survey_label', 'Survey on enrollment (optional)') }}</label>
               <select name="enrollment_survey_id" id="re_enroll_survey" class="form-select form-select-sm">
-                <option value="">— Kein Survey —</option>
+                <option value="">{{ _t('admin.research_no_survey', '— No Survey —') }}</option>
                 {% for s in surveys %}
                 <option value="{{ s.id }}" {% if research and research.enrollment_survey_id == s.id %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
               </select>
-              <div class="form-text">Wird direkt nach der Anmeldung angezeigt, bevor die erste Studie beginnt.</div>
+              <div class="form-text">{{ _t('admin.research_enrollment_survey_hint', 'Shown directly after enrollment, before the first study begins.') }}</div>
             </div>
           </div>
         </div>
 
         <div class="col-lg-6">
           <div class="card shadow-sm h-100">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>Datenschutz &amp; Einwilligung</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>{{ _t('admin.research_consent_header', 'Privacy &amp; Consent') }}</h6></div>
             <div class="card-body">
               <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" name="require_consent" id="re_consent"
                        {% if research and research.require_consent %}checked{% endif %}>
                 <label class="form-check-label" for="re_consent">
-                  <strong>Einwilligungserklärung erforderlich</strong>
-                  <div class="text-muted small">Teilnehmer müssen vor der Anmeldung zustimmen.</div>
+                  <strong>{{ _t('admin.research_consent_required_label', 'Consent statement required') }}</strong>
+                  <div class="text-muted small">{{ _t('admin.research_consent_required_hint', 'Participants must agree before enrolling.') }}</div>
                 </label>
               </div>
-              <label class="form-label small fw-semibold" for="re_consent_text">Einwilligungstext</label>
+              <label class="form-label small fw-semibold" for="re_consent_text">{{ _t('admin.research_consent_text_label', 'Consent text') }}</label>
               <textarea name="consent_text" id="re_consent_text" class="form-control form-control-sm" rows="12"
-                        placeholder="Datenschutzhinweise und Einwilligungserklärung…">{{ research.consent_text or '' if research else '' }}</textarea>
+                        placeholder="{{ _t('admin.research_consent_text_ph', 'Privacy notice and consent statement…') }}">{{ research.consent_text or '' if research else '' }}</textarea>
             </div>
           </div>
         </div>
@@ -212,7 +212,7 @@
       <div class="row g-3">
         <div class="col-lg-5">
           <div class="card shadow-sm">
-            <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Design-Typ</h6></div>
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>{{ _t('admin.research_design_type_header', 'Design Type') }}</h6></div>
             <div class="card-body">
               <div class="form-check mb-3">
                 <input class="form-check-input" type="radio" name="study_design" id="design_within" value="within"
@@ -220,7 +220,7 @@
                        onchange="onDesignChange()">
                 <label class="form-check-label" for="design_within">
                   <strong>Within-Subjects</strong>
-                  <div class="text-muted small">Alle Teilnehmer durchlaufen alle Studien mit demselben Agenten.</div>
+                  <div class="text-muted small">{{ _t('admin.research_within_hint', 'All participants go through all studies with the same agent.') }}</div>
                 </label>
               </div>
               <div class="form-check">
@@ -229,7 +229,7 @@
                        onchange="onDesignChange()">
                 <label class="form-check-label" for="design_between">
                   <strong>Between-Subjects</strong>
-                  <div class="text-muted small">Teilnehmer werden Gruppen (Conditions) zugeordnet und erhalten je unterschiedliche Agenten.</div>
+                  <div class="text-muted small">{{ _t('admin.research_between_hint', 'Participants are assigned to groups (conditions) and each receives different agents.') }}</div>
                 </label>
               </div>
             </div>
@@ -240,41 +240,41 @@
           <div class="card shadow-sm" id="conditionsCard"
                {% if not research or research.study_design != 'between' %}style="display:none"{% endif %}>
             <div class="card-header d-flex justify-content-between align-items-center">
-              <h6 class="mb-0"><i class="bi bi-people-fill me-2"></i>Conditions (Gruppen)</h6>
+              <h6 class="mb-0"><i class="bi bi-people-fill me-2"></i>{{ _t('admin.research_conditions_header', 'Conditions (Groups)') }}</h6>
               <button type="button" class="btn btn-sm btn-outline-primary" onclick="addCondition()">
-                <i class="bi bi-plus-lg me-1"></i>Hinzufügen
+                <i class="bi bi-plus-lg me-1"></i>{{ _t('common.add', 'Add') }}
               </button>
             </div>
             <div class="card-body">
               <p class="text-muted small mb-3">
                 <i class="bi bi-info-circle me-1"></i>
-                Neuen Teilnehmern wird automatisch die Gruppe mit den wenigsten Mitgliedern zugewiesen.
+                {{ _t('admin.research_conditions_auto_assign', 'New participants are automatically assigned to the group with the fewest members.') }}
               </p>
               <div style="display:grid;grid-template-columns:1fr 1fr minmax(80px,100px) minmax(160px,220px) 36px;
                           gap:.5rem;padding:0 .65rem .4rem;font-size:.72rem;font-weight:600;
                           color:#6c757d;text-transform:uppercase;letter-spacing:.05em;">
-                <span>Name</span><span>Beschreibung</span><span>Zielgröße</span><span>Agent</span><span></span>
+                <span>{{ _t('common.name', 'Name') }}</span><span>{{ _t('common.description', 'Description') }}</span><span>{{ _t('admin.research_cond_target_size', 'Target') }}</span><span>{{ _t('common.agent', 'Agent') }}</span><span></span>
               </div>
               <div class="cond-list" id="condList">
                 {% for c in conditions %}
                 <div class="cond-row">
                   <input type="text" class="form-control form-control-sm cond-name"
-                         placeholder="z. B. Mentor" value="{{ c.name }}">
+                         placeholder="{{ _t('admin.research_cond_name_ph', 'e.g. Mentor') }}" value="{{ c.name }}">
                   <input type="text" class="form-control form-control-sm cond-desc"
                          placeholder="optional" value="{{ c.description or '' }}">
                   <input type="number" class="form-control form-control-sm cond-size"
                          placeholder="n" value="{{ c.target_size or '' }}" min="1">
                   <select class="form-select form-select-sm cond-agent">
-                    <option value="">Kein Agent (kein KI)</option>
+                    <option value="">{{ _t('admin.research_no_agent', 'No Agent (no AI)') }}</option>
                     {% for a in agents %}
                     <option value="{{ a.id }}" {% if c.agent_id == a.id %}selected{% endif %}>{{ a.name }}</option>
                     {% endfor %}
                   </select>
-                  <button type="button" class="btn-rm-cond" onclick="this.closest('.cond-row').remove()" title="Entfernen">&#10005;</button>
+                  <button type="button" class="btn-rm-cond" onclick="this.closest('.cond-row').remove()" title="{{ _t('common.remove', 'Remove') }}">&#10005;</button>
                 </div>
                 {% endfor %}
                 {% if not conditions %}
-                <p class="text-muted small fst-italic mb-0" id="condEmptyHint">Noch keine Conditions definiert.</p>
+                <p class="text-muted small fst-italic mb-0" id="condEmptyHint">{{ _t('admin.research_no_conditions', 'No conditions defined yet.') }}</p>
                 {% endif %}
               </div>
             </div>
@@ -284,7 +284,7 @@
                {% if research and research.study_design == 'between' %}style="display:none"{% endif %}>
             <div class="card-body text-muted small">
               <i class="bi bi-info-circle me-2"></i>
-              Im Within-Subjects-Design erhalten alle Teilnehmer denselben Agenten. Conditions werden nicht benötigt.
+                {{ _t('admin.research_within_no_conditions', 'In within-subjects design all participants receive the same agent. Conditions are not needed.') }}
             </div>
           </div>
         </div>
@@ -295,9 +295,9 @@
 
   <!-- Save bar -->
   <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-    <a href="{{ url_for('admin.research_list') }}" class="btn btn-outline-secondary">Abbrechen</a>
+    <a href="{{ url_for('admin.research_list') }}" class="btn btn-outline-secondary">{{ _t('common.cancel', 'Cancel') }}</a>
     <button type="submit" class="btn btn-primary">
-      <i class="bi bi-check2-circle me-1"></i>{% if research %}Änderungen speichern{% else %}Research erstellen{% endif %}
+      <i class="bi bi-check2-circle me-1"></i>{% if research %}{{ _t('common.save_changes', 'Save changes') }}{% else %}{{ _t('admin.research_create_btn', 'Create Research') }}{% endif %}
     </button>
   </div>
 </form>
@@ -309,7 +309,10 @@ function onDesignChange() {
   document.getElementById('withinHint').style.display = between ? 'none' : '';
 }
 
-var _agentOptions = '<option value="">Kein Agent (kein KI)</option>{% for a in agents %}<option value="{{ a.id }}">{{ a.name | e }}</option>{% endfor %}';
+{% set _ph_name = _t("admin.research_cond_name_ph", "e.g. Mentor") %}
+{% set _ph_opt  = _t("common.optional", "optional") %}
+{% set _lbl_rm  = _t("common.remove", "Remove") %}
+var _agentOptions = '<option value="">{{ _t("admin.research_no_agent", "No Agent (no AI)") }}</option>{% for a in agents %}<option value="{{ a.id }}">{{ a.name | e }}</option>{% endfor %}';
 
 function addCondition() {
   var hint = document.getElementById('condEmptyHint');
@@ -317,11 +320,11 @@ function addCondition() {
   var row = document.createElement('div');
   row.className = 'cond-row';
   row.innerHTML =
-    '<input type="text" class="form-control form-control-sm cond-name" placeholder="z. B. Mentor">' +
-    '<input type="text" class="form-control form-control-sm cond-desc" placeholder="optional">' +
+    '<input type="text" class="form-control form-control-sm cond-name" placeholder="{{ _ph_name | e }}">' +
+    '<input type="text" class="form-control form-control-sm cond-desc" placeholder="{{ _ph_opt | e }}">' +
     '<input type="number" class="form-control form-control-sm cond-size" placeholder="n" min="1">' +
     '<select class="form-select form-select-sm cond-agent">' + _agentOptions + '</select>' +
-    '<button type="button" class="btn-rm-cond" onclick="this.closest(&#39;.cond-row&#39;).remove()" title="Entfernen">&#10005;</button>';
+    '<button type="button" class="btn-rm-cond" onclick="this.closest(&#39;.cond-row&#39;).remove()" title="{{ _lbl_rm | e }}">&#10005;</button>';
   document.getElementById('condList').appendChild(row);
 }
 

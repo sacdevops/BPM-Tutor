@@ -241,12 +241,12 @@ function loadModels(silent) {
       });
       select.disabled = false;
       document.getElementById('modelSection').style.display = '';
-      status.textContent = `${data.models.length} Modelle verfügbar.${found ? '' : ' (Gespeichertes Modell nicht gefunden — bitte neu wählen.)'}`;
+      status.textContent = `${data.models.length} {{ _t('profile.models_available', 'models available') }}.${found ? '' : ' ({{ _t("profile.saved_model_not_found", "Saved model not found — please reselect.") }})'}`;
     } else {
-      status.textContent = data.message || 'Fehler beim Laden der Modelle.';
+      status.textContent = data.message || '{{ _t("profile.model_load_error", "Error loading models.") }}';
     }
   })
-  .catch(() => { btn.disabled = false; status.textContent = 'Verbindungsfehler.'; });
+  .catch(() => { btn.disabled = false; status.textContent = '{{ _t("profile.connection_error", "Connection error.") }}'; });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
