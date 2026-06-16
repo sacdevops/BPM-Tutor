@@ -471,17 +471,41 @@ def research_export_zip(research_id: int):
             _ws_header(ws_sr, sr_header)
             for sp in participants:
                 row = [_ident(sp), sp.condition.name if sp.condition else '']
+                # Pass 1: exact step_id match
                 responses_by_step = {}
                 for step_id, srv_id, _, _ in step_surveys:
                     resp = SurveyResponse.query.filter_by(
                         survey_id=srv_id, user_id=sp.user_id, step_id=step_id
                     ).order_by(SurveyResponse.id.desc()).first()
-                    if resp is None:
-                        all_resps = SurveyResponse.query.filter_by(
-                            survey_id=srv_id, user_id=sp.user_id).all()
-                        if len(all_resps) == 1:
-                            resp = all_resps[0]
                     responses_by_step[(step_id, srv_id)] = resp
+                # Pass 2: fallback for responses where step_id was cleared
+                # (ondelete='SET NULL') or was never stored (pre-migration data).
+                # Assign NULL-step_id responses in chronological order so the
+                # same survey used for multiple steps is assigned correctly.
+                null_pool: dict = {}
+                for step_id, srv_id, _, _ in step_surveys:
+                    if responses_by_step[(step_id, srv_id)] is not None:
+                        continue
+                    if srv_id not in null_pool:
+                        null_pool[srv_id] = (
+                            SurveyResponse.query
+                            .filter_by(survey_id=srv_id, user_id=sp.user_id)
+                            .filter(SurveyResponse.step_id.is_(None))
+                            .filter(SurveyResponse.completed_at.isnot(None))
+                            .order_by(SurveyResponse.id.asc())
+                            .all()
+                        )
+                    pool = null_pool[srv_id]
+                    if pool:
+                        responses_by_step[(step_id, srv_id)] = pool.pop(0)
+                # Pass 3: single-response fallback (catches remaining edge cases)
+                for step_id, srv_id, _, _ in step_surveys:
+                    if responses_by_step[(step_id, srv_id)] is not None:
+                        continue
+                    all_resps = SurveyResponse.query.filter_by(
+                        survey_id=srv_id, user_id=sp.user_id).all()
+                    if len(all_resps) == 1:
+                        responses_by_step[(step_id, srv_id)] = all_resps[0]
                 emitted_meta = set()
                 for step_id, srv_id, q_id in q_cols:
                     step_key = (step_id, srv_id)
