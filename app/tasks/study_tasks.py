@@ -107,25 +107,17 @@ def run_study_notifications() -> int:
              max_retries=2, default_retry_delay=300)
 def send_study_notifications(self):
     """Celery Beat task — runs every hour to process study lifecycle emails."""
-    from app.celery_app import celery as _cel
-    # We need app context — create it here
+    # The Celery worker process has no Flask app context.
+    # Always create one explicitly (same pattern used by backup_database).
     try:
-        from flask import current_app
-        sent = run_study_notifications()
+        from app import create_app
+        _app = create_app()
+        with _app.app_context():
+            sent = run_study_notifications()
         logger.info("[study_tasks] Sent %d notification(s)", sent)
-    except RuntimeError:
-        # No app context — create one
-        try:
-            import sys, os
-            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-            from app import create_app
-            _app = create_app()
-            with _app.app_context():
-                sent = run_study_notifications()
-            logger.info("[study_tasks] Sent %d notification(s)", sent)
-        except Exception as exc:
-            logger.exception("[study_tasks] Could not create app context: %s", exc)
-            raise self.retry(exc=exc)
+    except Exception as exc:
+        logger.exception("[study_tasks] send_study_notifications failed: %s", exc)
+        raise self.retry(exc=exc)
 
 
 @celery.task(
@@ -227,7 +219,7 @@ def backup_database():
                         import re as _re
                         import requests as _req
                         # Normalise URL: strip any /remote.php/... the user may have included
-                        _sciebo_base = re.sub(r'/remote\.php.*$', '', sciebo_url)
+                        _sciebo_base = _re.sub(r'/remote\.php.*$', '', sciebo_url)
                         webdav_base = f'{_sciebo_base}/remote.php/dav/files/{sciebo_user}'
                         auth = (sciebo_user, sciebo_pass)
                         # Create each directory level individually (MKCOL is not recursive)

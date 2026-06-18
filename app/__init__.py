@@ -192,7 +192,9 @@ def _configure_database(app: Flask) -> None:
     # SMTP connection timeout — prevents daemon threads from hanging indefinitely
     app.config.setdefault('MAIL_TIMEOUT', int(os.getenv('MAIL_TIMEOUT', 30)))
     app.config.setdefault('WTF_CSRF_TIME_LIMIT', 3600)
-    app.config.setdefault('MAX_CONTENT_LENGTH', 16 * 1024 * 1024)
+    # 512 MB — allows large DB imports via the admin panel.
+    # nginx is also configured to client_max_body_size 512M.
+    app.config.setdefault('MAX_CONTENT_LENGTH', 512 * 1024 * 1024)
 
 
 def _configure_session_security(app: Flask) -> None:
@@ -572,7 +574,11 @@ def _register_i18n_middleware(app: Flask) -> None:
         # Allow static files, the maintenance page itself, auth routes, and admins
         if req.path.startswith('/static'):
             return
-        if req.endpoint in ('main.maintenance', 'auth.login', 'auth.logout', None):
+        # Always pass through health check — Docker probe must not be blocked by
+        # maintenance mode, otherwise the container is marked unhealthy and
+        # dependent services (nginx, worker) refuse to start.
+        if req.endpoint in ('main.maintenance', 'main.health',
+                            'auth.login', 'auth.logout', None):
             return
         try:
             from app.models.settings import Settings

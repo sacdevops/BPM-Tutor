@@ -70,11 +70,14 @@ services:
       - ./config.py:/app/config.py:ro
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      # Use curl so we get a proper exit code without Python import overhead.
+      # --fail makes curl exit non-zero on HTTP 4xx/5xx.
+      # --silent / --show-error suppress progress but print errors.
+      test: ["CMD-SHELL", "python -c \"import urllib.request, sys; r=urllib.request.urlopen('http://localhost:5001/health'); sys.exit(0 if r.status==200 else 1)\""]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 90s
 
   # ── Celery worker — processes async LLM calls ─────────────────────────────
   worker:
@@ -117,6 +120,8 @@ services:
 
 volumes:
   redis_data:
+    driver: local
+  app_data:
     driver: local
   app_data:
     driver: local
