@@ -4,7 +4,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --save "" --appendonly no --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --save "" --appendonly no --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     healthcheck:
@@ -120,8 +120,6 @@ services:
 
 volumes:
   redis_data:
-    driver: local
-  app_data:
     driver: local
   app_data:
     driver: local
