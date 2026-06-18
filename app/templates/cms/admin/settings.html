@@ -28,6 +28,12 @@
   <input type="hidden" name="confirm" value="RESET">
 </form>
 
+{# ── External form for DB-Restore-Bak ── #}
+<form id="db-restore-bak-form" method="post" action="{{ url_for('admin.db_restore_bak') }}"
+      onsubmit="return confirm('{{ _t('admin.settings_db_restore_bak_confirm', 'Restore database from last .bak backup? The current (broken) DB will be kept as .broken.') }}')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+
 <form id="settings-form" method="post" action="{{ url_for('admin.settings') }}" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -1019,6 +1025,30 @@
 
         </div>
 
+      </div>
+
+      {# ── DB Health / Restore from .bak Card ── #}
+      <div class="card shadow-sm mt-3 border-warning">
+        <div class="card-header bg-warning-subtle">
+          <h6 class="mb-0 text-warning-emphasis"><i class="bi bi-bandaid me-2"></i>{{ _t('admin.settings_db_health_header', 'Database Health &amp; Recovery') }}</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 align-items-start">
+            <div class="col-md-6">
+              <p class="text-muted small mb-2">{{ _t('admin.settings_db_integrity_desc', 'Run an integrity check on the current live database. Use this after a failed upload or unexpected crash.') }}</p>
+              <button type="button" class="btn btn-outline-warning btn-sm" onclick="runDbIntegrity()">
+                <i class="bi bi-shield-check me-1"></i>{{ _t('admin.settings_db_integrity_btn', 'Run Integrity Check') }}
+              </button>
+              <div id="dbIntegrityResult" class="mt-2 small" style="display:none"></div>
+            </div>
+            <div class="col-md-6">
+              <p class="text-muted small mb-2">{{ _t('admin.settings_db_restore_bak_desc', 'Restore from the automatic backup (.bak) that was created before the last import. Use this if the current database is corrupted.') }}</p>
+              <button type="submit" class="btn btn-warning btn-sm" form="db-restore-bak-form">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>{{ _t('admin.settings_db_restore_bak_btn', 'Restore from .bak Backup') }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {# ── Auto-Backup Card ── #}
@@ -2428,6 +2458,40 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(function (e) { errEl.textContent = String(e); errEl.style.display = 'block'; });
   };
 })();
+// ── DB Integrity Check ────────────────────────────────────────────────────────
+function runDbIntegrity() {
+  var btn = event.target;
+  var resultEl = document.getElementById('dbIntegrityResult');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _t('admin.settings_db_integrity_running', 'Checking…') }}';
+  resultEl.style.display = 'none';
+
+  fetch('{{ url_for("admin.db_integrity") }}', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value }
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      resultEl.style.display = 'block';
+      if (d.ok) {
+        resultEl.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>{{ _t('admin.settings_db_integrity_ok', 'Database is healthy.') }}</span>';
+      } else {
+        var html = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i><strong>{{ _t('admin.settings_db_integrity_fail', 'Integrity check failed:') }}</strong></span><ul class="mb-0 mt-1">';
+        (d.issues || []).forEach(function(i) { html += '<li>' + i + '</li>'; });
+        html += '</ul>';
+        resultEl.innerHTML = html;
+      }
+    })
+    .catch(function(e) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<span class="text-danger">{{ _t('common.error', 'Error') }}: ' + e + '</span>';
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-shield-check me-1"></i>{{ _t('admin.settings_db_integrity_btn', 'Run Integrity Check') }}';
+    });
+}
 </script>
 
 {% endblock %}

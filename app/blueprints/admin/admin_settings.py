@@ -594,10 +594,15 @@ def db_import():
             flash('Invalid file — not a valid SQLite database.', 'danger')
             return redirect(url_for('admin.settings'))
 
+        # Full integrity check — catches partial uploads and bit-rot
         try:
             check = sqlite3.connect(tmp.name)
-            check.execute('SELECT name FROM sqlite_master LIMIT 1').fetchall()
+            result = check.execute('PRAGMA integrity_check(10)').fetchall()
             check.close()
+            if result != [('ok',)]:
+                problems = '; '.join(r[0] for r in result[:5])
+                flash(f'Database file is corrupt (integrity_check failed): {problems}', 'danger')
+                return redirect(url_for('admin.settings'))
         except sqlite3.DatabaseError as exc:
             flash(f'Database file is corrupt: {exc}', 'danger')
             return redirect(url_for('admin.settings'))
@@ -615,6 +620,77 @@ def db_import():
             os.unlink(tmp.name)
         except OSError:
             pass
+
+    return redirect(url_for('admin.settings'))
+
+
+# ── DB integrity check ────────────────────────────────────────────────────────
+
+@admin_bp.route('/settings/db-integrity', methods=['POST'])
+@admin_required
+def db_integrity():
+    """Run PRAGMA integrity_check on the live database and return results."""
+    import sqlite3
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+    try:
+        conn = sqlite3.connect(db_path)
+        rows = conn.execute('PRAGMA integrity_check(50)').fetchall()
+        conn.close()
+        issues = [r[0] for r in rows]
+        ok = issues == ['ok']
+        return jsonify(ok=ok, issues=issues)
+    except Exception as exc:
+        return jsonify(ok=False, issues=[str(exc)]), 500
+
+
+# ── Restore from .bak ─────────────────────────────────────────────────────────
+
+@admin_bp.route('/settings/db-restore-bak', methods=['POST'])
+@admin_required
+def db_restore_bak():
+    """Restore the database from the automatic .bak file created on last import."""
+    import os
+    import shutil
+    import sqlite3
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        flash('Only SQLite databases are supported.', 'warning')
+        return redirect(url_for('admin.settings'))
+    db_path = db_uri.replace('sqlite:///', '', 1)
+    bak_path = db_path + '.bak'
+    if not os.path.isfile(bak_path):
+        flash('No backup file (.bak) found. Cannot restore.', 'danger')
+        return redirect(url_for('admin.settings'))
+
+    # Validate the backup before restoring
+    try:
+        conn = sqlite3.connect(bak_path)
+        result = conn.execute('PRAGMA integrity_check(10)').fetchall()
+        conn.close()
+        if result != [('ok',)]:
+            problems = '; '.join(r[0] for r in result[:5])
+            flash(f'Backup file is also corrupt and cannot be used: {problems}', 'danger')
+            return redirect(url_for('admin.settings'))
+    except Exception as exc:
+        flash(f'Backup file is not a valid SQLite database: {exc}', 'danger')
+        return redirect(url_for('admin.settings'))
+
+    try:
+        from app.extensions import db as _db
+        _db.session.remove()
+        _db.engine.dispose()
+        # Save the current (broken) DB as .broken so nothing is lost
+        if os.path.isfile(db_path):
+            shutil.copy2(db_path, db_path + '.broken')
+        shutil.copy2(bak_path, db_path)
+        current_app.logger.warning('[db_restore_bak] Restored from .bak (admin: %s)', current_user.email)
+        flash('Database restored from backup (.bak). Please restart the server.', 'success')
+    except Exception as exc:
+        current_app.logger.exception('[db_restore_bak] failed: %s', exc)
+        flash(f'Restore failed: {exc}', 'danger')
 
     return redirect(url_for('admin.settings'))
 
