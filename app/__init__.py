@@ -1,13 +1,46 @@
 """BPM-Tutor — Application Factory."""
 from __future__ import annotations
 
+import collections
+import logging
 import os
+import threading
 import time
 
 import config as _cfg
 from flask import Flask
 
-# ── Language-list in-process cache ───────────────────────────────────────────
+# ── In-memory log buffer (used by the Admin Console tab) ─────────────────────
+# A circular deque of the last 1 000 log records, protected by a lock.
+# Each entry is a plain dict with keys: id, ts, level, name, msg.
+_log_buffer: collections.deque = collections.deque(maxlen=10000)
+_log_buffer_lock: threading.Lock = threading.Lock()
+_log_buffer_counter: int = 0  # monotonically increasing record id
+
+
+class _MemoryLogHandler(logging.Handler):
+    """Thread-safe in-memory log handler — stores recent records in _log_buffer."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        global _log_buffer_counter
+        try:
+            msg = self.format(record)
+            entry = {
+                'id': 0,          # filled in below under the lock
+                'ts': record.created,
+                'level': record.levelname,
+                'name': record.name,
+                'msg': msg,
+            }
+            with _log_buffer_lock:
+                _log_buffer_counter += 1
+                entry['id'] = _log_buffer_counter
+                _log_buffer.append(entry)
+        except Exception:
+            self.handleError(record)
+
+
+# Language-list in-process cache ──────────────────────────────────────────────
 # The active language list is read on every request (context processor) but
 # changes very rarely.  A 60-second TTL avoids the repeated DB round-trip while
 # keeping the cache fresh after admin edits.
@@ -60,6 +93,7 @@ def create_app() -> Flask:
     _register_context_processors(app)
     _register_error_handlers(app)
     _setup_file_serving(app)
+    _setup_memory_log_handler(app)
 
     return app
 
@@ -862,3 +896,26 @@ def _setup_file_serving(app: Flask) -> None:
     @app.route('/data-uploads/<path:filename>')
     def serve_upload(filename: str):
         return send_from_directory(os.path.join(base_dir, 'data'), filename)
+
+
+def _setup_memory_log_handler(app: Flask) -> None:
+    """Attach _MemoryLogHandler to both the root logger and the app logger.
+
+    This captures log output from all libraries (SQLAlchemy, Flask-SocketIO, …)
+    as well as application-level messages and makes them available via the
+    /admin/settings/logs endpoint (the Admin Console tab).
+    """
+    handler = _MemoryLogHandler()
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s  %(levelname)-8s  [%(name)s]  %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    ))
+    handler.setLevel(logging.INFO)
+
+    # Root logger — picks up werkzeug, SQLAlchemy, etc.
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+
+    # Flask app logger (may already propagate to root, but add directly too)
+    if handler not in app.logger.handlers:
+        app.logger.addHandler(handler)

@@ -704,3 +704,287 @@ def api_user_stats(user_id: int):
     stats = user_stats(user_id, since)
     chart = chart_data_timeline(user_id, since, period)
     return jsonify({'stats': stats, 'chart': chart})
+
+
+# ── Admin Console — server log stream ────────────────────────────────────────
+
+@admin_bp.route('/settings/logs')
+@admin_required
+def settings_logs():
+    """Return buffered server log entries as JSON.
+
+    Query parameters:
+      after   — only return entries with id > this value (for polling)
+      level   — filter by level name (INFO, WARNING, ERROR, CRITICAL); omit for all
+      limit   — max entries to return (default 200, max 500)
+    """
+    from app import _log_buffer, _log_buffer_lock, _log_buffer_counter
+
+    after = int(request.args.get('after', 0))
+    level_filter = request.args.get('level', '').upper().strip()
+    try:
+        limit = min(int(request.args.get('limit', 200)), 500)
+    except (TypeError, ValueError):
+        limit = 200
+
+    with _log_buffer_lock:
+        entries = list(_log_buffer)
+        latest_id = _log_buffer_counter
+
+    if after:
+        entries = [e for e in entries if e['id'] > after]
+    if level_filter and level_filter != 'ALL':
+        entries = [e for e in entries if e['level'] == level_filter]
+
+    # Newest-first for the tail view; return at most `limit`
+    entries = entries[-limit:]
+
+    return jsonify(entries=entries, latest_id=latest_id)
+
+
+# ── DB Inspector ──────────────────────────────────────────────────────────────
+
+@admin_bp.route('/settings/db-inspector/tables')
+@admin_required
+def db_inspector_tables():
+    """Return a list of all table names in the SQLite database."""
+    import sqlite3
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        tables = [row[0] for row in cur.fetchall()]
+        conn.close()
+        return jsonify(ok=True, tables=tables)
+    except Exception as exc:
+        current_app.logger.exception('[db_inspector_tables] %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500
+
+
+@admin_bp.route('/settings/db-inspector/query', methods=['POST'])
+@admin_required
+def db_inspector_query():
+    """Execute a read-only SELECT query and return rows + column names.
+
+    Body (JSON):
+      table   — table name to inspect  (used for PRAGMA / auto-query)
+      sql     — optional custom SQL to run instead; must be a SELECT statement
+      page    — page number (1-based, default 1)
+      per_page — rows per page (default 50, max 200)
+    """
+    import sqlite3
+    import re as _re
+
+    data = request.get_json(force=True, silent=True) or {}
+    table = (data.get('table') or '').strip()
+    sql_raw = (data.get('sql') or '').strip()
+    try:
+        page = max(1, int(data.get('page', 1)))
+        per_page = min(200, max(1, int(data.get('per_page', 50))))
+    except (TypeError, ValueError):
+        page, per_page = 1, 50
+
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+
+    if sql_raw:
+        # Security: only allow SELECT statements
+        stmt = sql_raw.lstrip()
+        if not _re.match(r'(?i)\s*SELECT\b', stmt):
+            return jsonify(ok=False, error='Only SELECT statements are allowed.'), 400
+        # Strip trailing semicolons before adding LIMIT/OFFSET
+        stmt = stmt.rstrip(';').strip()
+        sql = f'{stmt} LIMIT {per_page} OFFSET {(page - 1) * per_page}'
+        count_sql = f'SELECT COUNT(*) FROM ({stmt})'
+    elif table:
+        # Validate table name (alphanumeric + underscore only)
+        if not _re.match(r'^[A-Za-z_][A-Za-z0-9_]*$', table):
+            return jsonify(ok=False, error='Invalid table name.'), 400
+        sql = f'SELECT * FROM "{table}" LIMIT {per_page} OFFSET {(page - 1) * per_page}'
+        count_sql = f'SELECT COUNT(*) FROM "{table}"'
+    else:
+        return jsonify(ok=False, error='Provide table or sql.'), 400
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+
+        total = conn.execute(count_sql).fetchone()[0]
+
+        cur = conn.execute(sql)
+        cols = [d[0] for d in cur.description] if cur.description else []
+        rows = [list(row) for row in cur.fetchall()]
+
+        # PRAGMA for column info (only for single-table browse)
+        schema_cols = []
+        if table and not sql_raw:
+            schema_cur = conn.execute(f'PRAGMA table_info("{table}")')
+            schema_cols = [
+                {'cid': r[0], 'name': r[1], 'type': r[2], 'notnull': r[3],
+                 'dflt_value': r[4], 'pk': r[5]}
+                for r in schema_cur.fetchall()
+            ]
+
+        conn.close()
+        return jsonify(
+            ok=True,
+            columns=cols,
+            rows=rows,
+            total=total,
+            page=page,
+            per_page=per_page,
+            schema=schema_cols,
+        )
+    except Exception as exc:
+        current_app.logger.exception('[db_inspector_query] %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500
+
+
+@admin_bp.route('/settings/db-inspector/update', methods=['POST'])
+@admin_required
+def db_inspector_update():
+    """Update a single cell value in a table row.
+
+    Body (JSON):
+      table   — table name
+      pk_col  — name of the primary key column
+      pk_val  — value of the primary key
+      col     — column to update
+      value   — new value (string; cast happens in SQLite)
+    """
+    import sqlite3
+    import re as _re
+
+    data = request.get_json(force=True, silent=True) or {}
+    table   = (data.get('table') or '').strip()
+    pk_col  = (data.get('pk_col') or '').strip()
+    pk_val  = data.get('pk_val')
+    col     = (data.get('col') or '').strip()
+    value   = data.get('value')
+
+    # Validate identifiers
+    ident_re = r'^[A-Za-z_][A-Za-z0-9_]*$'
+    for ident in (table, pk_col, col):
+        if not _re.match(ident_re, ident):
+            return jsonify(ok=False, error=f'Invalid identifier: {ident!r}'), 400
+
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            f'UPDATE "{table}" SET "{col}" = ? WHERE "{pk_col}" = ?',
+            (value, pk_val),
+        )
+        conn.commit()
+        conn.close()
+        current_app.logger.info(
+            '[db_inspector_update] %s.%s=%r where %s=%r (admin: %s)',
+            table, col, value, pk_col, pk_val, current_user.email,
+        )
+        return jsonify(ok=True)
+    except Exception as exc:
+        current_app.logger.exception('[db_inspector_update] %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500
+
+
+@admin_bp.route('/settings/db-inspector/insert-row', methods=['POST'])
+@admin_required
+def db_inspector_insert_row():
+    """Insert a new row into a table.
+
+    Body (JSON):
+      table   — table name
+      values  — dict of {column: value} (omit PK / auto-increment columns)
+    """
+    import sqlite3
+    import re as _re
+
+    data   = request.get_json(force=True, silent=True) or {}
+    table  = (data.get('table') or '').strip()
+    values = data.get('values') or {}
+
+    ident_re = r'^[A-Za-z_][A-Za-z0-9_]*$'
+    if not _re.match(ident_re, table):
+        return jsonify(ok=False, error=f'Invalid table name: {table!r}'), 400
+    for col in values:
+        if not _re.match(ident_re, col):
+            return jsonify(ok=False, error=f'Invalid column name: {col!r}'), 400
+    if not values:
+        return jsonify(ok=False, error='No values provided.'), 400
+
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+
+    try:
+        cols_sql  = ', '.join(f'"{c}"' for c in values)
+        placeholders = ', '.join('?' for _ in values)
+        sql = f'INSERT INTO "{table}" ({cols_sql}) VALUES ({placeholders})'
+        conn = sqlite3.connect(db_path)
+        cur = conn.execute(sql, list(values.values()))
+        new_id = cur.lastrowid
+        conn.commit()
+        conn.close()
+        current_app.logger.info(
+            '[db_inspector_insert] %s (new id=%s) (admin: %s)',
+            table, new_id, current_user.email,
+        )
+        return jsonify(ok=True, new_id=new_id)
+    except Exception as exc:
+        current_app.logger.exception('[db_inspector_insert] %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500
+
+
+@admin_bp.route('/settings/db-inspector/delete-row', methods=['POST'])
+@admin_required
+def db_inspector_delete_row():
+    """Delete a single row identified by its primary key.
+
+    Body (JSON):
+      table   — table name
+      pk_col  — primary key column name
+      pk_val  — primary key value
+    """
+    import sqlite3
+    import re as _re
+
+    data = request.get_json(force=True, silent=True) or {}
+    table  = (data.get('table') or '').strip()
+    pk_col = (data.get('pk_col') or '').strip()
+    pk_val = data.get('pk_val')
+
+    ident_re = r'^[A-Za-z_][A-Za-z0-9_]*$'
+    for ident in (table, pk_col):
+        if not _re.match(ident_re, ident):
+            return jsonify(ok=False, error=f'Invalid identifier: {ident!r}'), 400
+
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if 'sqlite' not in db_uri:
+        return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
+    db_path = db_uri.replace('sqlite:///', '', 1)
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute(f'DELETE FROM "{table}" WHERE "{pk_col}" = ?', (pk_val,))
+        conn.commit()
+        conn.close()
+        current_app.logger.warning(
+            '[db_inspector_delete] %s where %s=%r (admin: %s)',
+            table, pk_col, pk_val, current_user.email,
+        )
+        return jsonify(ok=True)
+    except Exception as exc:
+        current_app.logger.exception('[db_inspector_delete] %s', exc)
+        return jsonify(ok=False, error=str(exc)), 500

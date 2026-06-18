@@ -131,6 +131,30 @@
 
     </li>
 
+    <li class="nav-item" role="presentation">
+
+      <button class="nav-link" id="tab-console-btn" data-bs-toggle="tab"
+
+              data-bs-target="#tab-console" type="button" role="tab">
+
+        <i class="bi bi-terminal me-1"></i> {{ _t('admin.settings_tab_console', 'Console') }}
+
+      </button>
+
+    </li>
+
+    <li class="nav-item" role="presentation">
+
+      <button class="nav-link" id="tab-dbinspect-btn" data-bs-toggle="tab"
+
+              data-bs-target="#tab-dbinspect" type="button" role="tab">
+
+        <i class="bi bi-table me-1"></i> {{ _t('admin.settings_tab_dbinspect', 'DB Inspector') }}
+
+      </button>
+
+    </li>
+
   </ul>
 
 
@@ -1352,6 +1376,157 @@
       </div>
     </div>
 
+    {# ── TAB — Console ── #}
+    <div class="tab-pane fade" id="tab-console" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center gap-2 flex-wrap py-2">
+              <h6 class="mb-0 me-auto">
+                <i class="bi bi-terminal me-2"></i>{{ _t('admin.settings_console_header', 'Server Console') }}
+              </h6>
+              <select id="consoleLevel" class="form-select form-select-sm" style="width:auto"
+                      onchange="resetConsolePoll()">
+                <option value="ALL">{{ _t('admin.settings_console_all_levels', 'All Levels') }}</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARNING">WARNING</option>
+                <option value="INFO">INFO</option>
+                <option value="CRITICAL">CRITICAL</option>
+              </select>
+              <button type="button" id="consolePauseBtn" class="btn btn-sm btn-outline-secondary"
+                      onclick="toggleConsolePause()">
+                <i class="bi bi-pause-fill me-1" id="consolePauseIcon"></i>
+                <span id="consolePauseLabel">{{ _t('admin.settings_console_pause', 'Pause') }}</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      onclick="clearConsoleDisplay()">
+                <i class="bi bi-trash me-1"></i>{{ _t('admin.settings_console_clear', 'Clear') }}
+              </button>
+              <div class="form-check form-switch mb-0 ms-1">
+                <input class="form-check-input" type="checkbox" id="consoleAutoScroll" checked>
+                <label class="form-check-label small" for="consoleAutoScroll">
+                  {{ _t('admin.settings_console_autoscroll', 'Auto-scroll') }}
+                </label>
+              </div>
+              <span id="consolePollStatus" class="badge bg-secondary ms-1" style="font-size:10px">
+                {{ _t('admin.settings_console_idle', 'idle') }}
+              </span>
+            </div>
+            <div class="card-body p-0">
+              <pre id="consoleOutput"
+                   style="background:#0d1117;color:#c9d1d9;font-family:monospace;font-size:12px;
+                          height:520px;overflow-y:auto;margin:0;padding:12px;
+                          border-radius:0 0 0.375rem 0.375rem;white-space:pre-wrap;
+                          word-break:break-all;"></pre>
+            </div>
+            <div class="card-footer text-muted small">
+              {{ _t('admin.settings_console_hint', 'Shows the last 1 000 server log entries. Polls every 3 seconds while this tab is open.') }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    {# ── TAB — DB Inspector ── #}
+    <div class="tab-pane fade" id="tab-dbinspect" role="tabpanel">
+      <div class="row g-3">
+
+        {# ── Table list sidebar ── #}
+        <div class="col-12 col-lg-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-header py-2">
+              <h6 class="mb-0"><i class="bi bi-list-ul me-2"></i>{{ _t('admin.dbinspect_tables', 'Tables') }}</h6>
+            </div>
+            <div class="card-body p-0">
+              <div id="dbi-table-list" class="list-group list-group-flush"
+                   style="max-height:520px;overflow-y:auto;font-size:13px;">
+                <span class="list-group-item text-muted">{{ _t('admin.dbinspect_loading', 'Loading…') }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# ── Main data area ── #}
+        <div class="col-12 col-lg-9">
+          <div class="card shadow-sm">
+            <div class="card-header d-flex align-items-center gap-2 flex-wrap py-2">
+              <span id="dbi-table-title" class="fw-semibold me-auto">{{ _t('admin.dbinspect_select_table', 'Select a table') }}</span>
+              <span id="dbi-row-count" class="badge bg-secondary" style="font-size:11px"></span>
+              <button id="dbi-insert-btn" class="btn btn-sm btn-success" style="display:none"
+                      onclick="dbiOpenInsertModal()">
+                <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.dbinspect_insert_row', 'New Row') }}
+              </button>
+              <div class="input-group input-group-sm" style="max-width:380px">
+                <input id="dbi-sql-input" type="text" class="form-control font-monospace"
+                       placeholder="SELECT … (custom query)" style="font-size:12px">
+                <button class="btn btn-outline-primary" type="button" onclick="dbiRunSql()">
+                  <i class="bi bi-play-fill"></i>
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="dbiResetSql()"
+                        title="{{ _t('admin.dbinspect_reset_query', 'Reset to table browse') }}">
+                  <i class="bi bi-x"></i>
+                </button>
+              </div>
+            </div>
+            <div class="card-body p-0" style="overflow-x:auto">
+              <div id="dbi-spinner" class="text-center py-4" style="display:none">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+              </div>
+              <div id="dbi-error" class="alert alert-danger m-3" style="display:none"></div>
+              <table id="dbi-table" class="table table-sm table-hover table-bordered mb-0"
+                     style="font-size:12px;min-width:600px">
+                <thead id="dbi-thead" class="table-dark"></thead>
+                <tbody id="dbi-tbody"></tbody>
+              </table>
+            </div>
+            <div class="card-footer d-flex align-items-center gap-2 flex-wrap py-2">
+              <button class="btn btn-sm btn-outline-secondary" id="dbi-prev" onclick="dbiPage(-1)" disabled>
+                <i class="bi bi-chevron-left"></i>
+              </button>
+              <span id="dbi-page-info" class="small text-muted"></span>
+              <button class="btn btn-sm btn-outline-secondary" id="dbi-next" onclick="dbiPage(1)" disabled>
+                <i class="bi bi-chevron-right"></i>
+              </button>
+              <select id="dbi-per-page" class="form-select form-select-sm ms-auto" style="width:auto"
+                      onchange="dbiReload()">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+{# ── DB Inspector — Insert Row Modal ── #}
+<div class="modal fade" id="dbiInsertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-plus-circle me-2"></i>
+          {{ _t('admin.dbinspect_insert_title', 'New Row') }} — <span id="dbi-insert-table-name"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">{{ _t('admin.dbinspect_insert_hint', 'Leave auto-increment / generated columns blank. Required columns are marked with *.') }}</p>
+        <div id="dbi-insert-fields" class="row g-2"></div>
+        <div id="dbi-insert-error" class="alert alert-danger mt-3" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _t('common.cancel', 'Cancel') }}</button>
+        <button type="button" class="btn btn-success" onclick="dbiSubmitInsert()">
+          <i class="bi bi-plus-lg me-1"></i>{{ _t('admin.dbinspect_insert_save', 'Insert Row') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 </div>{# /tab-content #}
 
@@ -1794,6 +1969,464 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
   });
+})();
+
+// ── Admin Console ─────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var LOGS_URL = '{{ url_for("admin.settings_logs") }}';
+  var POLL_INTERVAL = 3000;   // ms
+
+  var latestId   = 0;
+  var paused     = false;
+  var pollTimer  = null;
+  var active     = false;     // true once the Console tab has been opened
+
+  var LEVEL_COLORS = {
+    DEBUG:    '#8b949e',
+    INFO:     '#58a6ff',
+    WARNING:  '#d29922',
+    ERROR:    '#f85149',
+    CRITICAL: '#ff7b72',
+  };
+
+  function escHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function appendEntries(entries) {
+    var out     = document.getElementById('consoleOutput');
+    var scroll  = document.getElementById('consoleAutoScroll');
+    if (!out || !entries.length) return;
+
+    var fragment = '';
+    entries.forEach(function (e) {
+      var color = LEVEL_COLORS[e.level] || '#c9d1d9';
+      fragment += '<span style="color:' + color + '">' + escHtml(e.msg) + '</span>\n';
+    });
+    out.innerHTML += fragment;
+
+    // Trim buffer so the element doesn't grow unbounded (keep last 2 000 lines)
+    var lines = out.innerHTML.split('\n');
+    if (lines.length > 2100) {
+      out.innerHTML = lines.slice(lines.length - 2000).join('\n');
+    }
+
+    if (scroll && scroll.checked) {
+      out.scrollTop = out.scrollHeight;
+    }
+  }
+
+  function setStatus(text, cls) {
+    var el = document.getElementById('consolePollStatus');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'badge ms-1';
+    el.style.fontSize = '10px';
+    el.classList.add(cls || 'bg-secondary');
+  }
+
+  function poll() {
+    if (paused) { pollTimer = setTimeout(poll, POLL_INTERVAL); return; }
+    var level = (document.getElementById('consoleLevel') || {}).value || 'ALL';
+    var url = LOGS_URL + '?after=' + latestId + '&limit=200';
+    if (level && level !== 'ALL') url += '&level=' + encodeURIComponent(level);
+
+    setStatus('...', 'bg-info');
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (d.latest_id > latestId) latestId = d.latest_id;
+        if (d.entries && d.entries.length) appendEntries(d.entries);
+        setStatus('live', 'bg-success');
+      })
+      .catch(function (err) {
+        setStatus('err', 'bg-danger');
+        console.warn('[console-poll]', err);
+      })
+      .finally(function () {
+        pollTimer = setTimeout(poll, POLL_INTERVAL);
+      });
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    poll();
+  }
+
+  window.toggleConsolePause = function () {
+    paused = !paused;
+    var icon  = document.getElementById('consolePauseIcon');
+    var label = document.getElementById('consolePauseLabel');
+    if (paused) {
+      if (icon)  { icon.className = 'bi bi-play-fill me-1'; }
+      if (label) { label.textContent = '{{ _t('admin.settings_console_resume', 'Resume') }}'; }
+      setStatus('paused', 'bg-warning text-dark');
+    } else {
+      if (icon)  { icon.className = 'bi bi-pause-fill me-1'; }
+      if (label) { label.textContent = '{{ _t('admin.settings_console_pause', 'Pause') }}'; }
+    }
+  };
+
+  window.clearConsoleDisplay = function () {
+    var out = document.getElementById('consoleOutput');
+    if (out) out.innerHTML = '';
+  };
+
+  // When the level filter changes, reset latestId so we re-fetch from scratch
+  window.resetConsolePoll = function () {
+    latestId = 0;
+    window.clearConsoleDisplay();
+  };
+
+  // Activate polling the first time the Console tab is shown
+  var tabBtn = document.getElementById('tab-console-btn');
+  if (tabBtn) {
+    tabBtn.addEventListener('shown.bs.tab', function () {
+      if (!active) {
+        active = true;
+        startPolling();
+      }
+    });
+  }
+})();
+
+// ── DB Inspector ──────────────────────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var TABLES_URL   = '{{ url_for("admin.db_inspector_tables") }}';
+  var QUERY_URL    = '{{ url_for("admin.db_inspector_query") }}';
+  var UPDATE_URL   = '{{ url_for("admin.db_inspector_update") }}';
+  var DELETE_URL   = '{{ url_for("admin.db_inspector_delete_row") }}';
+  var CSRF_TOKEN   = document.querySelector('input[name="csrf_token"]').value;
+
+  var state = { table: null, sql: null, schema: [], page: 1, total: 0, per_page: 50, columns: [] };
+
+  function csrfHeaders() {
+    return { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN };
+  }
+
+  function setSpinner(on) {
+    document.getElementById('dbi-spinner').style.display = on ? 'block' : 'none';
+    document.getElementById('dbi-table').style.display  = on ? 'none'  : '';
+  }
+
+  function setError(msg) {
+    var el = document.getElementById('dbi-error');
+    if (msg) { el.textContent = msg; el.style.display = 'block'; }
+    else      { el.style.display = 'none'; }
+  }
+
+  function escHtml(v) {
+    if (v === null || v === undefined) return '<span class="text-muted fst-italic">NULL</span>';
+    return String(v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Load tables ────────────────────────────────────────────────────────────
+  function loadTables() {
+    fetch(TABLES_URL, { credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        var list = document.getElementById('dbi-table-list');
+        if (!d.ok) { list.innerHTML = '<span class="list-group-item text-danger">' + escHtml(d.error) + '</span>'; return; }
+        list.innerHTML = '';
+        d.tables.forEach(function(tbl) {
+          var a = document.createElement('a');
+          a.href = '#';
+          a.className = 'list-group-item list-group-item-action py-1 px-3';
+          a.textContent = tbl;
+          a.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('#dbi-table-list a').forEach(function(x){ x.classList.remove('active'); });
+            a.classList.add('active');
+            state.table = tbl; state.sql = null; state.page = 1;
+            document.getElementById('dbi-sql-input').value = '';
+            document.getElementById('dbi-table-title').textContent = tbl;
+            loadData();
+          });
+          list.appendChild(a);
+        });
+      })
+      .catch(function(e){ console.error('[dbi] load tables:', e); });
+  }
+
+  // ── Load data ──────────────────────────────────────────────────────────────
+  function loadData() {
+    if (!state.table && !state.sql) return;
+    setSpinner(true); setError(null);
+    var pp = parseInt(document.getElementById('dbi-per-page').value) || 50;
+    var body = { page: state.page, per_page: pp };
+    if (state.sql) { body.sql = state.sql; }
+    else           { body.table = state.table; }
+
+    fetch(QUERY_URL, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfHeaders(),
+      body: JSON.stringify(body),
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        setSpinner(false);
+        if (!d.ok) { setError(d.error); return; }
+        state.columns = d.columns;
+        state.schema  = d.schema || [];
+        state.total   = d.total;
+        state.page    = d.page;
+        state.per_page = d.per_page;
+        renderTable(d.columns, d.rows, d.schema);
+        renderPager();
+        document.getElementById('dbi-row-count').textContent = d.total + ' rows';
+        // Show "New Row" button only when browsing a real table (not custom SQL)
+        document.getElementById('dbi-insert-btn').style.display = (!state.sql && state.table) ? '' : 'none';
+      })
+      .catch(function(e){ setSpinner(false); setError(String(e)); });
+  }
+
+  // ── Render table ───────────────────────────────────────────────────────────
+  function renderTable(cols, rows, schema) {
+    var pkCol = null;
+    if (schema && schema.length) {
+      var pkInfo = schema.find(function(c){ return c.pk === 1; });
+      if (pkInfo) pkCol = pkInfo.name;
+    }
+    // If no schema PK, guess 'id'
+    if (!pkCol && cols.indexOf('id') !== -1) pkCol = 'id';
+
+    var thead = document.getElementById('dbi-thead');
+    var tbody = document.getElementById('dbi-tbody');
+
+    // Header
+    var thRow = '<tr>';
+    if (pkCol) thRow += '<th style="width:40px"></th>';
+    cols.forEach(function(c){ thRow += '<th>' + escHtml(c) + '</th>'; });
+    thRow += '</tr>';
+    thead.innerHTML = thRow;
+
+    // Rows
+    var html = '';
+    rows.forEach(function(row) {
+      var pkIdx  = pkCol ? cols.indexOf(pkCol) : -1;
+      var pkVal  = pkIdx >= 0 ? row[pkIdx] : null;
+      html += '<tr data-pk="' + escHtml(pkVal) + '">';
+      if (pkCol) {
+        html += '<td class="text-center">'
+              + '<button class="btn btn-link btn-sm p-0 me-1 text-danger dbi-del-btn" '
+              + 'title="{{ _t('admin.dbinspect_delete_row', 'Delete row') }}" '
+              + 'data-pk="' + escHtml(pkVal) + '" onclick="dbiDeleteRow(this)">'
+              + '<i class="bi bi-trash3"></i></button>'
+              + '</td>';
+      }
+      row.forEach(function(val, i) {
+        var colName = cols[i];
+        var isEditable = pkCol && colName !== pkCol;
+        if (isEditable) {
+          html += '<td class="dbi-cell" data-col="' + escHtml(colName) + '" data-pk="' + escHtml(pkVal)
+                + '" data-orig="' + escHtml(val) + '" onclick="dbiEditCell(this)" style="cursor:pointer">'
+                + escHtml(val) + '</td>';
+        } else {
+          html += '<td>' + escHtml(val) + '</td>';
+        }
+      });
+      html += '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  // ── Inline cell editing ────────────────────────────────────────────────────
+  window.dbiEditCell = function(td) {
+    if (td.querySelector('input')) return; // already editing
+    var orig = td.getAttribute('data-orig');
+    var col  = td.getAttribute('data-col');
+    var pk   = td.getAttribute('data-pk');
+
+    td.innerHTML = '<input type="text" class="form-control form-control-sm p-0 px-1" '
+                 + 'style="font-size:12px;min-width:80px" value="' + escHtml(orig) + '">';
+    var input = td.querySelector('input');
+    input.focus(); input.select();
+
+    function save() {
+      var newVal = input.value;
+      if (newVal === orig) { td.innerHTML = escHtml(orig); return; }
+      fetch(UPDATE_URL, {
+        method: 'POST', credentials: 'same-origin', headers: csrfHeaders(),
+        body: JSON.stringify({ table: state.table, pk_col: getPkCol(), pk_val: pk, col: col, value: newVal }),
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          if (d.ok) {
+            td.setAttribute('data-orig', newVal);
+            td.innerHTML = escHtml(newVal);
+            td.style.background = '#d1e7dd';
+            setTimeout(function(){ td.style.background = ''; }, 1200);
+          } else {
+            alert('{{ _t('common.error', 'Error') }}: ' + d.error);
+            td.innerHTML = escHtml(orig);
+          }
+        })
+        .catch(function(e){ alert(String(e)); td.innerHTML = escHtml(orig); });
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { td.innerHTML = escHtml(orig); }
+    });
+  };
+
+  function getPkCol() {
+    if (state.schema && state.schema.length) {
+      var pk = state.schema.find(function(c){ return c.pk === 1; });
+      if (pk) return pk.name;
+    }
+    return 'id';
+  }
+
+  // ── Delete row ─────────────────────────────────────────────────────────────
+  window.dbiDeleteRow = function(btn) {
+    var pkVal = btn.getAttribute('data-pk');
+    if (!confirm('{{ _t('admin.dbinspect_delete_confirm', 'Really delete this row?') }} (PK=' + pkVal + ')')) return;
+    fetch(DELETE_URL, {
+      method: 'POST', credentials: 'same-origin', headers: csrfHeaders(),
+      body: JSON.stringify({ table: state.table, pk_col: getPkCol(), pk_val: pkVal }),
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          var tr = btn.closest('tr');
+          tr.style.background = '#f8d7da';
+          setTimeout(function(){ tr.remove(); state.total--; renderPager(); }, 400);
+        } else {
+          alert('{{ _t('common.error', 'Error') }}: ' + d.error);
+        }
+      })
+      .catch(function(e){ alert(String(e)); });
+  };
+
+  // ── Pager ──────────────────────────────────────────────────────────────────
+  function renderPager() {
+    var pp    = state.per_page;
+    var pages = Math.max(1, Math.ceil(state.total / pp));
+    document.getElementById('dbi-page-info').textContent =
+      'Page ' + state.page + ' / ' + pages + '  (' + state.total + ' rows)';
+    document.getElementById('dbi-prev').disabled = state.page <= 1;
+    document.getElementById('dbi-next').disabled = state.page >= pages;
+  }
+
+  window.dbiPage = function(delta) {
+    state.page = Math.max(1, state.page + delta);
+    loadData();
+  };
+
+  window.dbiReload = function() { state.page = 1; loadData(); };
+
+  // ── Custom SQL ─────────────────────────────────────────────────────────────
+  window.dbiRunSql = function() {
+    var sql = document.getElementById('dbi-sql-input').value.trim();
+    if (!sql) return;
+    state.sql = sql; state.page = 1;
+    document.getElementById('dbi-table-title').textContent = 'Custom query';
+    document.getElementById('dbi-insert-btn').style.display = 'none';
+    loadData();
+  };
+
+  window.dbiResetSql = function() {
+    state.sql = null;
+    document.getElementById('dbi-sql-input').value = '';
+    if (state.table) {
+      document.getElementById('dbi-table-title').textContent = state.table;
+      state.page = 1;
+      loadData();
+    }
+  };
+
+  // ── Init: load tables when tab is first shown ──────────────────────────────
+  var dbiTabBtn = document.getElementById('tab-dbinspect-btn');
+  var dbiLoaded = false;
+  if (dbiTabBtn) {
+    dbiTabBtn.addEventListener('shown.bs.tab', function () {
+      if (!dbiLoaded) { dbiLoaded = true; loadTables(); }
+    });
+  }
+
+  // ── Insert Row Modal ───────────────────────────────────────────────────────
+  var INSERT_URL = '{{ url_for("admin.db_inspector_insert_row") }}';
+
+  window.dbiOpenInsertModal = function () {
+    if (!state.table || !state.schema || !state.schema.length) return;
+    document.getElementById('dbi-insert-table-name').textContent = state.table;
+    document.getElementById('dbi-insert-error').style.display = 'none';
+
+    var fields = document.getElementById('dbi-insert-fields');
+    fields.innerHTML = '';
+    state.schema.forEach(function (col) {
+      // Skip ROWID aliases / integer primary keys (auto-increment)
+      var isAutoPk = col.pk === 1 && col.type.toUpperCase().indexOf('INT') !== -1;
+      var required = col.notnull === 1 && col.dflt_value === null && !isAutoPk;
+      var div = document.createElement('div');
+      div.className = 'col-12 col-md-6';
+      div.innerHTML =
+        '<label class="form-label fw-semibold mb-1" style="font-size:12px">'
+        + escHtml(col.name)
+        + ' <span class="text-muted fw-normal">(' + escHtml(col.type || 'TEXT') + ')</span>'
+        + (required ? ' <span class="text-danger">*</span>' : '')
+        + '</label>'
+        + '<input type="text" class="form-control form-control-sm" '
+        + 'data-col="' + escHtml(col.name) + '" '
+        + (isAutoPk ? 'placeholder="auto" disabled ' : '')
+        + (required ? 'required ' : '')
+        + (col.dflt_value !== null ? 'value="' + escHtml(col.dflt_value) + '" ' : '')
+        + 'style="font-size:12px">';
+      fields.appendChild(div);
+    });
+
+    var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('dbiInsertModal'));
+    modal.show();
+  };
+
+  window.dbiSubmitInsert = function () {
+    var errEl = document.getElementById('dbi-insert-error');
+    errEl.style.display = 'none';
+    var inputs = document.querySelectorAll('#dbi-insert-fields input:not([disabled])');
+    var values = {};
+    var ok = true;
+    inputs.forEach(function (inp) {
+      if (inp.required && inp.value.trim() === '') {
+        inp.classList.add('is-invalid');
+        ok = false;
+      } else {
+        inp.classList.remove('is-invalid');
+        values[inp.getAttribute('data-col')] = inp.value === '' ? null : inp.value;
+      }
+    });
+    if (!ok) { errEl.textContent = '{{ _t('admin.dbinspect_insert_required', 'Please fill in all required fields.') }}'; errEl.style.display = 'block'; return; }
+
+    fetch(INSERT_URL, {
+      method: 'POST', credentials: 'same-origin', headers: csrfHeaders(),
+      body: JSON.stringify({ table: state.table, values: values }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          bootstrap.Modal.getInstance(document.getElementById('dbiInsertModal')).hide();
+          state.page = 1;
+          loadData();
+        } else {
+          errEl.textContent = d.error;
+          errEl.style.display = 'block';
+        }
+      })
+      .catch(function (e) { errEl.textContent = String(e); errEl.style.display = 'block'; });
+  };
 })();
 </script>
 
