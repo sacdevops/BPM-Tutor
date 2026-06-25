@@ -19,11 +19,10 @@ class AIAgent(db.Model):
     # ^ user-created copies: 'custom'
     description = db.Column(db.Text, nullable=True)
     is_system = db.Column(db.Boolean, default=False, nullable=False)
-    # ^ True = built-in system agent, cannot be deleted
     is_default = db.Column(db.Boolean, default=False, nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
 
-    # ── Capability flags ──────────────────────────────────────────────────────
+    # Capability flags
     # modeling_mode: what the AI is allowed to do with the BPMN model
     #   'none'          – AI cannot model; student always drives the canvas
     #   'collaborative' – AI and student model together (shared canvas)
@@ -42,13 +41,13 @@ class AIAgent(db.Model):
     can_model = db.Column(db.Boolean, default=False, nullable=False)
     model_override = db.Column(db.String(100), nullable=True)
 
-    # ── Memory settings ──────────────────────────────────────────────────────
+    # Memory settings
     # memory_enabled: whether the agent may reference previous chat messages
     # memory_window:  how many past messages are passed to the LLM (0 = unlimited)
     memory_enabled = db.Column(db.Boolean, default=True, nullable=True)
     memory_window = db.Column(db.Integer, default=10, nullable=True)
 
-    # ── Mode assignment ──────────────────────────────────────────────────────
+    # Mode assignment
     # Which contexts this agent is used in (can select multiple)
     use_standard = db.Column(db.Boolean, default=True, nullable=False)   # regular task mode
     use_leveling = db.Column(db.Boolean, default=False, nullable=False)  # level system tasks
@@ -58,7 +57,7 @@ class AIAgent(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # ── Prompt relationship ───────────────────────────────────────────────────
+    # Prompt relationship
     # All prompts are stored in agent_prompts (prompt_type × lang).
     # Use get_prompt() / set_prompt() / get_prompts_dict() to access them.
     prompts = db.relationship(
@@ -71,10 +70,6 @@ class AIAgent(db.Model):
 
     def __repr__(self) -> str:
         return f'<AIAgent {self.agent_type}:{self.name}>'
-
-    # ------------------------------------------------------------------
-    # Prompt access helpers
-    # ------------------------------------------------------------------
 
     def get_prompt(self, prompt_type: str, lang: str = 'en') -> str | None:
         """Return the stored prompt for (prompt_type, lang), falling back to 'en'."""
@@ -113,8 +108,6 @@ class AIAgent(db.Model):
         from app.models.agent_prompt import AgentPrompt
         rows = AgentPrompt.query.filter_by(agent_id=self.id).all()
         return {(r.prompt_type, r.lang): r.content for r in rows if r.content}
-
-    # ------------------------------------------------------------------
 
     @classmethod
     def get_default(cls) -> 'AIAgent | None':

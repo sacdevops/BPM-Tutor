@@ -15,7 +15,7 @@ from app.utils.audit import log_action
 from app.utils.email import send_grade_notification_email
 
 
-# ── Grading list ──────────────────────────────────────────────────────────────
+# Grading list
 
 @admin_bp.route('/grading')
 @tutor_or_admin_required
@@ -33,7 +33,6 @@ def grading_list():
                    TaskSubmission.grade_passed.isnot(None))
         )
     elif graded_filter == 'no':
-        # 'no grading' tasks are always considered done — exclude them from the pending queue
         query = (query
                  .join(Task, TaskSubmission.task_id == Task.id)
                  .filter(Task.grading_type != 'none')
@@ -50,7 +49,7 @@ def grading_list():
                            task_filter=task_filter, graded_filter=graded_filter)
 
 
-# ── Grading detail / save grade ───────────────────────────────────────────────
+# Grading detail / save grade
 
 @admin_bp.route('/grading/<int:sub_id>', methods=['GET', 'POST'])
 @tutor_or_admin_required
@@ -58,8 +57,6 @@ def grading_detail(sub_id: int):
     submission = TaskSubmission.query.get_or_404(sub_id)
     task = db.session.get(Task, submission.task_id)
 
-    # Determine where to return after save/delete.
-    # Priority: explicit ?back= param (GET) → hidden back field (POST) → referrer → grading list.
     _safe_hosts = {'localhost', '127.0.0.1'}
     def _is_local(url: str) -> bool:
         from urllib.parse import urlparse
@@ -170,7 +167,7 @@ def submission_delete(sub_id: int):
     log_action('delete_submission', 'TaskSubmission', sub_id, {})
     flash('Einreichung gelöscht.', 'success')
     back_url = request.form.get('back_url', '').strip() or url_for('admin.grading_list')
-    # Basic open-redirect guard: only allow relative URLs or same-host
+
     from urllib.parse import urlparse
     try:
         _p = urlparse(back_url)
@@ -181,7 +178,7 @@ def submission_delete(sub_id: int):
     return redirect(back_url)
 
 
-# ── AI grading suggestion ─────────────────────────────────────────────────────
+# AI grading suggestion
 
 @admin_bp.route('/grading/<int:sub_id>/ai-suggest', methods=['POST'])
 @tutor_or_admin_required

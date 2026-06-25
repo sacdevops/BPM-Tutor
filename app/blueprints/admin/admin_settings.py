@@ -32,7 +32,7 @@ def _persist_registration_fields(fields_data: list) -> None:
     db.session.commit()
 
 
-# ── Registration fields ───────────────────────────────────────────────────────
+# Registration fields
 
 @admin_bp.route('/settings/registration-fields', methods=['GET', 'POST'])
 @admin_required
@@ -65,7 +65,7 @@ def registration_fields_api():
         return jsonify(ok=False, error=str(e)), 400
 
 
-# ── System settings ───────────────────────────────────────────────────────────
+# System settings
 
 @admin_bp.route('/settings', methods=['GET', 'POST'])
 @admin_required
@@ -133,7 +133,6 @@ def settings():
             Settings.SCIEBO_REMOTE_PATH: request.form.get('sciebo_remote_path', '').strip(),
         }
 
-        # Per-language BPMN rules (skip English — stored in the base keys)
         for _al in active_languages:
             if _al.code == 'en':
                 continue
@@ -165,10 +164,8 @@ def settings():
             mapping[Settings.BRAND_LOGO_MIME] = 'image/png'
             mapping[Settings.BRAND_LOGO_URL] = ''
 
-        # Capture plaintext mail password before encryption (needed for live Flask-Mail config)
         _mail_pw_plain = str(mapping.get(Settings.MAIL_PASSWORD) or '')
 
-        # Encrypt sensitive values; if field left blank, keep the existing encrypted value
         from app.utils.crypto import encrypt_value as _enc
         _SENSITIVE = (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD, Settings.SCIEBO_PASSWORD)
         for _key in _SENSITIVE:
@@ -177,7 +174,7 @@ def settings():
                 if _raw:
                     mapping[_key] = _enc(_raw)
                 else:
-                    del mapping[_key]  # empty → keep existing encrypted value
+                    del mapping[_key]
 
         Settings.set_many(mapping)
         enc = request.form.get('mail_encryption', 'starttls')
@@ -198,9 +195,9 @@ def settings():
         row.key: Settings._cast(row.value, row.value_type)
         for row in SystemSetting.query.all()
     }
-    # Keys that exist in the DB (even if value is empty string)
+
     _db_keys = {row.key for row in SystemSetting.query.all()}
-    # Decrypt sensitive values for display so the form doesn't show cipher text
+
     from app.utils.crypto import decrypt_value as _dec
     for _key in (Settings.GLOBAL_API_KEY, Settings.MAIL_PASSWORD, Settings.MAIL_INCOMING_PASSWORD, Settings.SCIEBO_PASSWORD):
         if _key in current_settings:
@@ -214,7 +211,6 @@ def settings():
     ]
     from app.services.prompts._base import BPMN_STANDARDS as _bpmn_std, BPMN_ELEMENTS_REFERENCE as _bpmn_el, GENERAL_RULES as _general_rules_default, GENERAL_RULES_DE as _general_rules_de_default, LION_FORMAT_RULES as _lion_format_default
 
-    # Compute next backup time for display
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
     _last_run_str = current_settings.get(Settings.AUTO_BACKUP_LAST_RUN, '') or ''
     _backup_next_run = None
@@ -241,18 +237,15 @@ def settings():
 def _sciebo_base(url: str, username: str) -> str:
     """Build the WebDAV base URL, normalising whatever the user typed.
 
-    Accepts both:
-      • https://tu-dortmund.sciebo.de  (bare domain — recommended)
-      • https://tu-dortmund.sciebo.de/remote.php/dav/files/user@...  (full path — tolerated)
     Always returns:  https://<host>/remote.php/dav/files/<username>
     """
     import re
-    # Strip any /remote.php/... suffix the user may have included
+
     base = re.sub(r'/remote\.php.*$', '', url.rstrip('/'))
     return f'{base}/remote.php/dav/files/{username}'
 
 
-# ── Manual backup trigger ─────────────────────────────────────────────────────
+# Manual backup trigger
 
 @admin_bp.route('/settings/backup-now', methods=['POST'])
 @admin_required
@@ -279,7 +272,6 @@ def backup_now():
         filename = f'bpmtutor_{ts}.db'
         dest = os.path.join(backup_dir, filename)
 
-        # SQLite online backup
         src = sqlite3.connect(db_path)
         dst = sqlite3.connect(dest)
         try:
@@ -289,7 +281,6 @@ def backup_now():
             dst.close()
         current_app.logger.info('[backup_now] Created: %s', dest)
 
-        # Rotate local backups
         try:
             max_keep = int(Settings.get(Settings.AUTO_BACKUP_MAX_KEEP, 14) or 14)
         except (TypeError, ValueError):
@@ -318,13 +309,13 @@ def backup_now():
                     webdav_base = _sciebo_base(sciebo_url, sciebo_user)
                     auth = (sciebo_user, sciebo_pass)
                     if remote_path:
-                        # Create each directory level individually (WebDAV MKCOL is not recursive)
+
                         parts = remote_path.split('/')
                         for i in range(1, len(parts) + 1):
                             partial = '/'.join(parts[:i])
                             mkcol_url = f'{webdav_base}/{partial}/'
                             mkcol_resp = _req.request('MKCOL', mkcol_url, auth=auth, timeout=15)
-                            # 201 = created, 405 = already exists (both are fine)
+
                             current_app.logger.info('[backup_now] MKCOL %s → %s', mkcol_url, mkcol_resp.status_code)
                             if mkcol_resp.status_code not in (201, 405, 301, 302):
                                 current_app.logger.warning('[backup_now] MKCOL unexpected status %s for %s',
@@ -359,7 +350,7 @@ def backup_now():
         return jsonify(ok=False, error=str(exc)), 500
 
 
-# ── Test Sciebo connection ────────────────────────────────────────────────────
+# Test Sciebo connection
 
 @admin_bp.route('/settings/test-sciebo', methods=['POST'])
 @admin_required
@@ -389,7 +380,7 @@ def test_sciebo():
         elif resp.status_code == 401:
             return jsonify(ok=False, msg=f'Authentifizierung fehlgeschlagen (HTTP 401). Benutzername oder Passwort prüfen.\nGeprüfte URL: {probe_url}')
         elif resp.status_code == 404:
-            # Try root to distinguish wrong path vs wrong credentials
+
             root_resp = _req.request('PROPFIND', f'{webdav_base}/',
                                      auth=(sciebo_user, sciebo_pass),
                                      headers={'Depth': '0'}, timeout=15)
@@ -410,7 +401,7 @@ def test_sciebo():
         return jsonify(ok=False, msg=f'Verbindungsfehler: {exc}')
 
 
-# ── Test mail connection ──────────────────────────────────────────────────────
+# Test mail connection
 
 @admin_bp.route('/settings/test-mail', methods=['POST'])
 @admin_required
@@ -486,7 +477,7 @@ def test_mail():
                    msg=f'Test-E-Mail erfolgreich an {current_user.email} gesendet.')
 
 
-# ── AI translate ─────────────────────────────────────────────────────────────
+# AI translate
 
 @admin_bp.route('/api/translate-text', methods=['POST'])
 @admin_required
@@ -545,7 +536,7 @@ def translate_text():
         return jsonify(ok=False, error=str(exc)), 500
 
 
-# ── Database export / import ─────────────────────────────────────────────────
+# Database export / import
 
 @admin_bp.route('/settings/db-export')
 @admin_required
@@ -594,7 +585,6 @@ def db_import():
             flash('Invalid file — not a valid SQLite database.', 'danger')
             return redirect(url_for('admin.settings'))
 
-        # Full integrity check — catches partial uploads and bit-rot
         try:
             check = sqlite3.connect(tmp.name)
             result = check.execute('PRAGMA integrity_check(10)').fetchall()
@@ -624,7 +614,7 @@ def db_import():
     return redirect(url_for('admin.settings'))
 
 
-# ── DB integrity check ────────────────────────────────────────────────────────
+# DB integrity check
 
 @admin_bp.route('/settings/db-integrity', methods=['POST'])
 @admin_required
@@ -646,7 +636,7 @@ def db_integrity():
         return jsonify(ok=False, issues=[str(exc)]), 500
 
 
-# ── Restore from .bak ─────────────────────────────────────────────────────────
+# Restore from .bak
 
 @admin_bp.route('/settings/db-restore-bak', methods=['POST'])
 @admin_required
@@ -695,7 +685,7 @@ def db_restore_bak():
     return redirect(url_for('admin.settings'))
 
 
-# ── Factory reset (drop all tables, recreate, seed) ──────────────────────────
+# Factory reset (drop all tables, recreate, seed)
 
 @admin_bp.route('/settings/db-reset', methods=['POST'])
 @admin_required
@@ -708,14 +698,12 @@ def db_reset():
     try:
         from app.extensions import db as _db
 
-        # Dispose open connections before drop
         _db.session.remove()
         _db.engine.dispose()
 
         _db.drop_all()
         _db.create_all()
 
-        # Re-seed default data (agents, tasks, etc.)
         from deploy.seed import step_languages, step_tasks, step_admin, step_system_agents
         step_languages()
         step_tasks()
@@ -726,13 +714,12 @@ def db_reset():
         current_app.logger.exception('db_reset failed: %s', exc)
         flash(f'Fehler beim Zurücksetzen: {exc}', 'danger')
 
-    # Force logout since all sessions are gone
     from flask_login import logout_user
     logout_user()
     return redirect(url_for('auth.login'))
 
 
-# ── Broadcast notification ────────────────────────────────────────────────────
+# Broadcast notification
 
 @admin_bp.route('/notify-all', methods=['POST'])
 @admin_required
@@ -759,7 +746,7 @@ def notify_all():
     return redirect(url_for('admin.dashboard'))
 
 
-# ── API endpoints ─────────────────────────────────────────────────────────────
+# API endpoints
 
 @admin_bp.route('/api/stats')
 @tutor_or_admin_required
@@ -782,7 +769,7 @@ def api_user_stats(user_id: int):
     return jsonify({'stats': stats, 'chart': chart})
 
 
-# ── Admin Console — server log stream ────────────────────────────────────────
+# Admin Console — server log stream
 
 @admin_bp.route('/settings/logs')
 @admin_required
@@ -812,13 +799,12 @@ def settings_logs():
     if level_filter and level_filter != 'ALL':
         entries = [e for e in entries if e['level'] == level_filter]
 
-    # Newest-first for the tail view; return at most `limit`
     entries = entries[-limit:]
 
     return jsonify(entries=entries, latest_id=latest_id)
 
 
-# ── DB Inspector ──────────────────────────────────────────────────────────────
+# DB Inspector
 
 @admin_bp.route('/settings/db-inspector/tables')
 @admin_required
@@ -875,7 +861,7 @@ def db_inspector_query():
         stmt = sql_raw.lstrip()
         if not _re.match(r'(?i)\s*SELECT\b', stmt):
             return jsonify(ok=False, error='Only SELECT statements are allowed.'), 400
-        # Strip trailing semicolons before adding LIMIT/OFFSET
+        
         stmt = stmt.rstrip(';').strip()
         sql = f'{stmt} LIMIT {per_page} OFFSET {(page - 1) * per_page}'
         count_sql = f'SELECT COUNT(*) FROM ({stmt})'
@@ -898,7 +884,6 @@ def db_inspector_query():
         cols = [d[0] for d in cur.description] if cur.description else []
         rows = [list(row) for row in cur.fetchall()]
 
-        # PRAGMA for column info (only for single-table browse)
         schema_cols = []
         if table and not sql_raw:
             schema_cur = conn.execute(f'PRAGMA table_info("{table}")')

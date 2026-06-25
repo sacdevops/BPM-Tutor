@@ -44,7 +44,7 @@ def _auto_dropout_check(research, rp) -> bool:
             continue
         if now <= study.task_end:
             continue
-        # Deadline has passed — check if participant completed this Study
+
         sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()
         if not sp or not sp.completed_at:
             rp.dropped_out_at = datetime.now(timezone.utc)
@@ -143,14 +143,12 @@ def study_index(study_id: int):
             return redirect(url_for('study.research_home', research_id=study.research_id))
         return redirect('/')
 
-    # ── Research sub-Study: check Research enrollment instead of Study enrollment
     if study.research_id:
         from app.models.research import Research
         research = db.session.get(Research, study.research_id)
         rp = _get_research_participant(study.research_id)
         if not rp or rp.is_dropped_out:
             return redirect(url_for('study.research_home', research_id=study.research_id))
-        # Auto-dropout check
         if _auto_dropout_check(research, rp):
             flash('Du wurdest automatisch aus dem Research ausgeschlossen, da eine Frist versäumt wurde.', 'warning')
             return redirect(url_for('study.research_home', research_id=study.research_id))
@@ -165,14 +163,10 @@ def study_index(study_id: int):
         return redirect(url_for('study.available_studies'))
 
     if participant.is_completed:
-        # For Research sub-Studies, go back to the Research home
         if study.research_id:
             return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
-    # For standalone studies with an enrollment survey, ensure it was completed before
-    # the participant can access any step.  Tie the check to the current enrollment
-    # (completed_at >= enrolled_at) to avoid false positives from prior test runs.
     if not study.research_id and study.enrollment_survey_id:
         from app.models.survey import SurveyResponse
         _enrolled_at = (
@@ -198,12 +192,10 @@ def study_index(study_id: int):
     if step is None:
         participant.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        # For Research sub-Studies, return to Research home when Study is done
         if study.research_id:
             return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
 
-    # Per-step availability check
     eff_from, eff_until = step.get_availability(study)
     now = datetime.now()
     _eff_from = eff_from.replace(tzinfo=None) if eff_from and eff_from.tzinfo else eff_from
@@ -213,7 +205,7 @@ def study_index(study_id: int):
                                available_from=_eff_from, participant=participant)
     if _eff_until and now > _eff_until and not step.allow_late_submission:
         flash('Die Frist fuer diesen Schritt ist abgelaufen.', 'danger')
-        # Move past a hard-deadline missed step to avoid getting stuck
+
         participant.current_step += 1
         db.session.commit()
         return redirect(url_for('study.study_index', study_id=study_id))
@@ -255,7 +247,6 @@ def enroll(study_id: int):
             return redirect(url_for('study.available_studies'))
 
     if request.method == 'POST':
-        # Informed consent validation
         if study.require_consent and not request.form.get('consent_checkbox'):
             flash('Bitte stimme den Datenschutzhinweisen zu, um fortzufahren.', 'danger')
             return render_template('study_enroll.html', study=study)
@@ -266,7 +257,7 @@ def enroll(study_id: int):
         db.session.add(p)
         try:
             db.session.flush()
-            # Between-subjects: assign condition
+
             study.assign_condition(p)
             db.session.commit()
         except Exception:
@@ -274,7 +265,7 @@ def enroll(study_id: int):
             flash('Du bist bereits angemeldet.', 'warning')
             return redirect(url_for('study.study_index', study_id=study_id))
         flash('Erfolgreich angemeldet!', 'success')
-        # If the study has an enrollment survey, show it before entering the study
+        
         if study.enrollment_survey_id:
             next_url = url_for('study.study_index', study_id=study_id)
             return redirect(url_for('survey_bp.take',
@@ -294,7 +285,6 @@ def task_step(study_id: int, task_id: str):
     study = Study.query.get_or_404(study_id)
     task = Task.query.get_or_404(task_id)
 
-    # ── Research sub-Study: check Research enrollment
     rp = None
     if study.research_id:
         from app.models.research import Research
@@ -310,11 +300,9 @@ def task_step(study_id: int, task_id: str):
     if participant.is_dropped_out:
         return redirect(url_for('study.available_studies'))
 
-    # Find the matching step to record start time
     step = study.get_step_for_participant(participant)
     if step and step.task_id == task_id:
         _record_step_start(participant, step)
-        # Availability check
         eff_from, eff_until = step.get_availability(study)
         now = datetime.now()
         _eff_from = eff_from.replace(tzinfo=None) if eff_from and eff_from.tzinfo else eff_from
@@ -328,16 +316,9 @@ def task_step(study_id: int, task_id: str):
             db.session.commit()
             return redirect(url_for('study.study_index', study_id=study_id))
 
-    # Determine agent:
-    # Research sub-Study: use ResearchParticipant.active_agent_id or condition agent
-    # Standalone Study: use StudyParticipant.active_agent_id or condition agent
     agent = None
     no_ai = False
     if rp:
-        # Research context: priority order:
-        # 1. StudyParticipant.active_agent_id  — set by agent_choice_step
-        # 2. ResearchParticipant.active_agent_id — admin/system override
-        # 3. Condition agent — default for this cohort
         _chosen_id = (participant.active_agent_id if participant else None) or rp.active_agent_id
         if _chosen_id:
             from app.models.agent import AIAgent
@@ -362,7 +343,6 @@ def task_step(study_id: int, task_id: str):
         from app.models.agent import AIAgent
         agent = db.session.get(AIAgent, task.agent_id)
 
-    # Resolve canonical agent info (falls back to task-default then platform default)
     from app.utils.agent_utils import resolve_agent as _ra
     _agent_id_raw = (agent.id if agent else None) or task.agent_id or ''
     resolved_agent_id, _, _, _, _ = _ra(_agent_id_raw, task.id)
@@ -389,7 +369,6 @@ def step_done(study_id: int):
     from app.models.study import Study
     study = Study.query.get_or_404(study_id)
 
-    # Research sub-Study: use ResearchParticipant + auto-create StudyParticipant
     if study.research_id:
         rp = _get_research_participant(study.research_id)
         if not rp or rp.is_dropped_out:
@@ -404,9 +383,6 @@ def step_done(study_id: int):
 
     step = study.get_step_for_participant(participant)
     if step:
-        # For survey steps, verify the survey was actually submitted before advancing.
-        # This prevents step advancement when the user navigates to /step-done directly
-        # or returns via browser history without completing the survey.
         if step.step_type == 'survey' and step.survey_id:
             from app.models.survey import SurveyResponse
             _survey_done = SurveyResponse.query.filter_by(
@@ -438,7 +414,6 @@ def step_done(study_id: int):
     if participant.current_step >= total_steps:
         participant.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        # For Research sub-Studies go back to the Research home
         if study.research_id:
             return redirect(url_for('study.research_home', research_id=study.research_id))
         return render_template('study_done.html', study=study, participant=participant)
@@ -480,7 +455,6 @@ def agent_choice_step(study_id: int, step_id: int):
     if participant.is_dropped_out:
         return redirect(url_for('study.available_studies'))
 
-    # Load available agents defined for this step
     agent_ids = []
     if step.available_agents:
         try:
@@ -536,7 +510,6 @@ def available_studies():
         research = Research.query.filter_by(is_active=True, is_enabled=True).first()
         if research:
             return redirect(url_for('study.research_home', research_id=research.id))
-    # Classic standalone-Studies list
     from app.models.study import Study, StudyParticipant
     studies = Study.query.filter_by(is_active=True, is_archived=False).filter_by(research_id=None).all()
     my_studies = {
@@ -546,7 +519,7 @@ def available_studies():
     return render_template('study_list.html', studies=studies, my_studies=my_studies)
 
 
-# ── Research home (enrolled participant view) ─────────────────────────────────
+# Research home (enrolled participant view)
 
 @study_bp.route('/research/<int:research_id>')
 @login_required
@@ -562,35 +535,23 @@ def research_home(research_id: int):
 
     rp = _get_research_participant(research_id)
     if not rp:
-        # Admins and tutors can preview without being stored as real participants
         if current_user.has_role('admin', 'tutor'):
             from app.models.research import ResearchParticipant
             rp = ResearchParticipant(research_id=research_id, user_id=current_user.id)
-            # Do NOT persist — admins preview without appearing in the participant list
         elif research.enrollment_open:
-            # Enrollment is open → redirect to the enrollment form
             return redirect(url_for('study.research_enroll', research_id=research_id))
         else:
-            # Enrollment is not currently open; show the page in read-only mode
-            # (participant is None — template handles it with a notice)
             pass
 
     if rp and rp.is_dropped_out:
-        # Show the research page with a dropout notice instead of redirecting to index.
-        # Still build the study list so the participant can see the overview.
-        pass  # fall through to build study_status
+        pass
 
-    # Auto-dropout check (only meaningful if not already dropped out)
     elif rp and _auto_dropout_check(research, rp):
         flash('Du wurdest automatisch ausgeschlossen, da eine Studien-Frist versäumt wurde.', 'warning')
-        # Don't redirect — fall through and show the page with the dropout status
 
-    # If this is a real (persisted) participant who hasn't completed the enrollment
-    # survey yet, send them back to it.  Transient admin-preview objects have id=None
-    # and are deliberately excluded so admins can still browse the research overview.
     if rp and rp.id is not None and not rp.is_dropped_out and research.enrollment_survey_id:
         from app.models.survey import SurveyResponse
-        # Strip tz-info for safe comparison — SQLite returns naive datetimes
+
         _enrolled_at = (
             rp.enrolled_at.replace(tzinfo=None)
             if rp.enrolled_at and rp.enrolled_at.tzinfo else rp.enrolled_at
@@ -609,8 +570,6 @@ def research_home(research_id: int):
                                     survey_id=research.enrollment_survey_id,
                                     next=_next))
 
-    # Build study status list
-    # Use naive local datetime to match how datetime-local inputs store times (no timezone)
     now = datetime.now()
 
     def _naive(dt):
@@ -624,7 +583,6 @@ def research_home(research_id: int):
         if study.is_archived:
             continue
         sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()
-        # Determine state
         if sp and sp.completed_at:
             state = 'completed'
         elif study.task_end and now > _naive(study.task_end):
@@ -691,7 +649,6 @@ def research_enroll(research_id: int):
         try:
             db.session.flush()
             research.assign_condition(new_rp)
-            # Set active_agent from condition if between-subjects
             if new_rp.condition_id and new_rp.condition and new_rp.condition.agent_id:
                 new_rp.active_agent_id = new_rp.condition.agent_id
             db.session.commit()
@@ -701,7 +658,6 @@ def research_enroll(research_id: int):
             return redirect(url_for('study.research_home', research_id=research_id))
 
         flash('Erfolgreich angemeldet!', 'success')
-        # Show enrollment survey if configured
         if research.enrollment_survey_id:
             next_url = url_for('study.research_home', research_id=research_id)
             return redirect(url_for('survey_bp.take',
@@ -724,7 +680,7 @@ def study_leaderboard(study_id: int):
 
     study = Study.query.get_or_404(study_id)
 
-    # Must be enrolled to view leaderboard
+
     participant = _get_participant(study_id)
     if not participant:
         if request.accept_mimetypes.best == 'application/json':
@@ -740,7 +696,6 @@ def study_leaderboard(study_id: int):
 
     entries = []
     if task_ids:
-        # Single aggregating JOIN — avoids N+1 per participant
         rows = (
             db.session.query(
                 StudyParticipant,
@@ -794,12 +749,10 @@ def task_track(study_id: int):
 
     study = Study.query.get_or_404(study_id)
 
-    # Verify participant is enrolled
     participant = _get_participant(study_id)
     if not participant:
         return jsonify({'ok': False, 'error': 'Not enrolled'}), 403
 
-    # Check tracking is enabled
     tracking_cfg = {}
     if study.tracking_config:
         try:
@@ -820,7 +773,6 @@ def task_track(study_id: int):
     if not task_id or not events:
         return jsonify({'ok': False, 'error': 'Missing data'}), 400
 
-    # Filter events by allowed types
     allowed = set(tracking_cfg.get('events', []))
     if allowed:
         events = [e for e in events if e.get('type', '') in allowed]

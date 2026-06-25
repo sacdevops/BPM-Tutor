@@ -45,7 +45,6 @@ def profile_edit():
             flash('Diese E-Mail-Adresse wird bereits verwendet.', 'danger')
             return redirect(url_for('user_bp.profile'))
         current_user.email = new_email
-        # Require re-verification if setting is on
         if Settings.get(Settings.REQUIRE_EMAIL_VERIFICATION):
             current_user.is_verified = False
             token = generate_email_token(new_email)
@@ -64,14 +63,12 @@ def profile_edit():
     if preferred_model:
         current_user.preferred_model = preferred_model
 
-    # Language preference
     new_lang = request.form.get('language', '').strip()
     if new_lang:
         from app.models.i18n import Language
         if db.session.get(Language, new_lang):
             current_user.language = new_lang
 
-    # Leaderboard anonymization + email notifications
     current_user.leaderboard_anonymous = bool(request.form.get('leaderboard_anonymous'))
     current_user.email_notifications = bool(request.form.get('email_notifications'))
 
@@ -111,7 +108,7 @@ def my_stats():
     stats = user_stats(current_user.id, since)
     chart = chart_data_timeline(current_user.id, since, period)
     tasks = {t.id: t for t in Task.query.all()}
-    # Level system
+
     level_enabled = Settings.get(Settings.LEVEL_SYSTEM_ENABLED, False)
     levels = []
     if level_enabled:
@@ -196,7 +193,7 @@ def notification_count():
 def set_language(code: str):
     """Switch UI language — updates DB for auth users, always sets cookie."""
     from app.models.i18n import Language
-    # Validate against active languages
+
     if not Language.query.filter_by(code=code, is_active=True).first():
         return redirect(request.referrer or '/')
 
@@ -204,7 +201,6 @@ def set_language(code: str):
     resp.set_cookie('bpmtutor_lang', code, max_age=365 * 24 * 3600,
                     samesite='Lax', path='/')
 
-    # Also persist to user profile if logged in
     if current_user.is_authenticated:
         current_user.language = code
         db.session.commit()

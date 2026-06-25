@@ -22,37 +22,30 @@ class Research(db.Model):
     title = db.Column(db.String(300), nullable=False)
     description = db.Column(db.Text, nullable=True)
 
-    # Master switches
-    is_active = db.Column(db.Boolean, default=True, nullable=False)   # visible to students
-    is_enabled = db.Column(db.Boolean, default=False, nullable=False)  # Research Mode on/off
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    is_enabled = db.Column(db.Boolean, default=False, nullable=False)
 
-    # Enrollment window
     enrollment_start = db.Column(db.DateTime, nullable=True)
     enrollment_end = db.Column(db.DateTime, nullable=True)
     allow_self_enrollment = db.Column(db.Boolean, default=True, nullable=False)
     max_participants = db.Column(db.Integer, nullable=True)
 
-    # Informed consent
     require_consent = db.Column(db.Boolean, default=False, nullable=False)
     consent_text = db.Column(db.Text, nullable=True)
 
-    # Survey shown at enrollment (before studies begin)
     enrollment_survey_id = db.Column(db.Integer, db.ForeignKey('surveys.id'), nullable=True)
 
-    # Experimental design
     study_design = db.Column(db.String(20), default='within', nullable=False)
     one_time_only = db.Column(db.Boolean, default=True, nullable=False)
     anonymize_export = db.Column(db.Boolean, default=True, nullable=False)
     leaderboard_enabled = db.Column(db.Boolean, default=False, nullable=False)
     agent_display_name = db.Column(db.String(200), nullable=True)
 
-    # Auto-dropout: if a Study's task_end is missed, drop participant from Research
     auto_dropout_on_miss = db.Column(db.Boolean, default=False, nullable=False)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
-    # Relationships
     conditions = db.relationship(
         'ResearchCondition', back_populates='research',
         cascade='all, delete-orphan', lazy='select',

@@ -7,10 +7,6 @@ prompts for any language that is active in the system.
 from app.extensions import db
 
 
-# All recognized prompt type identifiers.
-# Grouped for display purposes:
-#   System prompts  → used as the LLM "system" role message
-#   Interaction prompts → used at runtime to shape agent behaviour
 SYSTEM_PROMPT_TYPES = ('greeting', 'analysis', 'reaction', 'modeling', 'completion')
 INTERACTION_PROMPT_TYPES = (
     'greeting_user',            # user message template to drive greeting generation

@@ -12,6 +12,8 @@ from app.models.cohort import Cohort
 from app.utils.decorators import admin_required, tutor_or_admin_required
 from app.utils.audit import log_action
 
+import datetime
+
 
 def _task_form_context():
     from app.models.agent import AIAgent
@@ -22,7 +24,7 @@ def _task_form_context():
     }
 
 
-# ── Tasks ─────────────────────────────────────────────────────────────────────
+# Tasks
 
 @admin_bp.route('/tasks')
 @tutor_or_admin_required
@@ -201,7 +203,7 @@ def tasks_reorder():
     return jsonify({'ok': True})
 
 
-# ── Bulk task actions ─────────────────────────────────────────────────────────
+# Bulk task actions
 
 @admin_bp.route('/tasks/bulk', methods=['POST'])
 @admin_required

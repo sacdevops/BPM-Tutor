@@ -13,7 +13,7 @@ main_bp = Blueprint('main', __name__)
 logger = logging.getLogger('bpmtutor.main')
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
+# Health
 
 @main_bp.route('/health')
 def health():
@@ -27,7 +27,7 @@ def health():
         return jsonify(status='degraded', database='error'), 503
 
 
-# ── Brand Logo ────────────────────────────────────────────────────────────────
+# Brand Logo
 
 @main_bp.route('/brand/logo')
 def brand_logo():
@@ -51,7 +51,7 @@ def brand_logo():
         return '', 404
 
 
-# ── Pages ─────────────────────────────────────────────────────────────────────
+# Pages
 
 @main_bp.route('/maintenance')
 def maintenance():
@@ -71,11 +71,8 @@ def index():
 
     tasks = Task.query.filter_by(is_active=True).order_by(Task.sort_order).all()
 
-    # Show only standard-mode tasks on the index
-    # (leveling-mode tasks appear in the level system, research-mode tasks in studies)
     tasks = [t for t in tasks if getattr(t, 'task_mode', 'standard') == 'standard']
 
-    # Load ALL user submissions once; derive completed/in_progress/submitted sets in memory
     in_progress_task_ids: set = set()
     completed_task_ids: set = set()
     submitted_ids: set = set()
@@ -95,7 +92,6 @@ def index():
     if level_system_enabled:
         levels = LearningLevel.query.filter_by(is_active=True).order_by(LearningLevel.level_number).all()
         if current_user.is_authenticated and levels:
-            # Pre-fetch all tasks for all levels in one join query — avoids N+1
             level_ids = [lv.id for lv in levels]
             level_task_rows = (
                 db.session.query(_lv_tasks_tbl.c.level_id, Task)
@@ -179,7 +175,6 @@ def task_page(task_id):
             error='Aufgabe nicht gefunden.',
         ), 404
 
-    # Resolve agent for this task
     agent = None
     if task.agent_id:
         agent = db.session.get(AIAgent, task.agent_id)
@@ -195,7 +190,7 @@ def custom_task_page():
     return render_template('task.html', task=task, is_custom=True)
 
 
-# ── API endpoints ─────────────────────────────────────────────────────────────
+# API endpoints
 
 @main_bp.route('/api/extract-file-content', methods=['POST'])
 @csrf.exempt
@@ -300,7 +295,7 @@ def save_bpmn():
             if sub:
                 sub.bpmn_xml = bpmn_xml or sub.bpmn_xml
                 sub.completed_at = _dt.now(_tz.utc)
-                # Auto-mark no-grading tasks as reviewed
+
                 if sub.task and sub.task.grading_type == 'none':
                     sub.graded_at = sub.completed_at
                 db.session.commit()
@@ -308,7 +303,6 @@ def save_bpmn():
         except Exception:
             logger.exception('[save_bpmn] fallback persist error')
 
-    # Tag the submission with the study_id if present
     if study_id and submission_id:
         try:
             from app.extensions import db
@@ -320,7 +314,6 @@ def save_bpmn():
         except Exception:
             pass
 
-    # If in a study, redirect to study step_done instead of survey/index
     if study_id:
         redirect_url = url_for('study.step_done', study_id=study_id)
         logger.info('[save_bpmn] study_id=%s → redirect to step_done: %s', study_id, redirect_url)
@@ -334,21 +327,20 @@ def save_bpmn():
             from app.models.task import Task as _Task
             from app.models.survey import Survey
             task_obj = db.session.get(_Task, task_id)
-            # Determine grading state
             if task_obj and task_obj.grading_type and task_obj.grading_type != 'none':
                 grading_pending = True
-            # First try a survey linked to this specific task
+
             survey = Survey.query.filter_by(
                 survey_type='post_task', task_id=task_id, is_active=True
             ).first()
-            # Fall back to a generic post_task survey (no specific task linked)
+
             if not survey:
                 survey = Survey.query.filter(
                     Survey.survey_type == 'post_task',
                     Survey.is_active == True,
                     db.or_(Survey.task_id.is_(None), Survey.task_id == '')
                 ).first()
-            # Also check for post_all surveys
+
             if not survey:
                 survey = Survey.query.filter_by(
                     survey_type='post_all', is_active=True
@@ -379,7 +371,6 @@ def get_models():
     if not api_key:
         return jsonify({'success': False, 'message': 'API key required'}), 400
 
-    # Decrypt if the key was stored encrypted (enc: prefix)
     from app.utils.crypto import decrypt_api_key
     api_key = decrypt_api_key(api_key)
     if not api_key:
@@ -387,7 +378,6 @@ def get_models():
 
     raw_base_url = data.get('base_url', '').strip().rstrip('/')
     if not raw_base_url:
-        # Fall back to admin-configured endpoint, then config default
         try:
             from app.models.settings import Settings
             raw_base_url = (Settings.get(Settings.API_ENDPOINT) or '').strip().rstrip('/')

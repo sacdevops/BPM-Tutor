@@ -128,14 +128,14 @@ def agent_prompt_preview():
     try:
         if not is_runtime_only:
             compiled = get_prompt_with_standards(text, lang)
-            # Ensure LION rules are always present for prompts requiring structured output
+
             if ptype in ('reaction', 'analysis') and 'Output Format -- LION Notation' not in compiled:
                 from app.services.prompts._base import get_lion_format_rules
                 compiled = compiled.rstrip() + '\n\n' + get_lion_format_rules()
         else:
             compiled = text
     except Exception as exc:
-        return jsonify(error=str(exc)), 200  # return 200 so JS can display the error message
+        return jsonify(error=str(exc)), 200
 
     tokens = -1
     try:
@@ -271,7 +271,7 @@ def agent_delete(agent_id: str):
         flash('System-Agenten können nicht gelöscht werden.', 'danger')
         return redirect(url_for('admin.agents_list'))
     name = agent.name
-    db.session.delete(agent)  # cascade deletes agent_prompts
+    db.session.delete(agent)
     db.session.commit()
     log_action('delete_agent', 'AIAgent', agent_id, {'name': name})
     flash(f'Agent "{name}" gelöscht.', 'success')

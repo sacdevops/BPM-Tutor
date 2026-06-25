@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from app.extensions import db
 
 
-# Association table: tasks can belong to a level
 level_tasks = db.Table(
     'level_tasks',
     db.Column('level_id', db.Integer, db.ForeignKey('learning_levels.id', ondelete='CASCADE'), primary_key=True),
@@ -23,18 +22,14 @@ class LearningLevel(db.Model):
     description = db.Column(db.Text, nullable=True)
     description_de = db.Column(db.Text, nullable=True)
 
-    # Difficulty label for display
-    difficulty = db.Column(db.String(20), nullable=False, default='beginner')
-    # values: beginner | intermediate | advanced | expert
+    difficulty = db.Column(db.String(20), nullable=False, default='beginner') # values: beginner | intermediate | advanced | expert
 
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     sort_order = db.Column(db.Integer, default=0, nullable=False)
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # Tasks assigned to this level
     tasks = db.relationship('Task', secondary=level_tasks, backref='levels', lazy='dynamic')
-    # Progress records for this level
     progress = db.relationship('UserLevelProgress', back_populates='level', lazy='dynamic',
                                cascade='all, delete-orphan')
 

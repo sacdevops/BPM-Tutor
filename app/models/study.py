@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from app.extensions import db
 
 
-# ─── Study ────────────────────────────────────────────────────────────────────
+# Study
 
 class Study(db.Model):
     """A research study grouping tasks and surveys into a sequential flow."""
@@ -87,9 +87,6 @@ class Study(db.Model):
 
     @property
     def enrollment_open(self) -> bool:
-        # Compare at day granularity so that setting enrollment_start = "today"
-        # opens enrollment for the entire calendar day regardless of the stored
-        # time component (which may reflect the admin's local timezone offset).
         today = datetime.utcnow().date()
         if not self.allow_self_enrollment:
             return False
@@ -156,7 +153,7 @@ class Study(db.Model):
         return f"<Study {self.id}: {self.title}>"
 
 
-# ─── StudyCondition ───────────────────────────────────────────────────────────
+# StudyCondition
 
 class StudyCondition(db.Model):
     __tablename__ = "study_conditions"
@@ -178,7 +175,7 @@ class StudyCondition(db.Model):
         return f"<StudyCondition {self.id}: {self.name}>"
 
 
-# ─── StudyStep ────────────────────────────────────────────────────────────────
+# StudyStep
 
 class StudyStep(db.Model):
     __tablename__ = "study_steps"
@@ -258,7 +255,7 @@ class StudyStep(db.Model):
         return f"<StudyStep study={self.study_id} order={self.step_order} type={self.step_type}>"
 
 
-# ─── StudyParticipant ─────────────────────────────────────────────────────────
+# StudyParticipant
 
 class StudyParticipant(db.Model):
     __tablename__ = "study_participants"
@@ -328,7 +325,7 @@ class StudyParticipant(db.Model):
         return f"<StudyParticipant study={self.study_id} user={self.user_id} step={self.current_step}>"
 
 
-# ─── StudyStepCompletion ──────────────────────────────────────────────────────
+# StudyStepCompletion
 
 class StudyStepCompletion(db.Model):
     """Records when a participant started and completed each individual step."""
@@ -372,7 +369,7 @@ class StudyStepCompletion(db.Model):
         return f"<StudyStepCompletion participant={self.participant_id} step={self.step_id}>"
 
 
-# ─── AgentSwitchHistory ───────────────────────────────────────────────────────
+# AgentSwitchHistory
 
 class AgentSwitchHistory(db.Model):
     """Records every agent choice made by a participant during a study."""

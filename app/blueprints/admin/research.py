@@ -24,7 +24,7 @@ def _parse_dt(key: str):
         return None
 
 
-# ── Research CRUD ──────────────────────────────────────────────────────────────
+# Research CRUD
 
 @admin_bp.route('/research')
 @admin_required
@@ -43,6 +43,7 @@ def research_create():
     from app.models.research import Research
     from app.models.survey import Survey
     from app.models.agent import AIAgent
+
     # Enforce singleton — if one already exists, redirect to it
     existing = Research.query.first()
     if existing:
@@ -160,13 +161,11 @@ def _save_conditions(research) -> None:
     from app.models.research import ResearchCondition
     raw = (request.form.get('conditions_json') or '').strip()
     if not raw:
-        # conditions_json is empty — JS did not run (e.g. template error);
-        # preserve the existing conditions instead of wiping them.
         return
+    
     try:
         conds_data = json.loads(raw)
     except Exception:
-        # Invalid JSON — preserve existing conditions
         return
 
     ResearchCondition.query.filter_by(research_id=research.id).delete()
@@ -185,7 +184,7 @@ def _save_conditions(research) -> None:
         db.session.add(cond)
 
 
-# ── Research Participants ─────────────────────────────────────────────────────
+# Research Participants
 
 @admin_bp.route('/research/<int:research_id>/participants')
 @admin_required
@@ -232,7 +231,7 @@ def research_participant_remove(research_id: int, participant_id: int):
     from app.models.study import StudyParticipant
     p = ResearchParticipant.query.filter_by(id=participant_id, research_id=research_id).first_or_404()
     user_id = p.user_id
-    # Also remove the user from all sub-studies of this Research
+
     research = Research.query.get(research_id)
     if research:
         study_ids = [s.id for s in research.studies]
@@ -261,7 +260,7 @@ def research_participant_dropout(research_id: int, participant_id: int):
     return redirect(url_for('admin.research_participants', research_id=research_id))
 
 
-# ── Research Export ───────────────────────────────────────────────────────────
+# Research Export
 
 @admin_bp.route('/research/<int:research_id>/export/zip')
 @admin_required
@@ -297,7 +296,7 @@ def research_export_zip(research_id: int):
             cell.font = bold
             cell.fill = hdr_fill
 
-    # ── Research-level participants ───────────────────────────────────────────
+    # Research-level participants
     rp_all = (ResearchParticipant.query
               .filter_by(research_id=research_id)
               .order_by(ResearchParticipant.id)
@@ -306,10 +305,8 @@ def research_export_zip(research_id: int):
     def _rident(rp):
         return f'P{rp.id:04d}' if anon else (rp.user.username if rp.user else str(rp.user_id))
 
-    # Build user_id → rident lookup
     rident_map = {rp.user_id: _rident(rp) for rp in rp_all}
 
-    # Top-level workbook with participants + enrollment survey
     top_wb = Workbook()
     top_wb.remove(top_wb.active)
 
@@ -365,7 +362,7 @@ def research_export_zip(research_id: int):
                     row.append(answers.get(str(q.id), ''))
                 ws_es.append(row)
 
-    # ── Per-study data ────────────────────────────────────────────────────────
+    # Per-study data
     zip_buf = io.BytesIO()
     ts = datetime.now().strftime('%Y%m%d_%H%M')
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -472,11 +469,6 @@ def research_export_zip(research_id: int):
             for sp in participants:
                 row = [_ident(sp), sp.condition.name if sp.condition else '']
 
-                # ── Survey-response matching ────────────────────────────────
-                # We build responses_by_step in two passes so that responses
-                # with a NULL or mismatched step_id are still captured.
-                #
-                # Pass 1 — exact step_id match (most reliable)
                 responses_by_step = {}
                 used_response_ids: set = set()
                 for step_id, srv_id, _, _ in step_surveys:
@@ -487,16 +479,7 @@ def research_export_zip(research_id: int):
                     if resp:
                         used_response_ids.add(resp.id)
 
-                # Pass 2 — any remaining (unused) response for the survey,
-                # ordered chronologically.  This catches:
-                #   • step_id was SET NULL (ondelete cascade)
-                #   • step_id was never stored (pre-migration rows)
-                #   • step_id points to a different study's step
-                #   • participant re-took the survey under a different step context
-                # A response is only assigned once (used_response_ids guard) so
-                # the same response is never double-counted when a survey appears
-                # in multiple steps.
-                any_pool: dict = {}  # srv_id → [SurveyResponse, ...]
+                any_pool: dict = {}
                 for step_id, srv_id, _, _ in step_surveys:
                     if responses_by_step[(step_id, srv_id)] is not None:
                         continue

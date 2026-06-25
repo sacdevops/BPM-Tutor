@@ -15,7 +15,7 @@ from app.utils.i18n_helper import invalidate_cache
 from app import invalidate_language_cache
 
 
-# ── Language / i18n admin ─────────────────────────────────────────────────────
+# Language / i18n admin
 
 @admin_bp.route('/languages')
 @admin_required
@@ -138,7 +138,7 @@ def language_strings(lang_code: str):
                            strings=strings)
 
 
-# ── Level system admin ────────────────────────────────────────────────────────
+# Level system admin
 
 @admin_bp.route('/levels')
 @admin_required

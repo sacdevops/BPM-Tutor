@@ -11,7 +11,6 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
 
-    # Types: grade, message, system, task_unlocked, account
     notif_type = db.Column(db.String(50), nullable=False, default='system')
 
     title = db.Column(db.String(400), nullable=False)

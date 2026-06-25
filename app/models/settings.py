@@ -9,12 +9,12 @@ from datetime import datetime, timezone
 
 from app.extensions import db
 
-# Re-exports for backward compatibility (all existing imports still work)
-from app.models.notification import Notification  # noqa: F401 – re-export
-from app.models.registration_field import RegistrationField  # noqa: F401 – re-export
+# Re-exports for backward compatibility
+from app.models.notification import Notification
+from app.models.registration_field import RegistrationField
 
 # ---------------------------------------------------------------------------
-# Redis helper — optional, gracefully degrades when Redis is unavailable
+# Redis helper
 # ---------------------------------------------------------------------------
 _redis_client = None
 _redis_checked = False
@@ -53,7 +53,7 @@ class SystemSetting(db.Model):
     key = db.Column(db.String(100), primary_key=True)
     value = db.Column(db.Text, nullable=True)
     value_type = db.Column(db.String(20), default='string', nullable=False)
-    # value_types: string, bool, int, float, json
+
     description = db.Column(db.Text, nullable=True)
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -96,7 +96,7 @@ class Settings:
     # Research mode
     RESEARCH_MODE_ENABLED = 'research_mode_enabled'
 
-    # Custom task mode (allow students to define their own task on the index page)
+    # Custom task mode
     CUSTOM_MODE_ENABLED = 'custom_mode_enabled'
 
     # Maintenance
@@ -106,9 +106,9 @@ class Settings:
     FEEDBACK_EMAIL = 'feedback_email'
 
     # Legal / privacy
-    PRIVACY_POLICY = 'privacy_policy'              # HTML/text shown in the registration privacy policy popup
+    PRIVACY_POLICY = 'privacy_policy'
 
-    # AI prompt rules — editable global content injected into all agent system prompts
+    # AI prompt rules
     BPMN_SYNTAX_RULES = 'bpmn_syntax_rules'       # replaces {bpmn_standards}
     BPMN_ELEMENTS = 'bpmn_elements'                # replaces {bpmn_elements}
     GENERAL_RULES = 'general_rules'                # replaces {general_rules} (en)
@@ -126,7 +126,7 @@ class Settings:
 
     # Mail configuration (incoming IMAP/POP3 — optional separate settings)
     MAIL_SEPARATE_INCOMING = 'mail_separate_incoming'
-    MAIL_INCOMING_PROTOCOL = 'mail_incoming_protocol'   # 'imap' or 'pop3'
+    MAIL_INCOMING_PROTOCOL = 'mail_incoming_protocol'
     MAIL_INCOMING_SERVER = 'mail_incoming_server'
     MAIL_INCOMING_PORT = 'mail_incoming_port'
     MAIL_INCOMING_USE_TLS = 'mail_incoming_use_tls'
@@ -142,13 +142,13 @@ class Settings:
     # Automatic backups
     AUTO_BACKUP_ENABLED = 'auto_backup_enabled'
     AUTO_BACKUP_INTERVAL_HOURS = 'auto_backup_interval_hours'
-    AUTO_BACKUP_STORAGE = 'auto_backup_storage'     # 'local' or 'sciebo'
+    AUTO_BACKUP_STORAGE = 'auto_backup_storage'
     AUTO_BACKUP_LOCAL_PATH = 'auto_backup_local_path'
     AUTO_BACKUP_MAX_KEEP = 'auto_backup_max_keep'
-    AUTO_BACKUP_LAST_RUN = 'auto_backup_last_run'   # ISO timestamp, managed by task
+    AUTO_BACKUP_LAST_RUN = 'auto_backup_last_run'
     SCIEBO_URL = 'sciebo_url'
     SCIEBO_USERNAME = 'sciebo_username'
-    SCIEBO_PASSWORD = 'sciebo_password'             # stored encrypted
+    SCIEBO_PASSWORD = 'sciebo_password'
     SCIEBO_REMOTE_PATH = 'sciebo_remote_path'
 
     _DEFAULTS: dict = {
@@ -196,12 +196,11 @@ class Settings:
         MAINTENANCE_MODE: (False, 'bool'),
         FEEDBACK_EMAIL: ('', 'string'),
         PRIVACY_POLICY: ('', 'string'),
-        BPMN_SYNTAX_RULES: ('', 'string'),   # empty = use built-in Python fallback
-        BPMN_ELEMENTS: ('', 'string'),        # empty = use built-in Python fallback
-        GENERAL_RULES: ('', 'string'),        # empty = use built-in Python fallback
-        GENERAL_RULES_DE: ('', 'string'),     # empty = use built-in Python fallback
-        LION_FORMAT_RULES: ('', 'string'),    # empty = use built-in Python fallback
-        # Auto-backup
+        BPMN_SYNTAX_RULES: ('', 'string'),
+        BPMN_ELEMENTS: ('', 'string'),
+        GENERAL_RULES: ('', 'string'),
+        GENERAL_RULES_DE: ('', 'string'),
+        LION_FORMAT_RULES: ('', 'string'),
         AUTO_BACKUP_ENABLED: (False, 'bool'),
         AUTO_BACKUP_INTERVAL_HOURS: (24, 'int'),
         AUTO_BACKUP_STORAGE: ('local', 'string'),
@@ -237,7 +236,7 @@ class Settings:
         if row is None:
             if key in cls._DEFAULTS:
                 val = cls._DEFAULTS[key][0]
-                # Cache the default so we don't repeat the DB miss
+
                 if r is not None:
                     try:
                         r.setex(f'{_CACHE_PREFIX}{key}', _SETTINGS_CACHE_TTL, str(val))
@@ -266,7 +265,7 @@ class Settings:
         row.value = str(value) if value is not None else None
         row.value_type = vtype
         db.session.commit()
-        # Invalidate cache
+
         r = _get_redis()
         if r is not None:
             try:
@@ -286,7 +285,7 @@ class Settings:
             row.value = str(value) if value is not None else None
             row.value_type = vtype
         db.session.commit()
-        # Invalidate all changed keys in one pipeline
+
         r = _get_redis()
         if r is not None:
             try:

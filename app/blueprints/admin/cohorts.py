@@ -11,7 +11,7 @@ from app.utils.decorators import admin_required, tutor_or_admin_required
 from app.utils.audit import log_action
 
 
-# ── Cohorts ───────────────────────────────────────────────────────────────────
+# Cohorts
 
 @admin_bp.route('/cohorts')
 @tutor_or_admin_required
@@ -111,7 +111,7 @@ def cohort_detail(cohort_id: int):
                            member_ids=member_ids, all_users=all_users)
 
 
-# ── Audit log ─────────────────────────────────────────────────────────────────
+# Audit log
 
 @admin_bp.route('/audit-log')
 @admin_required

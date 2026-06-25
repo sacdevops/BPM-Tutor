@@ -40,7 +40,7 @@ def _apply_survey_pages(survey: Survey, pages_data: list) -> None:
             db.session.add(q)
 
 
-# ── Surveys ───────────────────────────────────────────────────────────────────
+# Surveys
 
 @admin_bp.route('/surveys')
 @tutor_or_admin_required

@@ -43,13 +43,12 @@ def login():
             login_user(user, remember=remember)
             user.last_login = datetime.now(timezone.utc)
             db.session.commit()
-            # If maintenance mode is active and user is not admin, redirect to maintenance
             if Settings.get(Settings.MAINTENANCE_MODE, False) and user.role != 'admin':
                 logout_user()
                 return render_template('cms/auth/login.html',
                                        error=_t('auth.error_maintenance', 'The system is currently in maintenance mode. Only admins can log in.'))
             next_page = request.args.get('next', '')
-            # Validate next_page: must be a relative path (no scheme, no host, no //evil.com)
+
             if next_page:
                 parsed = urlsplit(next_page)
                 if not parsed.scheme and not parsed.netloc and not next_page.startswith('//'):
@@ -104,7 +103,7 @@ def register():
             errors['password2'] = 'Passwörter stimmen nicht überein.'
         if not consent:
             errors['data_consent'] = 'Du musst der Datenspeicherung zustimmen.'
-        # Validate extra fields
+
         extra_values: dict = {}
         for field in extra_fields:
             val = request.form.get(f'extra_{field.name}', '').strip()
@@ -177,7 +176,7 @@ def forgot_password():
         if user and user.is_active:
             token = generate_reset_token(user.id)
             send_password_reset_email(user, token)
-        # Always show success (prevents email enumeration)
+
         sent = True
     return render_template('cms/auth/forgot_password.html', sent=sent)
 

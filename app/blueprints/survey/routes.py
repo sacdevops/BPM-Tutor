@@ -60,15 +60,12 @@ def take(survey_id: int):
     current_page = pages[page_num] if page_num < len(pages) else pages[-1]
     is_last = page_num >= len(pages) - 1
 
-    # Store partial answers in session; include step_id to avoid conflicts when
-    # the same survey is used multiple times in one study
     session_key = f'survey_{survey_id}_step_{step_id}_answers' if step_id else f'survey_{survey_id}_answers'
     answers = session.get(session_key, {})
 
     if request.method == 'POST':
         action = request.form.get('action', 'next')
 
-        # Collect answers from this page
         errors = {}
         for q in current_page.questions:
             val = request.form.get(f'q_{q.id}', '').strip()
@@ -95,11 +92,10 @@ def take(survey_id: int):
                                     page=page_num + 1, submission_id=submission_id,
                                     step_id=step_id, next=request.args.get('next', '')))
 
-        # Final submit
         resp = _get_or_create_response(survey_id, submission_id, step_id=step_id)
         resp.answers = answers
         resp.completed_at = datetime.now(timezone.utc)
-        # Snapshot the question structure so later template edits cannot alter past responses
+
         try:
             snapshot = {}
             for _pg in survey.pages:
@@ -116,7 +112,6 @@ def take(survey_id: int):
             pass
         db.session.commit()
 
-        # Clear session
         session.pop(session_key, None)
 
         next_url = request.args.get('next', '/')

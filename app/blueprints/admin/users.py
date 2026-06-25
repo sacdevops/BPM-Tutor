@@ -13,7 +13,7 @@ from app.utils.enums import UserRole
 from app.utils.stats import user_stats, since_from_period, chart_data_timeline
 
 
-# ── Users ─────────────────────────────────────────────────────────────────────
+# Users
 
 @admin_bp.route('/users')
 @admin_required
@@ -178,7 +178,7 @@ def user_notify(user_id: int):
     return redirect(url_for('admin.user_detail', user_id=user_id))
 
 
-# ── Bulk user actions ─────────────────────────────────────────────────────────
+# Bulk user actions
 
 @admin_bp.route('/users/bulk', methods=['POST'])
 @admin_required

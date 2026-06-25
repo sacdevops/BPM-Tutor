@@ -46,7 +46,6 @@ def register_handlers(socketio):
     @socketio.on('connect')
     def handle_connect():
         emit('connected', {'status': 'connected'})
-        # Join user-specific notification room if authenticated
         try:
             if current_user.is_authenticated:
                 join_room(f'user_{current_user.id}')
@@ -155,13 +154,11 @@ def register_handlers(socketio):
                             from datetime import timezone as _tz
                             started = started.replace(tzinfo=_tz.utc)
                         elapsed_seconds = int((datetime.now(timezone.utc) - started).total_seconds())
-                    # Restore mentor memory from this submission
                     if existing.mentor_memory_list:
                         store.set_field(sid, 'mentor_state', {
                             'memory': existing.mentor_memory_list,
                             'last_issues': [],
                         })
-                    # Restore chat history from this submission
                     if existing.chat_history:
                         store.set_field(sid, 'chat_history', list(existing.chat_history))
                 else:

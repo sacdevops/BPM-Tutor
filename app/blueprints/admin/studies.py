@@ -18,7 +18,7 @@ from app.utils.decorators import admin_required
 from app.utils.audit import log_action
 
 
-# ── Private helpers ────────────────────────────────────────────────────────────
+# Private helpers
 
 def _set_study_dates(study) -> None:
     """Parse date/time fields from form and set on study object.
@@ -112,7 +112,7 @@ def _build_tracking_config() -> str:
         events += ['bpmn_add', 'bpmn_remove', 'bpmn_move', 'bpmn_connect', 'bpmn_disconnect', 'bpmn_rename', 'ai_action']
     if request.form.get('tracking_chat'):
         events += ['chat_message', 'ai_action', 'llm_prompt']
-    # Deduplicate while preserving order (ai_action may appear in both bpmn+chat groups)
+
     seen = set()
     unique_events = []
     for e in events:
@@ -122,7 +122,7 @@ def _build_tracking_config() -> str:
     return json.dumps({'enabled': enabled, 'events': unique_events})
 
 
-# ── Studies CRUD ──────────────────────────────────────────────────────────────
+# Studies CRUD
 
 @admin_bp.route('/studies')
 @admin_required
@@ -357,7 +357,7 @@ def study_clone(study_id: int):
     return redirect(url_for('admin.study_edit', study_id=clone.id))
 
 
-# ── Participants ──────────────────────────────────────────────────────────────
+# Participants
 
 @admin_bp.route('/studies/<int:study_id>/participants')
 @admin_required
@@ -415,26 +415,21 @@ def study_participant_reset(study_id: int, participant_id: int):
     p = StudyParticipant.query.filter_by(id=participant_id, study_id=study_id).first_or_404()
     study = Study.query.get_or_404(study_id)
 
-    # Reset participant state
     p.current_step = 0
     p.completed_at = None
     p.dropped_out_at = None
     p.dropout_reason = None
     p.active_agent_id = None
 
-    # Delete step completions
     StudyStepCompletion.query.filter_by(participant_id=p.id).delete(synchronize_session=False)
 
-    # Delete agent switch history for this participant
     AgentSwitchHistory.query.filter_by(participant_id=p.id).delete(synchronize_session=False)
 
-    # Delete task submissions belonging to this study for this user
     if p.user_id:
         TaskSubmission.query.filter_by(
             study_id=study_id, user_id=p.user_id
         ).delete(synchronize_session=False)
 
-        # Delete survey responses for steps of this study for this user
         step_ids = [s.id for s in study.steps]
         if step_ids:
             SurveyResponse.query.filter(
@@ -511,7 +506,7 @@ def study_broadcast(study_id: int):
     return redirect(url_for('admin.study_participants', study_id=study_id))
 
 
-# ── Study analytics ───────────────────────────────────────────────────────────
+# Study analytics
 
 @admin_bp.route('/studies/<int:study_id>/analytics')
 @admin_required
@@ -555,7 +550,6 @@ def study_analytics(study_id: int):
     task_steps = [s for s in study.steps if s.step_type == 'task' and s.task_id]
     curve_labels = [s.display_label for s in task_steps]
 
-    # Pre-load all submissions for this study in a single query (avoids N+1)
     _task_ids = [s.task_id for s in task_steps]
     _all_subs = (
         _TaskSub.query
@@ -563,7 +557,7 @@ def study_analytics(study_id: int):
         .order_by(_TaskSub.id)
         .all()
     )
-    # Build lookup: (user_id, task_id) → latest submission (highest id wins, ordered asc so later overwrites)
+
     _sub_lookup: dict = {}
     for _s in _all_subs:
         _sub_lookup[(_s.user_id, _s.task_id)] = _s
@@ -606,7 +600,7 @@ def study_analytics(study_id: int):
                            curve_data=curve_data)
 
 
-# ── Study export ──────────────────────────────────────────────────────────────
+# Study export
 
 @admin_bp.route('/studies/<int:study_id>/export')
 @admin_required
@@ -649,7 +643,7 @@ def study_export_zip(study_id: int):
     wb = Workbook()
     wb.remove(wb.active)  # remove default empty sheet
 
-    # ── Sheet 1: Participants ──────────────────────────────────────────────────
+    # Sheet 1: Participants
     ws_p = wb.create_sheet('Participants')
     p_header = ['participant_id', 'user_identifier']
     if not anon:
@@ -674,14 +668,13 @@ def study_export_zip(study_id: int):
         ]
         ws_p.append(row)
 
-    # ── Sheet 2: Enrollment Survey ──────────────────────────────────────────────
-    # Responses for the pre-study enrollment survey (study.enrollment_survey_id)
+    # Sheet 2: Enrollment Survey
     from app.models.survey import Survey as SurveyModel
     if study.enrollment_survey_id:
         enroll_srv = db.session.get(SurveyModel, study.enrollment_survey_id)
         if enroll_srv:
             ws_es = wb.create_sheet('Enrollment_Survey')
-            # Build question list
+
             enroll_qs = []
             for page in enroll_srv.pages:
                 for q in page.questions:
@@ -693,7 +686,6 @@ def study_export_zip(study_id: int):
                 es_header.append(f'q{q.id}_{q.label[:40].replace(chr(10), " ")}')
             _ws_header(ws_es, es_header)
             for p in participants:
-                # Find the enrollment survey response submitted after enrollment
                 resp = SurveyResponse.query.filter_by(
                     survey_id=study.enrollment_survey_id,
                     user_id=p.user_id,
@@ -708,7 +700,7 @@ def study_export_zip(study_id: int):
                     row.append(answers.get(str(q.id), ''))
                 ws_es.append(row)
 
-    # ── Sheet 3: Survey Responses (step-based) ─────────────────────────────────
+    # Sheet 3: Survey Responses (step-based)
     step_surveys = []
     all_questions = []
     for step in study.steps:
@@ -741,17 +733,14 @@ def study_export_zip(study_id: int):
     _ws_header(ws_sr, sr_header)
     for p in participants:
         row = [p.id, _ident(p), p.condition.name if p.condition else '']
-        # Pass 1: exact step_id match
+
         responses_by_step = {}
         for step_id, srv_id, _, _ in step_surveys:
             resp = SurveyResponse.query.filter_by(
                 survey_id=srv_id, user_id=p.user_id, step_id=step_id
             ).order_by(SurveyResponse.id.desc()).first()
             responses_by_step[(step_id, srv_id)] = resp
-        # Pass 2: fallback for responses where step_id was cleared (ondelete='SET NULL')
-        # or was never stored (pre-migration data). Assign NULL-step_id responses to
-        # unmatched steps in chronological order so the same survey used multiple times
-        # maps oldest response → earliest step, next → next step, etc.
+
         null_pool: dict = {}
         for step_id, srv_id, _, _ in step_surveys:
             if responses_by_step[(step_id, srv_id)] is not None:
@@ -768,7 +757,7 @@ def study_export_zip(study_id: int):
             pool = null_pool[srv_id]
             if pool:
                 responses_by_step[(step_id, srv_id)] = pool.pop(0)
-        # Pass 3: single-response fallback (catches any remaining edge cases)
+
         for step_id, srv_id, _, _ in step_surveys:
             if responses_by_step[(step_id, srv_id)] is not None:
                 continue
@@ -789,7 +778,7 @@ def study_export_zip(study_id: int):
             row.append((answers.answers if answers else {}).get(str(q_id), ''))
         ws_sr.append(row)
 
-    # ── Sheet 4: Task Submissions ──────────────────────────────────────────────
+    # Sheet 4: Task Submissions
     ws_sub = wb.create_sheet('Task_Submissions')
     sub_header = ['participant_id', 'user_identifier', 'condition',
                   'task_id', 'task_title', 'step_number', 'wave_number',
@@ -826,7 +815,7 @@ def study_export_zip(study_id: int):
                 sub.id,
             ])
 
-    # ── Sheet 5: Step Timings ──────────────────────────────────────────────────
+    # Sheet 5: Step Timings
     ws_t = wb.create_sheet('Step_Timings')
     t_header = ['participant_id', 'user_identifier',
                 'step_number', 'step_label', 'step_type', 'wave_number',
@@ -848,7 +837,7 @@ def study_export_zip(study_id: int):
                     'yes' if comp.is_late else 'no',
                 ])
 
-    # ── Sheet 6: Tracking Events (raw batches) ────────────────────────────────
+    # Sheet 6: Tracking Events (raw batches)
     from app.models.tracking import TaskSessionTracking
     ws_tr = wb.create_sheet('Tracking_Events')
     tr_header = ['participant_id', 'user_identifier', 'condition',
@@ -875,9 +864,7 @@ def study_export_zip(study_id: int):
                 tr.events_data or '[]',
             ])
 
-    # ── Sheet 7: BPMN Element Events (flattened) ──────────────────────────────
-    # One row per BPMN diagram change (add/remove/connect/rename/move).
-    # Combines both user and AI actions; 'source' column distinguishes them.
+    # Sheet 7: BPMN Element Events (flattened)
     _BPMN_ETYPES = {'bpmn_add', 'bpmn_remove', 'bpmn_connect',
                     'bpmn_disconnect', 'bpmn_rename', 'bpmn_move'}
     ws_bpmn = wb.create_sheet('BPMN_Element_Events')
@@ -923,7 +910,7 @@ def study_export_zip(study_id: int):
                     ev.get('y', ''),
                 ])
 
-    # ── Sheet 8: LLM Interactions ──────────────────────────────────────────────
+    # Sheet 8: LLM Interactions
     ws_llm = wb.create_sheet('LLM_Interactions')
     llm_header = ['participant_id', 'user_identifier', 'condition',
                   'task_id', 'submission_id', 'submission_started_at',
@@ -961,7 +948,7 @@ def study_export_zip(study_id: int):
                     _sanitize(call.get('response', '')),
                 ])
 
-    # ── Sheet 8: Agent Choices ─────────────────────────────────────────────────
+    # Sheet 8: Agent Choices
     from app.models.study import AgentSwitchHistory
     ws_ac = wb.create_sheet('Agent_Choices')
     ac_header = ['participant_id', 'user_identifier', 'condition',
@@ -986,7 +973,7 @@ def study_export_zip(study_id: int):
                 sw.chosen_at.isoformat() if sw.chosen_at else '',
             ])
 
-    # ── Build ZIP with Excel + BPMN files ─────────────────────────────────────
+    # Build ZIP with Excel + BPMN files
     wb_buf = io.BytesIO()
     wb.save(wb_buf)
     wb_buf.seek(0)
@@ -1067,7 +1054,7 @@ def study_export_participants_csv(study_id: int):
     return resp
 
 
-# ── Conditions ────────────────────────────────────────────────────────────────
+# Conditions
 
 @admin_bp.route('/studies/<int:study_id>/conditions', methods=['GET', 'POST'])
 @admin_required
