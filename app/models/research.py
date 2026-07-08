@@ -151,6 +151,9 @@ class ResearchParticipant(db.Model):
     enrolled_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     dropped_out_at = db.Column(db.DateTime, nullable=True)
     dropout_reason = db.Column(db.String(500), nullable=True)
+    # Set when an admin manually re-admits a previously excluded participant.
+    # Auto-dropout ignores deadlines that were missed before this timestamp.
+    reinstated_at = db.Column(db.DateTime, nullable=True)
 
     condition_id = db.Column(
         db.Integer, db.ForeignKey('research_conditions.id', ondelete='SET NULL'), nullable=True,

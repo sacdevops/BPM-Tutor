@@ -253,6 +253,10 @@ def auto_save_bpmn():
                    .order_by(TaskSubmission.started_at.desc())
                    .first())
         if sub:
+            # Skip if nothing changed since the last auto-save (deduplication —
+            # keeps task_bpmn_snapshots from growing on every idle interval).
+            if sub.bpmn_draft == bpmn_xml:
+                return jsonify({'success': True})
             sub.bpmn_draft = bpmn_xml
             snapshot = TaskBPMNSnapshot(submission_id=sub.id, bpmn_xml=bpmn_xml, source='auto')
             db.session.add(snapshot)

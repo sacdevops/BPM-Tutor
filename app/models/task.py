@@ -278,19 +278,39 @@ class TaskSubmission(db.Model):
 
 
 class TaskBPMNSnapshot(db.Model):
-    """Version history entry — one row per auto-save or manual save event."""
+    """Version history entry — one row per auto-save or manual save event.
+
+    Storage: new snapshots are zlib-compressed in ``bpmn_xml_z`` (BLOB);
+    the legacy plain-text column ``bpmn_xml`` (NOT NULL) is kept as '' for
+    new rows and still read as fallback for old, uncompressed rows.
+    Application code always uses the ``bpmn_xml`` property.
+    """
     __tablename__ = 'task_bpmn_snapshots'
 
     id = db.Column(db.Integer, primary_key=True)
     submission_id = db.Column(db.Integer, db.ForeignKey('task_submissions.id',
                               ondelete='CASCADE'), nullable=False, index=True)
-    bpmn_xml = db.Column(db.Text, nullable=False)
+    _bpmn_xml_raw = db.Column('bpmn_xml', db.Text, nullable=False, default='')
+    bpmn_xml_z = db.Column(db.LargeBinary, nullable=True)
     source = db.Column(db.String(20), default='auto', nullable=False)  # 'auto' | 'submit'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     submission = db.relationship('TaskSubmission',
                                  backref=db.backref('snapshots', lazy='dynamic',
                                                     cascade='all, delete-orphan'))
+
+    @property
+    def bpmn_xml(self) -> str:
+        if self.bpmn_xml_z:
+            import zlib
+            return zlib.decompress(self.bpmn_xml_z).decode('utf-8')
+        return self._bpmn_xml_raw or ''
+
+    @bpmn_xml.setter
+    def bpmn_xml(self, value: str) -> None:
+        import zlib
+        self.bpmn_xml_z = zlib.compress((value or '').encode('utf-8'), 6)
+        self._bpmn_xml_raw = ''  # legacy column is NOT NULL
 
     def __repr__(self) -> str:
         return f'<TaskBPMNSnapshot {self.id} sub={self.submission_id} src={self.source}>'

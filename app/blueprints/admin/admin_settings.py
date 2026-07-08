@@ -929,6 +929,9 @@ def db_inspector_update():
     pk_val  = data.get('pk_val')
     col     = (data.get('col') or '').strip()
     value   = data.get('value')
+    # Normalise: empty string means SQL NULL (keeps nullable columns consistent)
+    if isinstance(value, str) and value.strip() == '':
+        value = None
 
     # Validate identifiers
     ident_re = r'^[A-Za-z_][A-Za-z0-9_]*$'

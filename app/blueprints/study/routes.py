@@ -32,17 +32,25 @@ def _get_research_participant(research_id: int):
 
 def _auto_dropout_check(research, rp) -> bool:
     """If auto_dropout_on_miss is set, drop participant when a Study deadline was missed.
+    Deadlines that were already over when an admin reinstated the participant are
+    ignored, so manually re-admitted students are not immediately dropped again.
     Returns True if the participant was just dropped."""
     if not research.auto_dropout_on_miss or rp.is_dropped_out:
         return False
     from app.models.study import StudyParticipant
     now = datetime.utcnow()
+    reinstated_at = getattr(rp, 'reinstated_at', None)
+    if reinstated_at is not None and reinstated_at.tzinfo is not None:
+        reinstated_at = reinstated_at.replace(tzinfo=None)
     for study in research.studies:
         if not study.is_active or study.is_archived:
             continue
         if not study.task_end:
             continue
         if now <= study.task_end:
+            continue
+        # Deadline was already missed before the manual reinstatement — skip.
+        if reinstated_at is not None and study.task_end <= reinstated_at:
             continue
 
         sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()

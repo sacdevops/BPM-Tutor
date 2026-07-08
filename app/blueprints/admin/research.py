@@ -260,6 +260,42 @@ def research_participant_dropout(research_id: int, participant_id: int):
     return redirect(url_for('admin.research_participants', research_id=research_id))
 
 
+@admin_bp.route('/research/<int:research_id>/participants/<int:participant_id>/reinstate', methods=['POST'])
+@admin_required
+def research_participant_reinstate(research_id: int, participant_id: int):
+    """Re-admit a previously excluded participant.
+
+    Uses a core UPDATE (no ORM row load) so it also works when the row
+    contains corrupted values (e.g. an unparseable dropped_out_at string)
+    that would crash SQLAlchemy's DateTime result processing.
+    """
+    from sqlalchemy import text
+
+    exists = db.session.execute(
+        text('SELECT id FROM research_participants WHERE id = :pid AND research_id = :rid'),
+        {'pid': participant_id, 'rid': research_id},
+    ).first()
+    if not exists:
+        flash('Teilnehmer nicht gefunden.', 'danger')
+        return redirect(url_for('admin.research_participants', research_id=research_id))
+
+    db.session.execute(
+        text(
+            'UPDATE research_participants '
+            'SET dropped_out_at = NULL, dropout_reason = NULL, reinstated_at = :now '
+            'WHERE id = :pid AND research_id = :rid'
+        ),
+        {'now': datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=' '),
+         'pid': participant_id, 'rid': research_id},
+    )
+    db.session.commit()
+    db.session.expire_all()
+    log_action('reinstate_research_participant', 'Research', research_id,
+               {'participant_id': participant_id})
+    flash('Teilnehmer wieder freigeschaltet.', 'success')
+    return redirect(url_for('admin.research_participants', research_id=research_id))
+
+
 # Research Export
 
 @admin_bp.route('/research/<int:research_id>/export/zip')

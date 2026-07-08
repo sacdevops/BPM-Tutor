@@ -2161,6 +2161,13 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // Escape for use inside HTML attributes — NULL becomes '' (never markup!)
+  function escAttr(v) {
+    if (v === null || v === undefined) return '';
+    return String(v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
   // ── Load tables ────────────────────────────────────────────────────────────
   function loadTables() {
     fetch(TABLES_URL, { credentials: 'same-origin' })
@@ -2247,12 +2254,12 @@ document.addEventListener('DOMContentLoaded', function () {
     rows.forEach(function(row) {
       var pkIdx  = pkCol ? cols.indexOf(pkCol) : -1;
       var pkVal  = pkIdx >= 0 ? row[pkIdx] : null;
-      html += '<tr data-pk="' + escHtml(pkVal) + '">';
+      html += '<tr data-pk="' + escAttr(pkVal) + '">';
       if (pkCol) {
         html += '<td class="text-center">'
               + '<button class="btn btn-link btn-sm p-0 me-1 text-danger dbi-del-btn" '
               + 'title="{{ _t('admin.dbinspect_delete_row', 'Delete row') }}" '
-              + 'data-pk="' + escHtml(pkVal) + '" onclick="dbiDeleteRow(this)">'
+              + 'data-pk="' + escAttr(pkVal) + '" onclick="dbiDeleteRow(this)">'
               + '<i class="bi bi-trash3"></i></button>'
               + '</td>';
       }
@@ -2260,8 +2267,10 @@ document.addEventListener('DOMContentLoaded', function () {
         var colName = cols[i];
         var isEditable = pkCol && colName !== pkCol;
         if (isEditable) {
-          html += '<td class="dbi-cell" data-col="' + escHtml(colName) + '" data-pk="' + escHtml(pkVal)
-                + '" data-orig="' + escHtml(val) + '" onclick="dbiEditCell(this)" style="cursor:pointer">'
+          var isNull = (val === null || val === undefined);
+          html += '<td class="dbi-cell" data-col="' + escAttr(colName) + '" data-pk="' + escAttr(pkVal)
+                + '" data-orig="' + escAttr(val) + '" data-null="' + (isNull ? '1' : '0')
+                + '" onclick="dbiEditCell(this)" style="cursor:pointer">'
                 + escHtml(val) + '</td>';
         } else {
           html += '<td>' + escHtml(val) + '</td>';
@@ -2275,41 +2284,48 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Inline cell editing ────────────────────────────────────────────────────
   window.dbiEditCell = function(td) {
     if (td.querySelector('input')) return; // already editing
-    var orig = td.getAttribute('data-orig');
+    var isNull = td.getAttribute('data-null') === '1';
+    var orig = isNull ? '' : (td.getAttribute('data-orig') || '');
     var col  = td.getAttribute('data-col');
     var pk   = td.getAttribute('data-pk');
 
+    function restore() { td.innerHTML = escHtml(isNull ? null : orig); }
+
     td.innerHTML = '<input type="text" class="form-control form-control-sm p-0 px-1" '
-                 + 'style="font-size:12px;min-width:80px" value="' + escHtml(orig) + '">';
+                 + 'style="font-size:12px;min-width:80px" value="' + escAttr(orig) + '">';
     var input = td.querySelector('input');
     input.focus(); input.select();
 
     function save() {
       var newVal = input.value;
-      if (newVal === orig) { td.innerHTML = escHtml(orig); return; }
+      var unchanged = isNull ? (newVal === '') : (newVal === orig);
+      if (unchanged) { restore(); return; }
+      // Empty input is stored as SQL NULL (never as empty string)
+      var sendVal = (newVal === '') ? null : newVal;
       fetch(UPDATE_URL, {
         method: 'POST', credentials: 'same-origin', headers: csrfHeaders(),
-        body: JSON.stringify({ table: state.table, pk_col: getPkCol(), pk_val: pk, col: col, value: newVal }),
+        body: JSON.stringify({ table: state.table, pk_col: getPkCol(), pk_val: pk, col: col, value: sendVal }),
       })
         .then(function(r){ return r.json(); })
         .then(function(d) {
           if (d.ok) {
-            td.setAttribute('data-orig', newVal);
-            td.innerHTML = escHtml(newVal);
+            td.setAttribute('data-orig', sendVal === null ? '' : newVal);
+            td.setAttribute('data-null', sendVal === null ? '1' : '0');
+            td.innerHTML = escHtml(sendVal);
             td.style.background = '#d1e7dd';
             setTimeout(function(){ td.style.background = ''; }, 1200);
           } else {
             alert('{{ _t('common.error', 'Error') }}: ' + d.error);
-            td.innerHTML = escHtml(orig);
+            restore();
           }
         })
-        .catch(function(e){ alert(String(e)); td.innerHTML = escHtml(orig); });
+        .catch(function(e){ alert(String(e)); restore(); });
     }
 
     input.addEventListener('blur', save);
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-      if (e.key === 'Escape') { td.innerHTML = escHtml(orig); }
+      if (e.key === 'Escape') { restore(); }
     });
   };
 

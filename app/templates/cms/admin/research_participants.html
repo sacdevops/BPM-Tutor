@@ -74,6 +74,12 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-warning">{{ _t('admin.research_participants_dropout_btn', 'Exclude') }}</button>
           </form>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.research_participant_reinstate', research_id=research.id, participant_id=p.id) }}"
+                style="display:inline" onsubmit="return confirm('{{ _t("admin.research_participants_reinstate_confirm", "Re-admit participant? The auto-exclusion for already missed deadlines will no longer apply.") }}')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-success">{{ _t('admin.research_participants_reinstate_btn', 'Re-admit') }}</button>
+          </form>
           {% endif %}
           <form method="post" action="{{ url_for('admin.research_participant_remove', research_id=research.id, participant_id=p.id) }}"
                 style="display:inline" onsubmit="return confirm('{{ _t("admin.research_participants_remove_confirm", "Really remove participant?") }}')">

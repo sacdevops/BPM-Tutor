@@ -1293,6 +1293,8 @@ DE_STRINGS: dict[str, str] = {
     'admin.research_participants_status_dropped': 'Ausgeschlossen',
     'admin.research_participants_dropout_btn': 'Ausschließen',
     'admin.research_participants_dropout_confirm': 'Teilnehmer ausschließen?',
+    'admin.research_participants_reinstate_btn': 'Wieder freischalten',
+    'admin.research_participants_reinstate_confirm': 'Teilnehmer wieder freischalten? Der Auto-Ausschluss für bereits versäumte Fristen greift danach nicht mehr.',
     'admin.research_participants_remove_confirm': 'Teilnehmer wirklich entfernen?',
     'admin.research_participants_empty': 'Noch keine Teilnehmer angemeldet.',
     # Agents list
@@ -2582,6 +2584,8 @@ EN_STRINGS: dict[str, str] = {
     'admin.research_participants_status_dropped': 'Excluded',
     'admin.research_participants_dropout_btn': 'Exclude',
     'admin.research_participants_dropout_confirm': 'Exclude participant?',
+    'admin.research_participants_reinstate_btn': 'Re-admit',
+    'admin.research_participants_reinstate_confirm': 'Re-admit participant? The auto-exclusion for already missed deadlines will no longer apply.',
     'admin.research_participants_remove_confirm': 'Really remove participant?',
     'admin.research_participants_empty': 'No participants enrolled yet.',
     # Agents list
