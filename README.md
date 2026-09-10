@@ -227,3 +227,35 @@ lib/
   bpmn/             # BPMN XML validator
   lion/             # LION encoding/decoding (compact process representation)
 ```
+
+## Reference
+
+BPM-Tutor was used in the following research paper:
+
+```
+Ciftci, S. A. (2026).
+Designing Synthetic Work Relationships: An Exploratory Study of Agentic AI Roles, Cognitive Load, and Psychological Need Satisfaction.
+In M. Alimardani, T. Lenaerts, A. Meyer-Vitali, A. Nowé, J. Vennekens, & S. Wang (Eds.), HHAI 2026: Proceedings of the 5th International Conference on Hybrid Human-Artificial Intelligence (pp. 118–131).
+Frontiers in Artificial Intelligence and Applications, Vol. 423. IOS Press.
+https://doi.org/10.3233/FAIA260498
+```
+
+Citation
+
+If you use BPM-Tutor, build upon this repository, or reference the system in academic work, please consider citing the associated publication:
+
+```
+@inproceedings{ciftci2026designing,
+  author    = {Seyyid A. Ciftci},
+  title     = {Designing Synthetic Work Relationships: An Exploratory Study of Agentic AI Roles, Cognitive Load, and Psychological Need Satisfaction},
+  booktitle = {HHAI 2026: Proceedings of the 5th International Conference on Hybrid Human-Artificial Intelligence},
+  editor    = {Maryam Alimardani and Tom Lenaerts and Andr{\'e} Meyer-Vitali and Ann Now{\'e} and Joost Vennekens and Shenghui Wang},
+  series    = {Frontiers in Artificial Intelligence and Applications},
+  volume    = {423},
+  pages     = {118--131},
+  publisher = {IOS Press},
+  year      = {2026},
+  doi       = {10.3233/FAIA260498},
+  url       = {https://doi.org/10.3233/FAIA260498}
+}
+```
