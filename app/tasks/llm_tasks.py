@@ -77,6 +77,7 @@ def process_mentor_message(
     lang: str,
     tracker_key: str,
     submission_id: int | None,
+    base_url: str = '',
 ) -> dict[str, Any]:
     """Process a user message through the LLM and emit the response via SocketIO.
 
@@ -97,6 +98,7 @@ def process_mentor_message(
                 model=model,
                 lang=lang,
                 tracker_key=tracker_key,
+                base_url=base_url,
             )
 
             response = mentor.get_mentor_response(
@@ -172,6 +174,7 @@ def process_mentor_greeting(
     tracker_key: str,
     fallback_greeting: str,
     agent_id: str = '',
+    base_url: str = '',
 ) -> str:
     """Generate the initial mentor greeting asynchronously."""
     try:
@@ -189,6 +192,7 @@ def process_mentor_greeting(
                 lang=lang,
                 tracker_key=tracker_key,
                 agent_id=agent_id,
+                base_url=base_url,
             )
             result = mentor.generate_greeting(task_description)
             greeting = result.get('message', fallback_greeting)

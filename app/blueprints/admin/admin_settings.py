@@ -1,7 +1,7 @@
 """Admin — system settings, registration fields, mail, DB backup, notifications, API stats."""
 import json
 
-from flask import render_template, redirect, url_for, flash, request, jsonify, send_file, current_app
+from flask import render_template, redirect, url_for, flash, request, jsonify, send_file, current_app, Response
 from flask_login import current_user
 
 from app.blueprints.admin import admin_bp
@@ -176,6 +176,9 @@ def settings():
                 else:
                     del mapping[_key]
 
+        if request.form.get('clear_global_api_key'):
+            mapping[Settings.GLOBAL_API_KEY] = ''
+
         Settings.set_many(mapping)
         enc = request.form.get('mail_encryption', 'starttls')
         current_app.config['MAIL_SERVER'] = mapping.get(Settings.MAIL_SERVER, '')
@@ -252,7 +255,6 @@ def _sciebo_base(url: str, username: str) -> str:
 def backup_now():
     """Run a backup immediately, bypassing the scheduled interval check."""
     import os
-    import sqlite3
     from datetime import datetime as _dt, timezone as _tz
 
     try:
@@ -272,13 +274,8 @@ def backup_now():
         filename = f'bpmtutor_{ts}.db'
         dest = os.path.join(backup_dir, filename)
 
-        src = sqlite3.connect(db_path)
-        dst = sqlite3.connect(dest)
-        try:
-            src.backup(dst)
-        finally:
-            src.close()
-            dst.close()
+        from app.utils import sqlite_tools as st
+        st.run_blocking(st.snapshot_db, db_path, dest)
         current_app.logger.info('[backup_now] Created: %s', dest)
 
         try:
@@ -536,13 +533,82 @@ def translate_text():
         return jsonify(ok=False, error=str(exc)), 500
 
 
+# AI model discovery for the settings form
+
+@admin_bp.route('/settings/api-models', methods=['POST'])
+@admin_required
+def settings_api_models():
+    """List models offered by the endpoint/key currently entered in the settings form."""
+    import config
+    import requests as _http
+    from app.utils.crypto import decrypt_api_key
+
+    data = request.get_json(silent=True) or {}
+    api_key = (data.get('api_key') or '').strip()
+    endpoint = (data.get('endpoint') or '').strip().rstrip('/')
+
+    if not api_key:
+        api_key = decrypt_api_key(Settings.get(Settings.GLOBAL_API_KEY) or '')
+    if not api_key and current_user.personal_api_key:
+        api_key = decrypt_api_key(current_user.personal_api_key)
+    if not api_key:
+        return jsonify(ok=False, error='Bitte zuerst einen API-Key eingeben.'), 400
+
+    if not endpoint:
+        endpoint = config.CAMPUS_KI_BASE_URL.rstrip('/')
+    if not endpoint.startswith('https://'):
+        return jsonify(ok=False, error='Der Endpoint muss mit https:// beginnen.'), 400
+
+    try:
+        resp = _http.get(f'{endpoint}/v1/models',
+                         headers={'Authorization': f'Bearer {api_key}'}, timeout=15)
+        resp.raise_for_status()
+        ids = sorted({m.get('id', '') for m in resp.json().get('data', []) if m.get('id')})
+        return jsonify(ok=True, models=ids)
+    except _http.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else 500
+        if status in (401, 403):
+            return jsonify(ok=False, error='API-Key ungültig oder nicht berechtigt.'), 200
+        return jsonify(ok=False, error=f'Endpoint antwortete mit HTTP {status}.'), 200
+    except (_http.exceptions.RequestException, ValueError) as exc:
+        return jsonify(ok=False, error=f'Endpoint nicht erreichbar oder ungültige Antwort: {exc}'), 200
+
+
 # Database export / import
+
+def _migrate_schema_after_restore() -> bool:
+    """Bring a restored (possibly older) database up to the current schema."""
+    import os
+    import subprocess
+    import sys
+
+    project_root = os.path.dirname(current_app.root_path)
+    try:
+        # Not via run_blocking: gevent's subprocess is already cooperative and needs the main loop, not a pool thread.
+        proc = subprocess.run(
+            [sys.executable, os.path.join(project_root, 'deploy', 'migrate_schema.py')],
+            cwd=project_root, capture_output=True, text=True, timeout=180,
+            encoding='utf-8', errors='replace',
+            env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+        )
+    except Exception as exc:
+        current_app.logger.exception('[db_restore] schema migration could not run: %s', exc)
+        return False
+    if proc.returncode != 0:
+        current_app.logger.error('[db_restore] schema migration failed:\n%s\n%s',
+                                 proc.stdout[-2000:], proc.stderr[-2000:])
+        return False
+    return True
+
 
 @admin_bp.route('/settings/db-export')
 @admin_required
 def db_export():
     import os
+    import uuid
     from datetime import datetime
+    from app.utils import sqlite_tools as st
+
     db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
     if not db_uri.startswith('sqlite:///'):
         flash('Database download requires a SQLite database.', 'warning')
@@ -551,18 +617,47 @@ def db_export():
     if not os.path.isfile(db_path):
         flash('Database file not found.', 'danger')
         return redirect(url_for('admin.settings'))
+
+    db_dir = os.path.dirname(os.path.abspath(db_path))
+    if not st.has_free_space(db_dir, int(os.path.getsize(db_path) * 1.2)):
+        flash('Not enough free disk space to create the download snapshot.', 'danger')
+        return redirect(url_for('admin.settings'))
+    if not st.try_lock():
+        flash('Another database export/import is already running.', 'warning')
+        return redirect(url_for('admin.settings'))
+
+    # A snapshot (not the raw file) keeps the download consistent while the app writes in WAL mode.
+    tmp = os.path.join(db_dir, f'.export-{uuid.uuid4().hex}.db')
+    try:
+        st.run_blocking(st.snapshot_db, db_path, tmp)
+    except Exception as exc:
+        st.remove_db_files(tmp)
+        current_app.logger.exception('[db_export] snapshot failed: %s', exc)
+        flash(f'Export failed: {exc}', 'danger')
+        return redirect(url_for('admin.settings'))
+    finally:
+        st.unlock()
+
     filename = f'bpmtutor_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
-    return send_file(db_path, as_attachment=True, download_name=filename,
-                     mimetype='application/octet-stream')
+    # Not send_file(): its pass-through response never fires close callbacks, so the temp copy would leak.
+    return Response(
+        st.stream_and_delete(tmp),
+        mimetype='application/octet-stream',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Length': str(os.path.getsize(tmp)),
+            'Cache-Control': 'no-store',
+        },
+    )
 
 
 @admin_bp.route('/settings/db-import', methods=['POST'])
 @admin_required
 def db_import():
     import os
-    import shutil
-    import sqlite3
-    import tempfile
+    import uuid
+    from app.utils import sqlite_tools as st
+
     db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
     if not db_uri.startswith('sqlite:///'):
         flash('Database import requires a SQLite database.', 'warning')
@@ -574,42 +669,47 @@ def db_import():
         return redirect(url_for('admin.settings'))
 
     db_path = db_uri.replace('sqlite:///', '', 1)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+    db_dir = os.path.dirname(os.path.abspath(db_path))
+    if not st.try_lock():
+        flash('Another database export/import is already running.', 'warning')
+        return redirect(url_for('admin.settings'))
+
+    tmp = os.path.join(db_dir, f'.import-{uuid.uuid4().hex}.db')
     try:
-        uploaded.save(tmp.name)
-        tmp.close()
+        uploaded.save(tmp)
 
-        with open(tmp.name, 'rb') as fh:
-            magic = fh.read(16)
-        if not magic.startswith(b'SQLite format 3\x00'):
-            flash('Invalid file — not a valid SQLite database.', 'danger')
+        if not st.has_free_space(db_dir, os.path.getsize(tmp) + os.path.getsize(db_path)):
+            flash('Not enough free disk space for the import.', 'danger')
             return redirect(url_for('admin.settings'))
 
-        try:
-            check = sqlite3.connect(tmp.name)
-            result = check.execute('PRAGMA integrity_check(10)').fetchall()
-            check.close()
-            if result != [('ok',)]:
-                problems = '; '.join(r[0] for r in result[:5])
-                flash(f'Database file is corrupt (integrity_check failed): {problems}', 'danger')
-                return redirect(url_for('admin.settings'))
-        except sqlite3.DatabaseError as exc:
-            flash(f'Database file is corrupt: {exc}', 'danger')
+        ok, message = st.run_blocking(st.validate_db_file, tmp)
+        if not ok:
+            flash(message, 'danger')
             return redirect(url_for('admin.settings'))
-
-        if os.path.isfile(db_path):
-            shutil.copy2(db_path, db_path + '.bak')
 
         from app.extensions import db as _db
+        from app.models.settings import Settings
+
+        # Consistent safety copy of the current data before anything is overwritten.
+        st.run_blocking(st.snapshot_db, db_path, db_path + '.bak')
+
         _db.session.remove()
+        st.run_blocking(st.restore_into_live, db_path, tmp)
         _db.engine.dispose()
-        shutil.copy2(tmp.name, db_path)
-        flash('Database imported successfully. Please restart the server.', 'success')
+        Settings.clear_cache()
+        current_app.logger.warning('[db_import] Database replaced (admin: %s)', current_user.email)
+
+        # Older backups may lack newer columns; bring the schema up to date right away.
+        if _migrate_schema_after_restore():
+            flash('Database imported successfully.', 'success')
+        else:
+            flash('Database imported, but the schema migration reported errors — see server log.', 'warning')
+    except Exception as exc:
+        current_app.logger.exception('[db_import] failed: %s', exc)
+        flash(f'Import failed (current database unchanged): {exc}', 'danger')
     finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+        st.remove_db_files(tmp)
+        st.unlock()
 
     return redirect(url_for('admin.settings'))
 
@@ -626,10 +726,16 @@ def db_integrity():
         return jsonify(ok=False, error='Only SQLite databases are supported.'), 400
     db_path = db_uri.replace('sqlite:///', '', 1)
     try:
-        conn = sqlite3.connect(db_path)
-        rows = conn.execute('PRAGMA integrity_check(50)').fetchall()
-        conn.close()
-        issues = [r[0] for r in rows]
+        from app.utils import sqlite_tools as st
+
+        def _check():
+            conn = sqlite3.connect(db_path, timeout=30)
+            try:
+                return [r[0] for r in conn.execute('PRAGMA integrity_check(50)').fetchall()]
+            finally:
+                conn.close()
+
+        issues = st.run_blocking(_check)
         ok = issues == ['ok']
         return jsonify(ok=ok, issues=issues)
     except Exception as exc:
@@ -643,8 +749,7 @@ def db_integrity():
 def db_restore_bak():
     """Restore the database from the automatic .bak file created on last import."""
     import os
-    import shutil
-    import sqlite3
+    from app.utils import sqlite_tools as st
     db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
     if 'sqlite' not in db_uri:
         flash('Only SQLite databases are supported.', 'warning')
@@ -654,33 +759,39 @@ def db_restore_bak():
     if not os.path.isfile(bak_path):
         flash('No backup file (.bak) found. Cannot restore.', 'danger')
         return redirect(url_for('admin.settings'))
-
-    # Validate the backup before restoring
-    try:
-        conn = sqlite3.connect(bak_path)
-        result = conn.execute('PRAGMA integrity_check(10)').fetchall()
-        conn.close()
-        if result != [('ok',)]:
-            problems = '; '.join(r[0] for r in result[:5])
-            flash(f'Backup file is also corrupt and cannot be used: {problems}', 'danger')
-            return redirect(url_for('admin.settings'))
-    except Exception as exc:
-        flash(f'Backup file is not a valid SQLite database: {exc}', 'danger')
+    if not st.try_lock():
+        flash('Another database export/import is already running.', 'warning')
         return redirect(url_for('admin.settings'))
 
     try:
+        ok, message = st.run_blocking(st.validate_db_file, bak_path)
+        if not ok:
+            flash(f'Backup file cannot be used: {message}', 'danger')
+            return redirect(url_for('admin.settings'))
+
         from app.extensions import db as _db
+        from app.models.settings import Settings
         _db.session.remove()
-        _db.engine.dispose()
-        # Save the current (broken) DB as .broken so nothing is lost
-        if os.path.isfile(db_path):
+        # Keep the current (possibly broken) DB as .broken so nothing is lost
+        try:
+            st.run_blocking(st.snapshot_db, db_path, db_path + '.broken')
+        except Exception as exc:
+            current_app.logger.warning('[db_restore_bak] snapshot failed (%s) — copying raw file', exc)
+            import shutil
             shutil.copy2(db_path, db_path + '.broken')
-        shutil.copy2(bak_path, db_path)
+        st.run_blocking(st.restore_into_live, db_path, bak_path)
+        _db.engine.dispose()
+        Settings.clear_cache()
         current_app.logger.warning('[db_restore_bak] Restored from .bak (admin: %s)', current_user.email)
-        flash('Database restored from backup (.bak). Please restart the server.', 'success')
+        if _migrate_schema_after_restore():
+            flash('Database restored from backup (.bak).', 'success')
+        else:
+            flash('Database restored, but the schema migration reported errors — see server log.', 'warning')
     except Exception as exc:
         current_app.logger.exception('[db_restore_bak] failed: %s', exc)
         flash(f'Restore failed: {exc}', 'danger')
+    finally:
+        st.unlock()
 
     return redirect(url_for('admin.settings'))
 

@@ -38,7 +38,7 @@ def _auto_dropout_check(research, rp) -> bool:
     if not research.auto_dropout_on_miss or rp.is_dropped_out:
         return False
     from app.models.study import StudyParticipant
-    now = datetime.utcnow()
+    now = datetime.now(datetime.timezone.utc)
     reinstated_at = getattr(rp, 'reinstated_at', None)
     if reinstated_at is not None and reinstated_at.tzinfo is not None:
         reinstated_at = reinstated_at.replace(tzinfo=None)
@@ -55,7 +55,7 @@ def _auto_dropout_check(research, rp) -> bool:
 
         sp = StudyParticipant.query.filter_by(study_id=study.id, user_id=current_user.id).first()
         if not sp or not sp.completed_at:
-            rp.dropped_out_at = datetime.now(timezone.utc)
+            rp.dropped_out_at = datetime.now(datetime.timezone.utc)
             rp.dropout_reason = (
                 f'Auto-Ausschluss: Frist für Study „{study.title}" wurde versäumt.'
             )

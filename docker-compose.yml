@@ -44,6 +44,8 @@ services:
       # HTTPS is terminated by nginx (or an external load balancer).
       # Set FORCE_HTTPS=true only when the app itself must redirect HTTP→HTTPS.
       FORCE_HTTPS: "false"
+      # Empty = secure cookies in production; set to "false" only when served over plain HTTP.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-}
       HOME: /tmp
 
       # Secrets — set via .env file or server environment variables

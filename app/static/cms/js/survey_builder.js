@@ -241,12 +241,17 @@ const SurveyBuilder = (() => {
   }
   function _removeQ(pi, qi) { pages[pi].questions.splice(qi, 1); render(); }
 
+  function _csrfToken() {
+    const el = document.querySelector('input[name="csrf_token"]');
+    return el ? el.value : '';
+  }
+
   function _uploadQuestionImage(pi, qi, input) {
     const file = input.files[0];
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    fetch('/survey/upload-image', { method: 'POST', body: formData })
+    fetch('/survey/upload-image', { method: 'POST', headers: { 'X-CSRFToken': _csrfToken() }, body: formData })
       .then(r => r.json())
       .then(data => {
         if (data.url) {
@@ -265,7 +270,7 @@ const SurveyBuilder = (() => {
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
-    fetch('/survey/upload-video', { method: 'POST', body: formData })
+    fetch('/survey/upload-video', { method: 'POST', headers: { 'X-CSRFToken': _csrfToken() }, body: formData })
       .then(r => r.json())
       .then(data => {
         if (data.url) {

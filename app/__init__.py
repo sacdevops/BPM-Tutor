@@ -191,7 +191,8 @@ def _configure_database(app: Flask) -> None:
     app.config.setdefault('MAIL_DEFAULT_SENDER', os.getenv('MAIL_DEFAULT_SENDER', 'noreply@bpmtutor.local'))
     # SMTP connection timeout — prevents daemon threads from hanging indefinitely
     app.config.setdefault('MAIL_TIMEOUT', int(os.getenv('MAIL_TIMEOUT', 30)))
-    app.config.setdefault('WTF_CSRF_TIME_LIMIT', 3600)
+    # Same lifetime as the session so forms left open for hours can still be submitted.
+    app.config.setdefault('WTF_CSRF_TIME_LIMIT', int(os.getenv('CSRF_TIME_LIMIT', 12 * 3600)))
     # 512 MB — allows large DB imports via the admin panel.
     # nginx is also configured to client_max_body_size 512M.
     app.config.setdefault('MAX_CONTENT_LENGTH', 512 * 1024 * 1024)
@@ -203,14 +204,17 @@ def _configure_session_security(app: Flask) -> None:
     app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
     app.config.setdefault('SESSION_COOKIE_SAMESITE', 'Lax')
     is_production = os.getenv('FLASK_ENV', 'development') == 'production'
-    app.config.setdefault('SESSION_COOKIE_SECURE', is_production)
+    # Set SESSION_COOKIE_SECURE=false for a deployment served over plain HTTP (login would otherwise fail).
+    _secure_env = os.getenv('SESSION_COOKIE_SECURE', '').strip().lower()
+    cookie_secure = (_secure_env in ('true', '1', 'yes')) if _secure_env else is_production
+    app.config.setdefault('SESSION_COOKIE_SECURE', cookie_secure)
     app.config.setdefault('SESSION_COOKIE_NAME', 'bpmtutor_session')
     # Remember-me cookie — must be configured explicitly so the cookie persists
     # across browser restarts and survives after the session cookie expires.
     app.config.setdefault('REMEMBER_COOKIE_DURATION', timedelta(days=30))
     app.config.setdefault('REMEMBER_COOKIE_HTTPONLY', True)
     app.config.setdefault('REMEMBER_COOKIE_SAMESITE', 'Lax')
-    app.config.setdefault('REMEMBER_COOKIE_SECURE', is_production)
+    app.config.setdefault('REMEMBER_COOKIE_SECURE', cookie_secure)
     app.config.setdefault('REMEMBER_COOKIE_NAME', 'bpmtutor_remember')
 
 

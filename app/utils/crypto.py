@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 
+logger = logging.getLogger('bpmtutor.crypto')
 
 def _get_fernet():
     """Return a Fernet instance keyed from the app SECRET_KEY."""
@@ -39,6 +41,8 @@ def decrypt_value(stored: str) -> str:
     try:
         return _get_fernet().decrypt(stored[4:].encode()).decode()
     except Exception:
+        # Usually means SECRET_KEY differs from the one the value was encrypted with.
+        logger.warning('[crypto] Could not decrypt a stored value — was SECRET_KEY changed?')
         return ''                 # corrupted — return empty
 
 

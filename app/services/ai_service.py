@@ -99,7 +99,18 @@ class AIService:
                     'The AI service is temporarily unavailable. Please try again later.',
                     error_type='service_down',
                 )
-            raise AIServiceError(f'API error (HTTP {status}).', error_type='api_error')
+            # Surface the provider's real error message (e.g. invalid model, bad role) instead of a bare status code.
+            detail = ''
+            if exc.response is not None:
+                try:
+                    err_json = exc.response.json()
+                    err_obj = err_json.get('error', err_json)
+                    detail = err_obj.get('message', '') if isinstance(err_obj, dict) else str(err_obj)
+                except Exception:
+                    detail = (exc.response.text or '')[:300]
+            logger.warning('[AIService] HTTP %s from %s: %s', status, url, detail or '(no body)')
+            msg = f'API error (HTTP {status}): {detail}' if detail else f'API error (HTTP {status}).'
+            raise AIServiceError(msg, error_type='api_error')
 
     def __init__(self, task_id: str = 'unknown', session_id: str = '',
                  api_key: str = '', model: str = '', lang: str = 'en',

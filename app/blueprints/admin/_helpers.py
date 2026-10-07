@@ -48,15 +48,15 @@ def _get_admin_api_key() -> tuple[str, str, str]:
     from flask_login import current_user
 
     api_key = ''
-    if Settings.get('API_KEY_MODE', 'global') == 'global':
-        raw = Settings.get('GLOBAL_API_KEY', '') or ''
+    if Settings.get(Settings.API_KEY_MODE, 'global') == 'global':
+        raw = Settings.get(Settings.GLOBAL_API_KEY, '') or ''
         if raw:
             api_key = decrypt_api_key(raw)
     if not api_key and current_user.is_authenticated:
         personal = getattr(current_user, 'personal_api_key', None)
         if personal:
             api_key = decrypt_api_key(personal)
-    model = getattr(current_user, 'preferred_model', None) or Settings.get('DEFAULT_MODEL', '')
+    model = getattr(current_user, 'preferred_model', None) or Settings.get(Settings.DEFAULT_MODEL, '')
     base_url = (Settings.get(Settings.API_ENDPOINT) or '').strip()
     return api_key, model, base_url
 

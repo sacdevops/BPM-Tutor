@@ -16,6 +16,7 @@ from app.models.task import Task, TaskSubmission
 from app.models.settings import Notification
 from app.utils.decorators import admin_required
 from app.utils.audit import log_action
+from app.utils.xlsx_utils import xl_text, jsonl_line
 
 
 # Private helpers
@@ -811,7 +812,7 @@ def study_export_zip(study_id: int):
                 sub.tokens_out or 0,
                 sub.grade_value if sub.grade_value is not None else '',
                 'pass' if sub.grade_passed else ('fail' if sub.grade_passed is False else ''),
-                _sanitize(sub.grade_comment or ''),
+                xl_text(_sanitize(sub.grade_comment or '')),
                 sub.id,
             ])
 
@@ -839,6 +840,7 @@ def study_export_zip(study_id: int):
 
     # Sheet 6: Tracking Events (raw batches)
     from app.models.tracking import TaskSessionTracking
+    tracking_jsonl = io.StringIO()
     ws_tr = wb.create_sheet('Tracking_Events')
     tr_header = ['participant_id', 'user_identifier', 'condition',
                  'task_id', 'submission_id', 'session_start',
@@ -854,14 +856,22 @@ def study_export_zip(study_id: int):
                 evts = json.loads(tr.events_data) if tr.events_data else []
                 ev_count = len(evts) if isinstance(evts, list) else 0
             except Exception:
+                evts = tr.events_data
                 ev_count = 0
+            tracking_jsonl.write(jsonl_line({
+                'participant_id': p.id, 'user_identifier': _ident(p),
+                'task_id': tr.task_id, 'submission_id': tr.submission_id,
+                'session_start': str(tr.session_start or ''),
+                'batch_seq': tr.batch_seq, 'events': evts,
+            }))
             ws_tr.append([
                 p.id, _ident(p), p.condition.name if p.condition else '',
                 tr.task_id, tr.submission_id or '',
                 str(tr.session_start or ''),
                 tr.batch_seq,
                 ev_count,
-                tr.events_data or '[]',
+                xl_text(tr.events_data or '[]',
+                        f'tracking_events.jsonl (participant {p.id}, task {tr.task_id}, batch {tr.batch_seq})'),
             ])
 
     # Sheet 7: BPMN Element Events (flattened)
@@ -911,6 +921,7 @@ def study_export_zip(study_id: int):
                 ])
 
     # Sheet 8: LLM Interactions
+    llm_jsonl = io.StringIO()
     ws_llm = wb.create_sheet('LLM_Interactions')
     llm_header = ['participant_id', 'user_identifier', 'condition',
                   'task_id', 'submission_id', 'submission_started_at',
@@ -935,6 +946,14 @@ def study_export_zip(study_id: int):
                     if m.get('role') == 'system':
                         system_prompt = m.get('content', '')
                         break
+                ref = f'llm_interactions.jsonl (submission {sub.id}, call {idx + 1})'
+                llm_jsonl.write(jsonl_line({
+                    'participant_id': p.id, 'user_identifier': _ident(p),
+                    'task_id': sub.task_id, 'submission_id': sub.id,
+                    'call_index': idx + 1, 'timestamp': call.get('ts', ''),
+                    'phase_label': call.get('label', ''),
+                    'messages': messages, 'response': call.get('response', ''),
+                }))
                 ws_llm.append([
                     p.id, _ident(p), p.condition.name if p.condition else '',
                     sub.task_id, sub.id,
@@ -943,9 +962,9 @@ def study_export_zip(study_id: int):
                     call.get('ts', ''),
                     call.get('label', ''),
                     len(messages),
-                    _sanitize(system_prompt),
-                    _sanitize(json.dumps(messages, ensure_ascii=False)),
-                    _sanitize(call.get('response', '')),
+                    xl_text(_sanitize(system_prompt), ref),
+                    xl_text(_sanitize(json.dumps(messages, ensure_ascii=False)), ref),
+                    xl_text(_sanitize(call.get('response', '')), ref),
                 ])
 
     # Sheet 8: Agent Choices
@@ -982,6 +1001,10 @@ def study_export_zip(study_id: int):
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f'study_{study_id}_data.xlsx', wb_buf.read())
+        if tracking_jsonl.tell():
+            zf.writestr('tracking_events.jsonl', tracking_jsonl.getvalue().encode('utf-8'))
+        if llm_jsonl.tell():
+            zf.writestr('llm_interactions.jsonl', llm_jsonl.getvalue().encode('utf-8'))
         for p in participants:
             subs = TaskSubmission.query.filter_by(study_id=study_id, user_id=p.user_id).all()
             for sub in subs:

@@ -88,9 +88,9 @@ def register_handlers(socketio):
         try:
             from app.models.settings import Settings
             from app.utils.crypto import decrypt_api_key
-            api_key_mode = Settings.get('API_KEY_MODE', 'global')
+            api_key_mode = Settings.get(Settings.API_KEY_MODE, 'global')
             if api_key_mode == 'global':
-                raw = Settings.get('GLOBAL_API_KEY', api_key) or api_key
+                raw = Settings.get(Settings.GLOBAL_API_KEY, api_key) or api_key
                 api_key = decrypt_api_key(raw)
             elif api_key_mode == 'per_user' and current_user.is_authenticated:
                 raw = current_user.personal_api_key or api_key
@@ -116,6 +116,13 @@ def register_handlers(socketio):
         # Fall back to user's saved preferred model if the client didn't send one
         if not settings['model'] and current_user.is_authenticated and getattr(current_user, 'preferred_model', None):
             settings['model'] = current_user.preferred_model
+
+        # Users without a personal model choice use the admin-configured default
+        if not settings['model']:
+            try:
+                settings['model'] = (Settings.get(Settings.DEFAULT_MODEL) or '').strip()
+            except Exception:
+                pass
 
         store.create(sid, task_id, session_uuid, settings, agent_id=agent_id)
         store.set_field(sid, 'agent_type', agent_type)
@@ -470,9 +477,11 @@ def register_handlers(socketio):
 
         state = session['mentor_state']
 
+        base_url = data.get('base_url') or settings.get('base_url', '')
+
         mentor = AIService(task_id, session_id=session['session_uuid'],
                            api_key=api_key, model=model, lang=lang,
-                           tracker_key=sid,
+                           tracker_key=sid, base_url=base_url,
                            agent_id=session.get('agent_id', ''))
 
         if lang == 'de':

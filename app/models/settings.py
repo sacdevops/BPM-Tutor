@@ -274,6 +274,19 @@ class Settings:
                 pass
 
     @classmethod
+    def clear_cache(cls) -> None:
+        """Drop every cached setting (e.g. after the database was replaced)."""
+        r = _get_redis()
+        if r is None:
+            return
+        try:
+            keys = list(r.scan_iter(f'{_CACHE_PREFIX}*'))
+            if keys:
+                r.delete(*keys)
+        except Exception:
+            pass
+
+    @classmethod
     def set_many(cls, mapping: dict) -> None:
         """Persist multiple settings at once and invalidate their cache entries."""
         for key, value in mapping.items():

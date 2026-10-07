@@ -423,6 +423,18 @@
 
                   <input type="password" name="global_api_key" class="form-control" value="{{ s.get('global_api_key', '') }}" placeholder="sk-...">
 
+                  {% if s.get('global_api_key') %}
+
+                  <div class="form-check mt-2">
+
+                    <input type="checkbox" class="form-check-input" id="clear_global_api_key" name="clear_global_api_key" value="1">
+
+                    <label class="form-check-label text-danger" for="clear_global_api_key">{{ _t('admin.settings_global_api_key_clear', 'Remove stored global API key on save') }}</label>
+
+                  </div>
+
+                  {% endif %}
+
                 </div>
 
               </div>
@@ -441,7 +453,23 @@
 
                 <label class="form-label">{{ _t('admin.settings_default_model', 'Default Model') }}</label>
 
-                <input type="text" name="default_model" class="form-control" value="{{ s.get('default_model', '') }}" placeholder="gpt-5">
+                <div class="d-flex gap-2">
+
+                  <select name="default_model" id="default_model" class="form-select">
+
+                    <option value="{{ s.get('default_model', '') }}">{{ s.get('default_model', '') or '-- ' ~ _t('admin.settings_model_load', 'Load models') ~ ' --' }}</option>
+
+                  </select>
+
+                  <button type="button" class="btn btn-outline-secondary" id="loadAdminModelsBtn" onclick="loadAdminModels()" title="{{ _t('admin.settings_model_load', 'Load models') }}">
+
+                    <i class="bi bi-arrow-clockwise"></i>
+
+                  </button>
+
+                </div>
+
+                <div id="adminModelStatus" class="form-text"></div>
 
               </div>
 
@@ -1591,6 +1619,89 @@ function toggleGlobalKey() {
 
 }
 
+function loadAdminModels(silent) {
+
+  const select = document.getElementById('default_model');
+
+  const status = document.getElementById('adminModelStatus');
+
+  const btn = document.getElementById('loadAdminModelsBtn');
+
+  const keyInput = document.querySelector('input[name="global_api_key"]');
+
+  const endpointInput = document.querySelector('input[name="api_endpoint"]');
+
+  const csrf = document.querySelector('#settings-form input[name="csrf_token"]').value;
+
+  const current = select.value;
+
+  btn.disabled = true;
+
+  status.textContent = '{{ _t("admin.settings_model_loading", "Loading models...") }}';
+
+  fetch('{{ url_for("admin.settings_api_models") }}', {
+
+    method: 'POST',
+
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+
+    body: JSON.stringify({ api_key: keyInput ? keyInput.value.trim() : '', endpoint: endpointInput ? endpointInput.value.trim() : '' })
+
+  })
+
+  .then(r => r.json())
+
+  .then(data => {
+
+    if (!data.ok) { status.textContent = silent && !keyInput.value.trim() ? '' : (data.error || 'Error'); return; }
+
+    select.innerHTML = '';
+
+    const ids = data.models.slice();
+
+    // Keep a saved model that the endpoint no longer lists, so saving the form does not silently drop it.
+    if (current && !ids.includes(current)) ids.unshift(current);
+
+    ids.forEach(id => {
+
+      const opt = document.createElement('option');
+
+      opt.value = id;
+
+      opt.textContent = id;
+
+      if (id === current) opt.selected = true;
+
+      select.appendChild(opt);
+
+    });
+
+    const missing = current && !data.models.includes(current);
+
+    status.textContent = data.models.length + ' {{ _t("admin.settings_models_available", "models available") }}.' + (missing ? ' {{ _t("admin.settings_model_not_listed", "Saved model is not offered by this endpoint - please reselect.") }}' : '');
+
+  })
+
+  .catch(() => { status.textContent = '{{ _t("profile.connection_error", "Connection error.") }}'; })
+
+  .finally(() => { btn.disabled = false; });
+
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+
+  const keyInput = document.querySelector('input[name="global_api_key"]');
+
+  const endpointInput = document.querySelector('input[name="api_endpoint"]');
+
+  if (!keyInput || !endpointInput) return;
+
+  [keyInput, endpointInput].forEach(el => el.addEventListener('change', () => loadAdminModels(true)));
+
+  if (keyInput.value.trim()) loadAdminModels(true);
+
+});
+
 function toggleIncomingMail(enabled) {
 
   document.getElementById('mail-incoming-section').style.display = enabled ? '' : 'none';
@@ -1981,7 +2092,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
       fetch('{{ url_for('admin.translate_text') }}', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('#settings-form input[name="csrf_token"]').value },
         body: JSON.stringify({ text: text, target_lang: targetLang, target_lang_name: targetLangName })
       })
       .then(function(r) { return r.json(); })
